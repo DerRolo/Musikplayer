@@ -1,0 +1,203 @@
+package de.musikplayer.app
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+
+/** Aktionen, die ein Titel-Menü auslösen kann. */
+data class TrackActions(
+    val onPlayNext: (Track) -> Unit,
+    val onAddToQueue: (Track) -> Unit,
+    val onAddToPlaylist: (Track) -> Unit,
+    val onAssignArtist: (Track) -> Unit,
+    val onDelete: (Track) -> Unit,
+    /** Nur in Playlists: Titel aus der Playlist entfernen (Datei bleibt). */
+    val onRemoveFromPlaylist: ((Track) -> Unit)? = null
+)
+
+@Composable
+fun TrackRow(
+    track: Track,
+    actions: TrackActions,
+    playing: Boolean = false,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    var menu by remember { mutableStateOf(false) }
+    Row(
+        modifier.clickable(onClick = onClick).padding(start = 16.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                track.title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                track.artist + if (track.manual) " ·  zugeordnet" else "",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            formatDuration(track.durationMs),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+        Box {
+            IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Menü") }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(text = { Text("Als Nächstes spielen") }, onClick = { menu = false; actions.onPlayNext(track) })
+                DropdownMenuItem(text = { Text("Zur Warteschlange") }, onClick = { menu = false; actions.onAddToQueue(track) })
+                DropdownMenuItem(text = { Text("Zu Playlist hinzufügen") }, onClick = { menu = false; actions.onAddToPlaylist(track) })
+                DropdownMenuItem(text = { Text("Interpret zuordnen") }, onClick = { menu = false; actions.onAssignArtist(track) })
+                actions.onRemoveFromPlaylist?.let { rm ->
+                    DropdownMenuItem(text = { Text("Aus Playlist entfernen") }, onClick = { menu = false; rm(track) })
+                }
+                DropdownMenuItem(text = { Text("Datei löschen …") }, onClick = { menu = false; actions.onDelete(track) })
+            }
+        }
+    }
+}
+
+// ---------- Dialoge ----------
+
+@Composable
+fun TextInputDialog(
+    title: String,
+    label: String,
+    initial: String = "",
+    suggestions: List<String> = emptyList(),
+    confirmText: String = "OK",
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(text, { text = it }, label = { Text(label) }, singleLine = true)
+                for (s in suggestions.distinct().take(4)) {
+                    TextButton(onClick = { text = s }) { Text(s, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text(confirmText) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
+}
+
+@Composable
+fun ConfirmDialog(
+    title: String,
+    text: String,
+    confirmText: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(text) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(confirmText, color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
+}
+
+/**
+ * Löschen mit extra Bestätigung: Erst Liste der Dateien anzeigen, dann Haken „Ich weiß, dass das endgültig ist“
+ * setzen – erst dann wird der Löschen-Knopf aktiv. Es gibt keinen Papierkorb.
+ */
+@Composable
+fun DeleteDialog(tracks: List<Track>, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    var sure by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (tracks.size == 1) "Datei löschen?" else "${tracks.size} Dateien löschen?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Die Dateien werden endgültig vom Handy gelöscht – nicht nur aus der App.")
+                LazyColumn(Modifier.padding(vertical = 4.dp)) {
+                    items(tracks.take(8)) { t ->
+                        Text(
+                            t.fileName + "  (" + formatSize(t.size) + ")",
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (tracks.size > 8) item { Text("… und ${tracks.size - 8} weitere", style = MaterialTheme.typography.bodySmall) }
+                }
+                Row(Modifier.clickable { sure = !sure }, verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = sure, onCheckedChange = { sure = it })
+                    Text("Ja, endgültig löschen")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = sure) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
+}
+
+@Composable
+fun PlaylistPickerDialog(
+    playlists: List<Playlist>,
+    onDismiss: () -> Unit,
+    onPick: (Playlist) -> Unit,
+    onNew: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Zu Playlist hinzufügen") },
+        text = {
+            LazyColumn {
+                item { TextButton(onClick = onNew) { Text("+ Neue Playlist") } }
+                items(playlists) { p ->
+                    Text(
+                        p.name + "  (" + p.trackPaths.size + ")",
+                        modifier = Modifier.fillMaxWidth().clickable { onPick(p) }.padding(vertical = 12.dp, horizontal = 8.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
+}
