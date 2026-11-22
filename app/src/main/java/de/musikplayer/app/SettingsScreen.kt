@@ -35,7 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private enum class Page { Menu, Folders, Sort, Names, Dupes }
+private enum class Page { Menu, Folders, Sort, Names, Dupes, Cleanup }
 
 @Composable
 fun SettingsTab(vm: MusicViewModel) {
@@ -46,6 +46,7 @@ fun SettingsTab(vm: MusicViewModel) {
             MenuEntry("Interpreten & Ordner", "Ordner prüfen, Interpret zuordnen") { page = Page.Folders }
             MenuEntry("Nach Interpret einsortieren", "Zugeordnete Lieder in Musik/<Interpret> verschieben") { page = Page.Sort }
             MenuEntry("Dateinamen übernehmen", "Dateien so benennen, wie sie in der App angezeigt werden") { page = Page.Names }
+            MenuEntry("Aufräumen (erweitert)", "Duplikate und Dateinamen zusammen: pro Version behalten, säubern oder löschen") { page = Page.Cleanup }
             MenuEntry("Duplikate", "Ähnliche Lieder finden und aufräumen") { page = Page.Dupes }
             Text(
                 "Playlists, Zuordnungen und Einstellungen liegen nur in der App. Deine Dateien werden nie kopiert.",
@@ -57,6 +58,7 @@ fun SettingsTab(vm: MusicViewModel) {
         Page.Sort -> SortPage(vm) { page = Page.Menu }
         Page.Names -> NamesPage(vm) { page = Page.Menu }
         Page.Dupes -> DupesPage(vm) { page = Page.Menu }
+        Page.Cleanup -> CleanupPage(vm) { page = Page.Menu }
     }
 }
 
@@ -69,7 +71,7 @@ private fun MenuEntry(title: String, sub: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PageHeader(title: String, onBack: () -> Unit) {
+internal fun PageHeader(title: String, onBack: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         TextButton(onClick = onBack) { Text("‹ Zurück") }
         Text(title, style = MaterialTheme.typography.titleMedium)

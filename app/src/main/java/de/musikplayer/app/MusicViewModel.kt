@@ -367,6 +367,24 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Aufräumen (erweitert): erst löschen, dann umbenennen (vermeidet Namenskonflikte). Nur nach Bestätigung aufrufen. */
+    fun cleanup(delete: List<Track>, rename: List<Pair<Track, String>>) {
+        if (delete.isEmpty() && rename.isEmpty()) return
+        loading = true
+        viewModelScope.launch {
+            val (d, r) = withContext(Dispatchers.IO) {
+                val d = if (delete.isNotEmpty()) Library.deleteFiles(app, delete) else 0
+                val r = if (rename.isNotEmpty()) Library.renameFiles(app, rename).renamed else 0
+                Library.load(app)
+                d to r
+            }
+            refreshFromLibrary()
+            dupes = withContext(Dispatchers.Default) { Dupes.find(Library.tracks) }
+            loading = false
+            message = "$d gelöscht, $r umbenannt"
+        }
+    }
+
     // ---------- Duplikate ----------
 
     fun scanDupes() {
