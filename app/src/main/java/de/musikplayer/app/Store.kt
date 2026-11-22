@@ -20,7 +20,12 @@ object Store {
         private set
     var sleepMinutes: Int = 30
         private set
-    var fadeSeconds: Int = 60
+    var fadeMinutes: Int = 30
+        private set
+    var artistGrid: Boolean = true
+        private set
+    /** Wurde die Equalizer-Berechtigung schon einmal abgefragt? (Nicht bei jedem Öffnen erneut fragen.) */
+    var eqAsked: Boolean = false
         private set
     var sortBy: SortBy = SortBy.Title
         private set
@@ -41,7 +46,9 @@ object Store {
             folderArtists = o.optJSONObject("folderArtists").toMap()
             trackArtists = o.optJSONObject("trackArtists").toMap()
             sleepMinutes = o.optInt("sleepMinutes", 30)
-            fadeSeconds = o.optInt("fadeSeconds", 60)
+            fadeMinutes = o.optInt("fadeMinutes", 30)
+            artistGrid = o.optBoolean("artistGrid", true)
+            eqAsked = o.optBoolean("eqAsked", false)
             sortBy = try { SortBy.valueOf(o.optString("sortBy", "Title")) } catch (e: Exception) { SortBy.Title }
         } catch (e: Exception) {
             // kaputte Datei ignorieren, mit leeren Daten weitermachen
@@ -60,7 +67,9 @@ object Store {
         o.put("folderArtists", JSONObject(folderArtists))
         o.put("trackArtists", JSONObject(trackArtists))
         o.put("sleepMinutes", sleepMinutes)
-        o.put("fadeSeconds", fadeSeconds)
+        o.put("fadeMinutes", fadeMinutes)
+        o.put("artistGrid", artistGrid)
+        o.put("eqAsked", eqAsked)
         o.put("sortBy", sortBy.name)
         val tmp = File(ctx.filesDir, "$FILE.tmp")
         tmp.writeText(o.toString())
@@ -86,16 +95,22 @@ object Store {
         save(ctx)
     }
 
-    fun addToPlaylist(ctx: Context, id: String, paths: List<String>) {
+    /** Fügt Pfade hinzu. Mit [skipDuplicates] werden Lieder übersprungen, die schon in der Playlist sind. */
+    fun addToPlaylist(ctx: Context, id: String, paths: List<String>, skipDuplicates: Boolean = true) {
         playlists = playlists.map { p ->
-            if (p.id == id) p.copy(trackPaths = p.trackPaths + paths.filter { it !in p.trackPaths }) else p
+            if (p.id != id) p
+            else if (skipDuplicates) {
+                val have = p.trackPaths.toHashSet()
+                p.copy(trackPaths = p.trackPaths + paths.filter { have.add(it) })
+            } else p.copy(trackPaths = p.trackPaths + paths)
         }
         save(ctx)
     }
 
-    fun removeFromPlaylist(ctx: Context, id: String, path: String) {
+    /** Entfernt den Eintrag an Position [index] (ein Lied kann mehrfach vorkommen). */
+    fun removeFromPlaylistAt(ctx: Context, id: String, index: Int) {
         playlists = playlists.map { p ->
-            if (p.id == id) p.copy(trackPaths = p.trackPaths - path) else p
+            if (p.id == id && index in p.trackPaths.indices) p.copy(trackPaths = p.trackPaths.filterIndexed { i, _ -> i != index }) else p
         }
         save(ctx)
     }
@@ -133,9 +148,23 @@ object Store {
 
     // ---------- Einstellungen ----------
 
-    fun setSleep(ctx: Context, minutes: Int, fade: Int) {
+    fun setSleepMinutes(ctx: Context, minutes: Int) {
         sleepMinutes = minutes
-        fadeSeconds = fade
+        save(ctx)
+    }
+
+    fun setFadeMinutes(ctx: Context, minutes: Int) {
+        fadeMinutes = minutes
+        save(ctx)
+    }
+
+    fun setEqAsked(ctx: Context) {
+        eqAsked = true
+        save(ctx)
+    }
+
+    fun setArtistGrid(ctx: Context, grid: Boolean) {
+        artistGrid = grid
         save(ctx)
     }
 

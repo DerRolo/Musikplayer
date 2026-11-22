@@ -63,6 +63,7 @@ object Library {
 
     private fun scan(ctx: Context): List<Track> {
         val out = ArrayList<Track>()
+        val raws = ArrayList<Raw>()
         val seen = HashSet<String>()
         val proj = arrayOf(
             MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.TITLE,
@@ -93,17 +94,33 @@ object Library {
                 if (!f.isFile) continue
                 val dur = c.getLong(iDur)
                 if (dur <= 0L) continue
-                val tag = knownArtist(c.getString(iArtist))
+                val tag = knownArtist(c.getString(iArtist))?.let { Names.cleanArtist(it) }
                 val title = c.getString(iTitle)?.takeIf { it.isNotBlank() } ?: f.nameWithoutExtension
-                val (artist, manual) = effectiveArtist(p, tag)
-                out += Track(
-                    c.getLong(iId), p, title, artist, tag ?: "", c.getString(iAlbum).orEmpty(),
-                    c.getLong(iAlbumId), dur, c.getLong(iSize), c.getLong(iMod) * 1000, manual
+                raws += Raw(
+                    c.getLong(iId), p, title, tag, c.getString(iAlbum).orEmpty(),
+                    c.getLong(iAlbumId), dur, c.getLong(iSize), c.getLong(iMod) * 1000
                 )
             }
         }
+        // Zweiter Durchgang: Namen bereinigen (Tracknummern, Unterstriche); Ordner-Mehrheit für „1 Song“-Muster
+        val numbered = raws.groupBy { File(it.path).parent.orEmpty() }
+            .mapValues { (_, l) -> Names.folderIsNumbered(l.map { File(it.path).nameWithoutExtension }) }
+        for (r in raws) {
+            val (artist, manual) = effectiveArtist(r.path, r.tag)
+            val artistForCheck = r.tag ?: artist.takeIf { it != UNKNOWN_ARTIST }
+            val title = Names.clean(r.title, artistForCheck, numbered[File(r.path).parent.orEmpty()] == true)
+            out += Track(
+                r.id, r.path, title, artist, r.tag ?: "", r.album,
+                r.albumId, r.durationMs, r.size, r.modified, manual
+            )
+        }
         return out
     }
+
+    private class Raw(
+        val id: Long, val path: String, val title: String, val tag: String?, val album: String,
+        val albumId: Long, val durationMs: Long, val size: Long, val modified: Long
+    )
 
     /** Titel-Zuordnung > Interpret im Tag > Ordner-Zuordnung > „Unbekannt“. */
     private fun effectiveArtist(path: String, tag: String?): Pair<String, Boolean> {
@@ -123,8 +140,8 @@ object Library {
         tracks.filter { it.album.isNotBlank() }.groupBy { it.album }.toSortedMap(String.CASE_INSENSITIVE_ORDER)
 
     fun sorted(list: List<Track>, by: SortBy): List<Track> = when (by) {
-        SortBy.Title -> list.sortedBy { it.title.lowercase() }
-        SortBy.Artist -> list.sortedWith(compareBy({ it.artist.lowercase() }, { it.title.lowercase() }))
+        SortBy.Title -> list.sortedBy { it.sortKey }
+        SortBy.Artist -> list.sortedWith(compareBy({ it.artistKey }, { it.sortKey }))
         SortBy.Added -> list.sortedByDescending { it.modified }
         SortBy.Duration -> list.sortedByDescending { it.durationMs }
     }
@@ -137,7 +154,7 @@ object Library {
             val assigned = Store.folderArtists[folder]
             if (unknown == 0 && assigned == null) continue
             val name = File(folder).name
-            val suggestion = if (!isGenericFolder(name) && name.isNotBlank()) name else null
+            val suggestion = if (!isGenericFolder(name) && name.isNotBlank()) Names.cleanArtist(name) else null
             out += FolderInfo(folder, name, list.size, unknown, suggestion, assigned)
         }
         return out.sortedWith(compareByDescending<FolderInfo> { it.assigned == null }.thenByDescending { it.unknownCount })
@@ -163,12 +180,19 @@ object Library {
     /** Liste für einen Kontext: "all", "a:<Interpret>", "p:<Playlist-ID>". */
     fun tracksFor(context: String): List<Track> = when {
         context == "all" -> sorted(tracks, SortBy.Title)
-        context.startsWith("a:") -> tracks.filter { it.artist == context.substring(2) }.sortedBy { it.title.lowercase() }
+        context.startsWith("a:") -> tracks.filter { it.artist == context.substring(2) }.sortedBy { it.sortKey }
         context.startsWith("p:") -> {
             val byPath = tracks.associateBy { it.path }
             Store.playlists.firstOrNull { it.id == context.substring(2) }?.trackPaths?.mapNotNull { byPath[it] }.orEmpty()
         }
         else -> emptyList()
+    }
+
+    /** Einträge einer Playlist mit ihrer Position in der gespeicherten Liste (fehlende Dateien entfallen). */
+    fun playlistEntries(id: String): List<Pair<Int, Track>> {
+        val byPath = tracks.associateBy { it.path }
+        val p = Store.playlists.firstOrNull { it.id == id } ?: return emptyList()
+        return p.trackPaths.mapIndexedNotNull { i, path -> byPath[path]?.let { i to it } }
     }
 
     // ---------- Dateien ----------

@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package de.musikplayer.app
 
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +41,9 @@ data class TrackActions(
     val onAddToPlaylist: (Track) -> Unit,
     val onAssignArtist: (Track) -> Unit,
     val onDelete: (Track) -> Unit,
+    /** Mehrere Lieder auf einmal (Auswahl, ganzer Interpret). */
+    val onAddManyToPlaylist: (List<Track>) -> Unit,
+    val onDeleteMany: (List<Track>) -> Unit,
     /** Nur in Playlists: Titel aus der Playlist entfernen (Datei bleibt). */
     val onRemoveFromPlaylist: ((Track) -> Unit)? = null
 )
@@ -48,13 +54,17 @@ fun TrackRow(
     actions: TrackActions,
     playing: Boolean = false,
     modifier: Modifier = Modifier,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     Row(
-        modifier.clickable(onClick = onClick).padding(start = 16.dp, top = 6.dp, bottom = 6.dp),
+        modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(start = 16.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (selectionMode) Checkbox(checked = selected, onCheckedChange = null, modifier = Modifier.padding(end = 12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 track.title,
@@ -77,7 +87,7 @@ fun TrackRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 8.dp)
         )
-        Box {
+        if (!selectionMode) Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Menü") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Als Nächstes spielen") }, onClick = { menu = false; actions.onPlayNext(track) })

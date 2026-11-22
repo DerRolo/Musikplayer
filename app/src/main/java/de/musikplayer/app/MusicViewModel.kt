@@ -30,6 +30,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     var sortBy by mutableStateOf(SortBy.Title)
         private set
     var message by mutableStateOf<String?>(null)
+    var artistGrid by mutableStateOf(true)
+        private set
 
     // ---------- Duplikate ----------
     var dupes by mutableStateOf<List<DupGroup>?>(null)
@@ -63,6 +65,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     init {
         Store.load(app)
         sortBy = Store.sortBy
+        artistGrid = Store.artistGrid
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         val f = MediaController.Builder(app, token).buildAsync()
         f.addListener({
@@ -225,15 +228,32 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         playlists = Store.playlists
     }
 
-    fun addToPlaylist(id: String, list: List<Track>) {
-        Store.addToPlaylist(app, id, list.map { it.path })
-        playlists = Store.playlists
-        message = "Zur Playlist hinzugefügt"
+    /** Lieder aus [list], die schon in der Playlist [id] sind (für die Warnung vor Doppelten). */
+    fun alreadyIn(id: String, list: List<Track>): List<Track> {
+        val have = Store.playlists.firstOrNull { it.id == id }?.trackPaths?.toHashSet() ?: return emptyList()
+        return list.filter { it.path in have }
     }
 
-    fun removeFromPlaylist(id: String, path: String) {
-        Store.removeFromPlaylist(app, id, path)
+    fun addToPlaylist(id: String, list: List<Track>, skipDuplicates: Boolean = true) {
+        val before = Store.playlists.firstOrNull { it.id == id }?.trackPaths?.size ?: 0
+        Store.addToPlaylist(app, id, list.map { it.path }, skipDuplicates)
         playlists = Store.playlists
+        val added = (Store.playlists.firstOrNull { it.id == id }?.trackPaths?.size ?: 0) - before
+        message = if (added == 1) "1 Lied hinzugefügt" else "$added Lieder hinzugefügt"
+    }
+
+    fun removeFromPlaylistAt(id: String, index: Int) {
+        Store.removeFromPlaylistAt(app, id, index)
+        playlists = Store.playlists
+    }
+
+    fun playlistEntries(id: String): List<Pair<Int, Track>> = Library.playlistEntries(id)
+
+    // ---------- Ansicht ----------
+
+    fun setArtistGrid(grid: Boolean) {
+        Store.setArtistGrid(app, grid)
+        artistGrid = grid
     }
 
     fun movePlaylistTrack(id: String, from: Int, to: Int) {
@@ -312,12 +332,21 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ---------- Sleep-Timer ----------
 
-    fun startSleep(minutes: Int, fadeSeconds: Int) {
-        Store.setSleep(app, minutes, fadeSeconds)
-        SleepTimer.start(minutes, fadeSeconds)
+    fun startSleep(minutes: Int) {
+        Store.setSleepMinutes(app, minutes)
+        SleepTimer.startSleep(minutes)
     }
 
-    fun cancelSleep() = SleepTimer.cancel()
+    fun cancelSleep() = SleepTimer.cancelSleep()
+
+    // ---------- Ausfaden (Lautstärke sinkt linear über die eingestellte Zeit) ----------
+
+    fun startFade(minutes: Int) {
+        Store.setFadeMinutes(app, minutes)
+        SleepTimer.startFade(minutes)
+    }
+
+    fun cancelFade() = SleepTimer.cancelFade()
 
     override fun onCleared() {
         controller?.removeListener(listener)

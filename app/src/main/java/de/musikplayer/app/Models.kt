@@ -15,7 +15,10 @@ data class Track(
     val size: Long,
     val modified: Long,
     /** true, wenn der Interpret von dir zugeordnet wurde (Ordner- oder Titel-Zuordnung). */
-    val manual: Boolean = false
+    val manual: Boolean = false,
+    /** Zum Sortieren und Suchen: ohne Akzente, kleingeschrieben. */
+    val sortKey: String = Names.fold(title),
+    val artistKey: String = Names.fold(artist)
 ) {
     val folder: String get() = File(path).parent ?: ""
     val fileName: String get() = File(path).name

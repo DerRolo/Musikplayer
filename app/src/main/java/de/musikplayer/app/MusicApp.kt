@@ -4,9 +4,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlaylistPlay
-import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -23,15 +24,24 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.sp
+
+private val TAB_TITLES = listOf("Titel", "Interpreten", "Playlists", "Suche", "Einstellungen")
 
 @Composable
 fun MusicApp(vm: MusicViewModel) {
     var tab by remember { mutableIntStateOf(0) }
     var showPlayer by remember { mutableStateOf(false) }
+    val sel = remember { Selection() }
 
-    // Dialog-Zustand für Aktionen aus dem Titel-Menü
+    // Sprünge aus der Suche in die Interpreten-/Playlist-Reiter
+    var artistToOpen by remember { mutableStateOf<String?>(null) }
+    var playlistToOpen by remember { mutableStateOf<String?>(null) }
+
+    // Dialog-Zustand
     var addToPlaylist by remember { mutableStateOf<List<Track>?>(null) }
     var newPlaylistFor by remember { mutableStateOf<List<Track>?>(null) }
+    var dupAdd by remember { mutableStateOf<Pair<Playlist, List<Track>>?>(null) }
     var renameList by remember { mutableStateOf<Playlist?>(null) }
     var deleteList by remember { mutableStateOf<Playlist?>(null) }
     var assign by remember { mutableStateOf<Track?>(null) }
@@ -42,6 +52,7 @@ fun MusicApp(vm: MusicViewModel) {
     LaunchedEffect(vm.message) {
         vm.message?.let { snack.showSnackbar(it); vm.message = null }
     }
+    LaunchedEffect(tab) { sel.clear() }
     BackHandler(enabled = showPlayer) { showPlayer = false }
 
     val actions = TrackActions(
@@ -49,7 +60,9 @@ fun MusicApp(vm: MusicViewModel) {
         onAddToQueue = { vm.addToQueue(listOf(it)) },
         onAddToPlaylist = { addToPlaylist = listOf(it) },
         onAssignArtist = { assign = it },
-        onDelete = { delete = listOf(it) }
+        onDelete = { delete = listOf(it) },
+        onAddManyToPlaylist = { addToPlaylist = it },
+        onDeleteMany = { delete = it }
     )
 
     if (showPlayer) {
@@ -61,23 +74,35 @@ fun MusicApp(vm: MusicViewModel) {
                 Column {
                     MiniPlayer(vm) { showPlayer = true }
                     NavigationBar {
-                        NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Icons.Filled.MusicNote, null) }, label = { Text("Titel") })
-                        NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.Filled.Person, null) }, label = { Text("Interpreten") })
-                        NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Filled.PlaylistPlay, null) }, label = { Text("Playlists") })
-                        NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Filled.Settings, null) }, label = { Text("Einstellungen") })
+                        val icons = listOf(Icons.Filled.MusicNote, Icons.Filled.Person, Icons.Filled.PlaylistPlay, Icons.Filled.Search, Icons.Filled.Settings)
+                        TAB_TITLES.forEachIndexed { i, title ->
+                            NavigationBarItem(
+                                selected = tab == i,
+                                onClick = { tab = i },
+                                icon = { Icon(icons[i], null) },
+                                label = { Text(title, fontSize = 10.sp, maxLines = 1, softWrap = false) }
+                            )
+                        }
                     }
                 }
             }
         ) { pad ->
             Column(Modifier.padding(pad)) {
                 when (tab) {
-                    0 -> SongsTab(vm, actions)
-                    1 -> ArtistsTab(vm, actions)
+                    0 -> SongsTab(vm, actions, sel)
+                    1 -> ArtistsTab(vm, actions, sel, artistToOpen) { artistToOpen = null }
                     2 -> PlaylistsTab(
                         vm, actions,
                         onNew = { newPlaylistFor = emptyList() },
                         onRename = { renameList = it },
-                        onDeleteList = { deleteList = it }
+                        onDeleteList = { deleteList = it },
+                        openRequest = playlistToOpen,
+                        onConsumed = { playlistToOpen = null }
+                    )
+                    3 -> SearchTab(
+                        vm, actions,
+                        onOpenArtist = { artistToOpen = it; tab = 1 },
+                        onOpenPlaylist = { playlistToOpen = it; tab = 2 }
                     )
                     else -> SettingsTab(vm)
                 }
@@ -90,8 +115,22 @@ fun MusicApp(vm: MusicViewModel) {
         PlaylistPickerDialog(
             playlists = vm.playlists,
             onDismiss = { addToPlaylist = null },
-            onPick = { vm.addToPlaylist(it.id, list); addToPlaylist = null },
+            onPick = { p ->
+                addToPlaylist = null
+                // Warnung, wenn Lieder schon in der Playlist sind
+                if (vm.alreadyIn(p.id, list).isEmpty()) vm.addToPlaylist(p.id, list) else dupAdd = p to list
+            },
             onNew = { newPlaylistFor = list; addToPlaylist = null }
+        )
+    }
+    dupAdd?.let { (p, list) ->
+        DuplicateAddDialog(
+            playlistName = p.name,
+            dupCount = vm.alreadyIn(p.id, list).size,
+            total = list.size,
+            onSkip = { vm.addToPlaylist(p.id, list, skipDuplicates = true); dupAdd = null },
+            onAddAll = { vm.addToPlaylist(p.id, list, skipDuplicates = false); dupAdd = null },
+            onCancel = { dupAdd = null }
         )
     }
     newPlaylistFor?.let { first ->

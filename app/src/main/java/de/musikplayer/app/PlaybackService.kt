@@ -1,5 +1,6 @@
 package de.musikplayer.app
 
+import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -38,7 +39,16 @@ class PlaybackService : MediaLibraryService() {
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
         SleepTimer.player = player
-        session = MediaLibrarySession.Builder(this, player, LibraryCallback()).build()
+        Spectrum.sessionIdProvider = { player.audioSessionId }
+        // Tippen auf die Benachrichtigung / Mediensteuerung öffnet die App
+        val open = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        session = MediaLibrarySession.Builder(this, player, LibraryCallback())
+            .setSessionActivity(open)
+            .build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
@@ -51,6 +61,8 @@ class PlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         SleepTimer.cancel()
         SleepTimer.player = null
+        Spectrum.stop()
+        Spectrum.sessionIdProvider = null
         session?.let {
             it.player.release()
             it.release()
