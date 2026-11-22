@@ -251,7 +251,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ---------- Ansicht ----------
 
-    fun setArtistGrid(grid: Boolean) {
+    fun showArtistsAsGrid(grid: Boolean) {
         Store.setArtistGrid(app, grid)
         artistGrid = grid
     }

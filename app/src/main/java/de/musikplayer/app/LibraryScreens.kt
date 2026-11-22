@@ -176,7 +176,7 @@ fun ArtistsTab(
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SearchField(query, { query = it }, "Interpret suchen", Modifier.weight(1f))
-                IconButton(onClick = { vm.setArtistGrid(!vm.artistGrid) }) {
+                IconButton(onClick = { vm.showArtistsAsGrid(!vm.artistGrid) }) {
                     Icon(if (vm.artistGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.artistGrid) "Listenansicht" else "Kachelansicht")
                 }
             }
