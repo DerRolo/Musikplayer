@@ -13,6 +13,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -174,7 +179,7 @@ private fun DupesPage(vm: MusicViewModel, onBack: () -> Unit) {
         PageHeader("Duplikate", onBack)
         Text(
             "Erkennt Lieder mit ähnlichem Dateinamen, ähnlicher Dateigröße und gleicher Länge. " +
-                "Das erste Lied jeder Gruppe wird zum Behalten vorgeschlagen.",
+                "Das erste Lied jeder Gruppe wird zum Behalten vorgeschlagen. Auf ein Lied tippen = anhören, Kästchen = zum Löschen markieren.",
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
         )
         Row(Modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -190,8 +195,12 @@ private fun DupesPage(vm: MusicViewModel, onBack: () -> Unit) {
         if (toDelete.isNotEmpty()) {
             Button(
                 onClick = { showDelete = true },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            ) { Text("${toDelete.size} markierte löschen …") }
+            ) {
+                Icon(Icons.Filled.Delete, null, Modifier.size(18.dp))
+                Text("  ${toDelete.size} markierte löschen …")
+            }
         }
         if (groups != null && groups.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Keine Duplikate gefunden") }
@@ -215,12 +224,12 @@ private fun DupesPage(vm: MusicViewModel, onBack: () -> Unit) {
                 items(g.tracks, key = { "d${gi}_${it.path}" }) { t ->
                     val checked = t.path in marked
                     Row(
-                        Modifier.fillMaxWidth().clickable { if (checked) marked.remove(t.path) else marked.add(t.path) }.padding(start = 8.dp, end = 16.dp),
+                        Modifier.fillMaxWidth().clickable { vm.play(listOf(t), 0, "q") }.padding(start = 8.dp, end = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(checked = checked, onCheckedChange = { if (it) marked.add(t.path) else marked.remove(t.path) })
                         Column(Modifier.weight(1f)) {
-                            Text(t.fileName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(t.fileName)
                             Text(
                                 formatSize(t.size) + " · " + formatDuration(t.durationMs) + " · " + t.folder.substringAfterLast('/'),
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -268,10 +277,10 @@ private fun RenameConfirmDialog(entries: List<Pair<Track, String>>, onDismiss: (
                 LazyColumn(Modifier.padding(vertical = 4.dp)) {
                     items(entries.take(6)) { (t, base) ->
                         Column(Modifier.padding(vertical = 3.dp)) {
-                            Text(t.fileName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(t.fileName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
                                 "→ " + Names.fileBaseName(base) + t.fileName.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" },
-                                style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -329,20 +338,22 @@ private fun NamesPage(vm: MusicViewModel, onBack: () -> Unit) {
                                 style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
-                            TextButton(onClick = { confirm = proposals(list) }) { Text("Alle von ihm übernehmen") }
+                            TextButton(onClick = { confirm = proposals(list) }) { Text("Alle übernehmen") }
                         }
                     }
                     items(list, key = { "n${it.path}" }) { t ->
                         val proposed = Library.proposedFileName(t)
                         val clash = (t.folder + "/" + proposed) in existing
-                        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(t.fileName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("→ $proposed", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                if (clash) Text("Name gibt es schon – wird nummeriert", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 6.dp)) {
+                            Text("Jetzt:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(t.fileName, style = MaterialTheme.typography.bodyMedium)
+                            Text("Neu:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
+                            Text(proposed, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                            if (clash) Text("Name gibt es schon – wird nummeriert", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { manual = t }) { Text("Ändern …") }
+                                TextButton(onClick = { confirm = proposals(listOf(t)) }) { Text("Übernehmen") }
                             }
-                            TextButton(onClick = { manual = t }) { Text("Ändern") }
-                            TextButton(onClick = { confirm = proposals(listOf(t)) }) { Text("OK") }
                         }
                     }
                 }

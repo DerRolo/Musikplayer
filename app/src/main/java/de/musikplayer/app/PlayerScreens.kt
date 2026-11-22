@@ -126,15 +126,16 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onOpen: () 
                     )
                 }
                 if (track != null) {
-                    IconButton(onClick = { vm.toggleFavorite(track.path) }, Modifier.size(40.dp)) {
+                    IconButton(onClick = { vm.toggleFavorite(track.path) }, Modifier.size(36.dp)) {
                         Icon(if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Lieblingssong", tint = if (fav) HEART else LocalContentColor.current)
                     }
-                    IconButton(onClick = { onAddToPlaylist(track) }, Modifier.size(40.dp)) { Icon(Icons.Filled.Add, "Zu Playlist") }
+                    IconButton(onClick = { onAddToPlaylist(track) }, Modifier.size(36.dp)) { Icon(Icons.Filled.Add, "Zu Playlist") }
                 }
-                IconButton(onClick = { vm.togglePlay() }, Modifier.size(44.dp)) {
+                IconButton(onClick = { vm.previous() }, Modifier.size(36.dp)) { Icon(Icons.Filled.SkipPrevious, "Zurück") }
+                IconButton(onClick = { vm.togglePlay() }, Modifier.size(42.dp)) {
                     Icon(if (vm.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (vm.isPlaying) "Pause" else "Abspielen", Modifier.size(32.dp))
                 }
-                IconButton(onClick = { vm.next() }, Modifier.size(40.dp)) { Icon(Icons.Filled.SkipNext, "Weiter") }
+                IconButton(onClick = { vm.next() }, Modifier.size(36.dp)) { Icon(Icons.Filled.SkipNext, "Weiter") }
             }
             LinearProgressIndicator(
                 progress = { frac },

@@ -24,7 +24,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -61,12 +65,12 @@ data class GroupActions(
 @Composable
 fun GroupMenu(expanded: Boolean, onDismiss: () -> Unit, a: GroupActions) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        DropdownMenuItem(text = { Text("Alle abspielen") }, onClick = { onDismiss(); a.onPlay() })
-        DropdownMenuItem(text = { Text("Zufällig abspielen") }, onClick = { onDismiss(); a.onShuffle() })
-        DropdownMenuItem(text = { Text("Als Nächstes spielen") }, onClick = { onDismiss(); a.onPlayNext() })
-        DropdownMenuItem(text = { Text("Zur Warteschlange") }, onClick = { onDismiss(); a.onAddToQueue() })
+        MenuItem("Alle abspielen", Icons.Filled.PlayArrow) { onDismiss(); a.onPlay() }
+        MenuItem("Zufällig abspielen", Icons.Filled.Shuffle) { onDismiss(); a.onShuffle() }
+        MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { onDismiss(); a.onPlayNext() }
+        MenuItem("Zur Warteschlange", Icons.Filled.QueueMusic) { onDismiss(); a.onAddToQueue() }
         a.onAddToPlaylist?.let { add ->
-            DropdownMenuItem(text = { Text("Zu Playlist hinzufügen") }, onClick = { onDismiss(); add() })
+            MenuItem("Zu Playlist hinzufügen", Icons.Filled.PlaylistAdd) { onDismiss(); add() }
         }
     }
 }
@@ -169,8 +173,8 @@ fun SelectionBar(
             Box {
                 IconButton(onClick = { more = true }, enabled = count > 0) { Icon(Icons.Filled.MoreVert, "Mehr") }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                    DropdownMenuItem(text = { Text("Als Nächstes spielen") }, onClick = { more = false; onPlayNext() })
-                    DropdownMenuItem(text = { Text("Dateien löschen …") }, onClick = { more = false; onDelete() })
+                    MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { more = false; onPlayNext() }
+                    MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { more = false; onDelete() }
                 }
             }
         }
@@ -231,7 +235,7 @@ fun LetterBar(selected: String?, available: Set<String>, onSelect: (String?) -> 
 }
 
 @Composable
-private fun LetterChip(text: String, active: Boolean, enabled: Boolean, onClick: () -> Unit) {
+fun LetterChip(text: String, active: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val bg = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
     val fg = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
     Box(

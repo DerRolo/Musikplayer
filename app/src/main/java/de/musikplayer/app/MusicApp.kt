@@ -4,8 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -26,7 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
 
-private val TAB_TITLES = listOf("Titel", "Interpreten", "Playlists", "Suche", "Einstellungen")
+private val TAB_TITLES = listOf("Bibliothek", "Suche", "Playlists", "Einstellungen")
 
 @Composable
 fun MusicApp(vm: MusicViewModel) {
@@ -78,7 +77,7 @@ fun MusicApp(vm: MusicViewModel) {
                 Column {
                     MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }) { showPlayer = true }
                     NavigationBar {
-                        val icons = listOf(Icons.Filled.MusicNote, Icons.Filled.Person, Icons.Filled.PlaylistPlay, Icons.Filled.Search, Icons.Filled.Settings)
+                        val icons = listOf(Icons.Filled.LibraryMusic, Icons.Filled.Search, Icons.Filled.PlaylistPlay, Icons.Filled.Settings)
                         TAB_TITLES.forEachIndexed { i, title ->
                             NavigationBarItem(
                                 selected = tab == i,
@@ -93,8 +92,12 @@ fun MusicApp(vm: MusicViewModel) {
         ) { pad ->
             Column(Modifier.padding(pad)) {
                 when (tab) {
-                    0 -> SongsTab(vm, actions, sel)
-                    1 -> ArtistsTab(vm, actions, sel, artistToOpen) { artistToOpen = null }
+                    0 -> LibraryTab(vm, actions, sel, artistToOpen) { artistToOpen = null }
+                    1 -> SearchTab(
+                        vm, actions,
+                        onOpenArtist = { artistToOpen = it; tab = 0 },
+                        onOpenPlaylist = { playlistToOpen = it; tab = 2 }
+                    )
                     2 -> PlaylistsTab(
                         vm, actions,
                         onNew = { newPlaylistFor = emptyList() },
@@ -102,11 +105,6 @@ fun MusicApp(vm: MusicViewModel) {
                         onDeleteList = { deleteList = it },
                         openRequest = playlistToOpen,
                         onConsumed = { playlistToOpen = null }
-                    )
-                    3 -> SearchTab(
-                        vm, actions,
-                        onOpenArtist = { artistToOpen = it; tab = 1 },
-                        onOpenPlaylist = { playlistToOpen = it; tab = 2 }
                     )
                     else -> SettingsTab(vm)
                 }

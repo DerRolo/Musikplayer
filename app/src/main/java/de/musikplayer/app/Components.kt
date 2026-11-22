@@ -1,13 +1,29 @@
-@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package de.musikplayer.app
 
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -56,6 +72,21 @@ data class TrackActions(
     val onRename: (Track) -> Unit = {}
 )
 
+/** Menüeintrag mit Symbol. [danger] = rot (Löschen). */
+@Composable
+fun MenuItem(text: String, icon: ImageVector, danger: Boolean = false, onClick: () -> Unit) {
+    val red = MaterialTheme.colorScheme.error
+    DropdownMenuItem(
+        text = { Text(text, color = if (danger) red else Color.Unspecified) },
+        leadingIcon = { Icon(icon, null, tint = if (danger) red else LocalContentColor.current) },
+        onClick = onClick
+    )
+}
+
+private val HEART_PINK = Color(0xFFE5486B)
+
+/** Nach rechts wischen = Herz, nach links wischen = Warteschlange. Die Zeile springt danach zurück. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrackRow(
     track: Track,
@@ -70,56 +101,83 @@ fun TrackRow(
     onClick: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
-    Row(
-        modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(start = 16.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (selectionMode) Checkbox(checked = selected, onCheckedChange = null, modifier = Modifier.padding(end = 12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                track.title,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                track.artist + (if (track.manual) " ·  zugeordnet" else "") + "  ·  " + formatDuration(track.durationMs),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+    val state = rememberSwipeToDismissBoxState(confirmValueChange = { v ->
+        when (v) {
+            SwipeToDismissBoxValue.EndToStart -> actions.onAddToQueue(track)
+            SwipeToDismissBoxValue.StartToEnd -> actions.onToggleFavorite(track)
+            else -> {}
         }
-        if (!selectionMode && !compact) {
-            val fav = actions.isFavorite(track)
-            IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                    contentDescription = "Lieblingssong",
-                    tint = if (fav) androidx.compose.ui.graphics.Color(0xFFE5486B) else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = { actions.onAddToPlaylist(track) }, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Filled.Add, contentDescription = "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        if (!selectionMode) Box {
-            IconButton(onClick = { menu = true }, modifier = Modifier.size(40.dp)) { Icon(Icons.Filled.MoreVert, contentDescription = "Menü") }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text("Als Nächstes spielen") }, onClick = { menu = false; actions.onPlayNext(track) })
-                DropdownMenuItem(text = { Text("Zur Warteschlange") }, onClick = { menu = false; actions.onAddToQueue(track) })
-                DropdownMenuItem(text = { Text("Zu Playlist hinzufügen") }, onClick = { menu = false; actions.onAddToPlaylist(track) })
-                DropdownMenuItem(
-                    text = { Text(if (actions.isFavorite(track)) "Aus Lieblingssongs entfernen" else "Zu Lieblingssongs") },
-                    onClick = { menu = false; actions.onToggleFavorite(track) }
-                )
-                DropdownMenuItem(text = { Text("Interpret zuordnen") }, onClick = { menu = false; actions.onAssignArtist(track) })
-                actions.onRemoveFromPlaylist?.let { rm ->
-                    DropdownMenuItem(text = { Text("Aus Playlist entfernen") }, onClick = { menu = false; rm(track) })
+        false
+    })
+    SwipeToDismissBox(
+        state = state,
+        modifier = modifier,
+        enableDismissFromStartToEnd = !selectionMode,
+        enableDismissFromEndToStart = !selectionMode,
+        backgroundContent = {
+            when (state.dismissDirection) {
+                SwipeToDismissBoxValue.StartToEnd -> Box(Modifier.fillMaxSize().background(HEART_PINK).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart) {
+                    Icon(Icons.Filled.Favorite, "Lieblingssong", tint = Color.White)
                 }
-                DropdownMenuItem(text = { Text("Datei umbenennen …") }, onClick = { menu = false; actions.onRename(track) })
-                DropdownMenuItem(text = { Text("Datei löschen …") }, onClick = { menu = false; actions.onDelete(track) })
+                SwipeToDismissBoxValue.EndToStart -> Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterEnd) {
+                    Icon(Icons.Filled.QueueMusic, "Zur Warteschlange", tint = MaterialTheme.colorScheme.onPrimary)
+                }
+                else -> {}
+            }
+        }
+    ) {
+        Row(
+            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(start = 16.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (selectionMode) Checkbox(checked = selected, onCheckedChange = null, modifier = Modifier.padding(end = 12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    track.title,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    track.artist + (if (track.manual) " ·  zugeordnet" else "") + "  ·  " + formatDuration(track.durationMs),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (!selectionMode && !compact) {
+                val fav = actions.isFavorite(track)
+                IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = "Lieblingssong",
+                        tint = if (fav) HEART_PINK else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = { actions.onAddToPlaylist(track) }, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Filled.Add, contentDescription = "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (!selectionMode) Box {
+                IconButton(onClick = { menu = true }, modifier = Modifier.size(40.dp)) { Icon(Icons.Filled.MoreVert, contentDescription = "Menü") }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { menu = false; actions.onPlayNext(track) }
+                    MenuItem("Zur Warteschlange", Icons.Filled.QueueMusic) { menu = false; actions.onAddToQueue(track) }
+                    MenuItem("Zu Playlist hinzufügen", Icons.Filled.PlaylistAdd) { menu = false; actions.onAddToPlaylist(track) }
+                    MenuItem(
+                        if (actions.isFavorite(track)) "Aus Lieblingssongs entfernen" else "Zu Lieblingssongs",
+                        if (actions.isFavorite(track)) Icons.Outlined.FavoriteBorder else Icons.Filled.Favorite
+                    ) { menu = false; actions.onToggleFavorite(track) }
+                    MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
+                    actions.onRemoveFromPlaylist?.let { rm ->
+                        MenuItem("Aus Playlist entfernen", Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
+                    }
+                    MenuItem("Datei umbenennen …", Icons.Filled.Edit) { menu = false; actions.onRename(track) }
+                    MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
+                }
             }
         }
     }

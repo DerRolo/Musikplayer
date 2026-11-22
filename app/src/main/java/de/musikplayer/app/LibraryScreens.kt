@@ -33,6 +33,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -110,6 +111,21 @@ fun TrackListBody(
                 }
             }
         }
+    }
+}
+
+// ---------- Bibliothek (Titel + Interpreten) ----------
+
+@Composable
+fun LibraryTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, openArtist: String?, onArtistConsumed: () -> Unit) {
+    var mode by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(openArtist) { if (openArtist != null) mode = 1 }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LetterChip("Titel", mode == 0, true) { mode = 0 }
+            LetterChip("Interpreten", mode == 1, true) { mode = 1 }
+        }
+        if (mode == 0) SongsTab(vm, actions, sel) else ArtistsTab(vm, actions, sel, openArtist, onArtistConsumed)
     }
 }
 
