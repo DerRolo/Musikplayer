@@ -161,6 +161,7 @@ fun ArtistsTab(
 ) {
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
+    var letter by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(openRequest) {
         if (openRequest != null) { open = openRequest; onConsumed() }
     }
@@ -169,9 +170,11 @@ fun ArtistsTab(
     val groups = remember(vm.tracks) { vm.tracks.groupBy { it.artist }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
     val artist = open
     if (artist == null) {
-        val names = remember(groups, query) {
+        val available = remember(groups) { groups.keys.map { Names.letterOf(it) }.toSet() }
+        val activeLetter = letter?.takeIf { it in available }
+        val names = remember(groups, query, activeLetter) {
             val q = Names.fold(query.trim())
-            groups.keys.filter { q.isEmpty() || q in Names.fold(it) }
+            groups.keys.filter { (q.isEmpty() || q in Names.fold(it)) && (activeLetter == null || Names.letterOf(it) == activeLetter) }
         }
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -180,6 +183,7 @@ fun ArtistsTab(
                     Icon(if (vm.artistGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.artistGrid) "Listenansicht" else "Kachelansicht")
                 }
             }
+            LetterBar(activeLetter, available) { letter = it }
             if (names.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Keine Interpreten") }
             } else if (vm.artistGrid) {
@@ -253,7 +257,7 @@ fun PlaylistsTab(
             LazyColumn(Modifier.fillMaxSize()) {
                 items(vm.playlists, key = { it.id }) { p ->
                     val list = vm.playlistEntries(p.id).map { it.second }
-                    GroupRow(p.name, list, p.trackPaths.size, false, groupActions(vm, list, "p:${p.id}", null)) { openId = p.id }
+                    GroupRow(p.name, list, p.trackPaths.size, false, groupActions(vm, list, "p:${p.id}", null), heart = p.id == FAV_ID) { openId = p.id }
                 }
             }
         }
@@ -267,7 +271,7 @@ fun PlaylistsTab(
                 Text(open.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 IconButton(onClick = { vm.playShuffled(list, ctx) }, enabled = list.isNotEmpty()) { Icon(Icons.Filled.Shuffle, "Zufällig") }
             }
-            Row(Modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (open.id != FAV_ID) Row(Modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { onRename(open) }) { Text("Umbenennen") }
                 TextButton(onClick = { onDeleteList(open); openId = null }) { Text("Playlist löschen", color = MaterialTheme.colorScheme.error) }
             }
@@ -276,7 +280,7 @@ fun PlaylistsTab(
                 itemsIndexed(entries, key = { _, e -> e.first }) { i, (idx, t) ->
                     val rowActions = actions.copy(onRemoveFromPlaylist = { vm.removeFromPlaylistAt(open.id, idx) })
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        TrackRow(t, rowActions, modifier = Modifier.weight(1f)) { vm.play(list, i, ctx) }
+                        TrackRow(t, rowActions, modifier = Modifier.weight(1f), compact = true) { vm.play(list, i, ctx) }
                         IconButton(onClick = { vm.movePlaylistTrack(open.id, idx, entries[i - 1].first) }, enabled = i > 0) {
                             Icon(Icons.Filled.ArrowUpward, "Nach oben")
                         }

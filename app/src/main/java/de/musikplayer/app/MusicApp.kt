@@ -46,6 +46,7 @@ fun MusicApp(vm: MusicViewModel) {
     var deleteList by remember { mutableStateOf<Playlist?>(null) }
     var assign by remember { mutableStateOf<Track?>(null) }
     var delete by remember { mutableStateOf<List<Track>?>(null) }
+    var renameTrack by remember { mutableStateOf<Track?>(null) }
 
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { vm.load() }
@@ -62,17 +63,20 @@ fun MusicApp(vm: MusicViewModel) {
         onAssignArtist = { assign = it },
         onDelete = { delete = listOf(it) },
         onAddManyToPlaylist = { addToPlaylist = it },
-        onDeleteMany = { delete = it }
+        onDeleteMany = { delete = it },
+        onToggleFavorite = { vm.toggleFavorite(it.path) },
+        isFavorite = { vm.isFavorite(it.path) },
+        onRename = { renameTrack = it }
     )
 
     if (showPlayer) {
-        NowPlayingScreen(vm) { showPlayer = false }
+        NowPlayingScreen(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }) { showPlayer = false }
     } else {
         Scaffold(
             snackbarHost = { SnackbarHost(snack) },
             bottomBar = {
                 Column {
-                    MiniPlayer(vm) { showPlayer = true }
+                    MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }) { showPlayer = true }
                     NavigationBar {
                         val icons = listOf(Icons.Filled.MusicNote, Icons.Filled.Person, Icons.Filled.PlaylistPlay, Icons.Filled.Search, Icons.Filled.Settings)
                         TAB_TITLES.forEachIndexed { i, title ->
@@ -162,6 +166,16 @@ fun MusicApp(vm: MusicViewModel) {
             initial = if (t.artist == UNKNOWN_ARTIST) "" else t.artist,
             onDismiss = { assign = null },
             onConfirm = { vm.assignTrack(t.path, it); assign = null }
+        )
+    }
+    renameTrack?.let { t ->
+        TextInputDialog(
+            title = "Datei umbenennen", label = "Name (ohne Endung)",
+            initial = t.fileName.substringBeforeLast('.'),
+            suggestions = listOf(Library.proposedFileName(t).substringBeforeLast('.')),
+            confirmText = "Umbenennen",
+            onDismiss = { renameTrack = null },
+            onConfirm = { vm.renameFiles(listOf(t to it)); renameTrack = null }
         )
     }
     delete?.let { list ->

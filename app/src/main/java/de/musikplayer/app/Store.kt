@@ -5,6 +5,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
+/** Die feste Playlist „Lieblingssongs“ (Herz-Button). Kann nicht gelöscht oder umbenannt werden. */
+const val FAV_ID = "fav"
+const val FAV_NAME = "Lieblingssongs"
+
 /**
  * Alles, was nur in der App lebt (keine Dateien werden kopiert):
  * Playlists, Interpret-Zuordnungen, Einstellungen. Gespeichert als JSON in der App.
@@ -37,7 +41,7 @@ object Store {
         if (loaded) return
         loaded = true
         val f = File(ctx.filesDir, FILE)
-        if (!f.exists()) return
+        if (!f.exists()) { ensureFavorites(); return }
         try {
             val o = JSONObject(f.readText())
             playlists = o.optJSONArray("playlists").mapObjects { p ->
@@ -53,6 +57,23 @@ object Store {
         } catch (e: Exception) {
             // kaputte Datei ignorieren, mit leeren Daten weitermachen
         }
+        ensureFavorites()
+    }
+
+    private fun ensureFavorites() {
+        if (playlists.none { it.id == FAV_ID }) playlists = listOf(Playlist(FAV_ID, FAV_NAME, emptyList())) + playlists
+    }
+
+    /** Herz an/aus. Neue Favoriten kommen nach vorn. Gibt zurück, ob das Lied jetzt ein Favorit ist. */
+    fun toggleFavorite(ctx: Context, path: String): Boolean {
+        val fav = playlists.firstOrNull { it.id == FAV_ID } ?: return false
+        val now = path !in fav.trackPaths
+        playlists = playlists.map { p ->
+            if (p.id != FAV_ID) p
+            else p.copy(trackPaths = if (now) listOf(path) + p.trackPaths else p.trackPaths.filter { it != path })
+        }
+        save(ctx)
+        return now
     }
 
     @Synchronized
@@ -86,11 +107,13 @@ object Store {
     }
 
     fun renamePlaylist(ctx: Context, id: String, name: String) {
+        if (id == FAV_ID) return
         playlists = playlists.map { if (it.id == id) it.copy(name = name.trim()) else it }
         save(ctx)
     }
 
     fun deletePlaylist(ctx: Context, id: String) {
+        if (id == FAV_ID) return
         playlists = playlists.filter { it.id != id }
         save(ctx)
     }

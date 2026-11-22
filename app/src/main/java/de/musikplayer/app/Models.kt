@@ -27,7 +27,7 @@ data class Track(
 data class Playlist(val id: String, val name: String, val trackPaths: List<String>)
 
 /** Gruppe von Titeln, die vermutlich dasselbe Lied sind. */
-data class DupGroup(val tracks: List<Track>, val sameSize: Boolean)
+data class DupGroup(val tracks: List<Track>, val sameSize: Boolean, val reason: String = "")
 
 /** Vorschlag: Ordner ohne eindeutigen Interpret im Tag. */
 data class FolderInfo(

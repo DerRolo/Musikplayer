@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,7 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private enum class Page { Menu, Folders, Sort, Dupes }
+private enum class Page { Menu, Folders, Sort, Names, Dupes }
 
 @Composable
 fun SettingsTab(vm: MusicViewModel) {
@@ -39,6 +40,7 @@ fun SettingsTab(vm: MusicViewModel) {
         Page.Menu -> Column(Modifier.fillMaxSize()) {
             MenuEntry("Interpreten & Ordner", "Ordner prüfen, Interpret zuordnen") { page = Page.Folders }
             MenuEntry("Nach Interpret einsortieren", "Zugeordnete Lieder in Musik/<Interpret> verschieben") { page = Page.Sort }
+            MenuEntry("Dateinamen übernehmen", "Dateien so benennen, wie sie in der App angezeigt werden") { page = Page.Names }
             MenuEntry("Duplikate", "Ähnliche Lieder finden und aufräumen") { page = Page.Dupes }
             Text(
                 "Playlists, Zuordnungen und Einstellungen liegen nur in der App. Deine Dateien werden nie kopiert.",
@@ -48,6 +50,7 @@ fun SettingsTab(vm: MusicViewModel) {
         }
         Page.Folders -> FoldersPage(vm) { page = Page.Menu }
         Page.Sort -> SortPage(vm) { page = Page.Menu }
+        Page.Names -> NamesPage(vm) { page = Page.Menu }
         Page.Dupes -> DupesPage(vm) { page = Page.Menu }
     }
 }
@@ -162,6 +165,7 @@ private fun SortPage(vm: MusicViewModel, onBack: () -> Unit) {
 private fun DupesPage(vm: MusicViewModel, onBack: () -> Unit) {
     val marked: SnapshotStateList<String> = remember { mutableStateListOf() }
     var showDelete by remember { mutableStateOf(false) }
+    var renameConfirm by remember { mutableStateOf<List<Pair<Track, String>>?>(null) }
     val groups = vm.dupes
     val byPath = vm.tracks.associateBy { it.path }
     val toDelete = marked.mapNotNull { byPath[it] }
@@ -197,7 +201,8 @@ private fun DupesPage(vm: MusicViewModel, onBack: () -> Unit) {
                 item(key = "h$gi") {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "${g.tracks.size} ähnliche Dateien" + if (g.sameSize) " · gleiche Größe" else "",
+                            "${g.tracks.size} ähnliche Dateien" + (if (g.sameSize) " · gleiche Größe" else "") +
+                                (if (g.reason.isNotEmpty()) "\n" + g.reason else ""),
                             style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.weight(1f)
                         )
@@ -221,6 +226,15 @@ private fun DupesPage(vm: MusicViewModel, onBack: () -> Unit) {
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
+                            val proposed = Library.proposedFileName(t)
+                            if (proposed != t.fileName) {
+                                Text(
+                                    "In der App: $proposed",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                                TextButton(onClick = { renameConfirm = listOf(t to proposed.substringBeforeLast('.')) }) { Text("Dateinamen übernehmen") }
+                            }
                         }
                         if (t == g.tracks[0]) Text("behalten?", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                     }
@@ -228,11 +242,123 @@ private fun DupesPage(vm: MusicViewModel, onBack: () -> Unit) {
             }
         }
     }
+    renameConfirm?.let { list ->
+        RenameConfirmDialog(list, onDismiss = { renameConfirm = null }, onConfirm = { renameConfirm = null; vm.renameFiles(list) })
+    }
     if (showDelete) {
         DeleteDialog(
             tracks = toDelete,
             onDismiss = { showDelete = false },
             onConfirm = { showDelete = false; vm.deleteTracks(toDelete); marked.clear() }
+        )
+    }
+}
+
+// ---------- Dateinamen übernehmen ----------
+
+/** Zeigt vor dem Umbenennen alt → neu (die ersten Einträge) und verlangt eine Bestätigung. */
+@Composable
+private fun RenameConfirmDialog(entries: List<Pair<Track, String>>, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (entries.size == 1) "Datei umbenennen?" else "${entries.size} Dateien umbenennen?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Die Dateien werden auf dem Handy umbenannt. Playlists und Favoriten bleiben erhalten.", style = MaterialTheme.typography.bodySmall)
+                LazyColumn(Modifier.padding(vertical = 4.dp)) {
+                    items(entries.take(6)) { (t, base) ->
+                        Column(Modifier.padding(vertical = 3.dp)) {
+                            Text(t.fileName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "→ " + Names.fileBaseName(base) + t.fileName.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" },
+                                style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    if (entries.size > 6) item { Text("… und ${entries.size - 6} weitere", style = MaterialTheme.typography.bodySmall) }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Umbenennen") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
+}
+
+@Composable
+private fun NamesPage(vm: MusicViewModel, onBack: () -> Unit) {
+    var letter by remember { mutableStateOf<String?>(null) }
+    var confirm by remember { mutableStateOf<List<Pair<Track, String>>?>(null) }
+    var manual by remember { mutableStateOf<Track?>(null) }
+
+    val cands = remember(vm.tracks) { vm.renameCandidates() }
+    val groups = remember(cands) { cands.groupBy { it.artist }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
+    val available = remember(groups) { groups.keys.map { Names.letterOf(it) }.toSet() }
+    val active = letter?.takeIf { it in available }
+    val shownGroups = remember(groups, active) { groups.filterKeys { active == null || Names.letterOf(it) == active } }
+    val shownCount = shownGroups.values.sumOf { it.size }
+    val existing = remember(vm.tracks) { vm.tracks.map { it.folder + "/" + it.fileName }.toHashSet() }
+
+    fun proposals(list: List<Track>) = list.map { it to Library.proposedFileName(it).substringBeforeLast('.') }
+
+    Column(Modifier.fillMaxSize()) {
+        PageHeader("Dateinamen übernehmen", onBack)
+        Text(
+            "Links der aktuelle Dateiname, darunter der Name, wie er in der App steht (ohne Nummern, Unterstriche usw.). " +
+                "Geändert wird erst nach deiner Bestätigung.",
+            style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        )
+        if (vm.loading) {
+            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        }
+        if (cands.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Alle Dateinamen passen schon") }
+        } else {
+            LetterBar(active, available) { letter = it }
+            Button(
+                onClick = { confirm = proposals(shownGroups.values.flatten()) },
+                enabled = shownCount > 0 && !vm.loading,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            ) { Text(if (active == null) "Alle $shownCount übernehmen …" else "Alle mit $active ($shownCount) übernehmen …") }
+            LazyColumn(Modifier.fillMaxSize()) {
+                shownGroups.forEach { (artist, list) ->
+                    item(key = "h$artist") {
+                        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "$artist  (${list.size})", Modifier.weight(1f),
+                                style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                            TextButton(onClick = { confirm = proposals(list) }) { Text("Alle von ihm übernehmen") }
+                        }
+                    }
+                    items(list, key = { "n${it.path}" }) { t ->
+                        val proposed = Library.proposedFileName(t)
+                        val clash = (t.folder + "/" + proposed) in existing
+                        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(t.fileName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("→ $proposed", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (clash) Text("Name gibt es schon – wird nummeriert", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                            }
+                            TextButton(onClick = { manual = t }) { Text("Ändern") }
+                            TextButton(onClick = { confirm = proposals(listOf(t)) }) { Text("OK") }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    confirm?.let { list ->
+        RenameConfirmDialog(list, onDismiss = { confirm = null }, onConfirm = { confirm = null; vm.renameFiles(list) })
+    }
+    manual?.let { t ->
+        TextInputDialog(
+            title = "Datei umbenennen", label = "Name (ohne Endung)",
+            initial = Library.proposedFileName(t).substringBeforeLast('.'),
+            confirmText = "Umbenennen",
+            onDismiss = { manual = null },
+            onConfirm = { vm.renameFiles(listOf(t to it)); manual = null }
         )
     }
 }

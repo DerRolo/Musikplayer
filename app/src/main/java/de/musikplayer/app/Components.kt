@@ -10,10 +10,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -45,7 +49,11 @@ data class TrackActions(
     val onAddManyToPlaylist: (List<Track>) -> Unit,
     val onDeleteMany: (List<Track>) -> Unit,
     /** Nur in Playlists: Titel aus der Playlist entfernen (Datei bleibt). */
-    val onRemoveFromPlaylist: ((Track) -> Unit)? = null
+    val onRemoveFromPlaylist: ((Track) -> Unit)? = null,
+    /** Herz (Lieblingssongs) und Datei umbenennen. */
+    val onToggleFavorite: (Track) -> Unit = {},
+    val isFavorite: (Track) -> Boolean = { false },
+    val onRename: (Track) -> Unit = {}
 )
 
 @Composable
@@ -56,6 +64,8 @@ fun TrackRow(
     modifier: Modifier = Modifier,
     selectionMode: Boolean = false,
     selected: Boolean = false,
+    /** Ohne Herz/„+“ in der Zeile (steht dann im Menü), z. B. in Playlists mit Pfeilen. */
+    compact: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
@@ -74,29 +84,41 @@ fun TrackRow(
                 color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
             )
             Text(
-                track.artist + if (track.manual) " ·  zugeordnet" else "",
+                track.artist + (if (track.manual) " ·  zugeordnet" else "") + "  ·  " + formatDuration(track.durationMs),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Text(
-            formatDuration(track.durationMs),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
+        if (!selectionMode && !compact) {
+            val fav = actions.isFavorite(track)
+            IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                    contentDescription = "Lieblingssong",
+                    tint = if (fav) androidx.compose.ui.graphics.Color(0xFFE5486B) else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = { actions.onAddToPlaylist(track) }, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Filled.Add, contentDescription = "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         if (!selectionMode) Box {
-            IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Menü") }
+            IconButton(onClick = { menu = true }, modifier = Modifier.size(40.dp)) { Icon(Icons.Filled.MoreVert, contentDescription = "Menü") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Als Nächstes spielen") }, onClick = { menu = false; actions.onPlayNext(track) })
                 DropdownMenuItem(text = { Text("Zur Warteschlange") }, onClick = { menu = false; actions.onAddToQueue(track) })
                 DropdownMenuItem(text = { Text("Zu Playlist hinzufügen") }, onClick = { menu = false; actions.onAddToPlaylist(track) })
+                DropdownMenuItem(
+                    text = { Text(if (actions.isFavorite(track)) "Aus Lieblingssongs entfernen" else "Zu Lieblingssongs") },
+                    onClick = { menu = false; actions.onToggleFavorite(track) }
+                )
                 DropdownMenuItem(text = { Text("Interpret zuordnen") }, onClick = { menu = false; actions.onAssignArtist(track) })
                 actions.onRemoveFromPlaylist?.let { rm ->
                     DropdownMenuItem(text = { Text("Aus Playlist entfernen") }, onClick = { menu = false; rm(track) })
                 }
+                DropdownMenuItem(text = { Text("Datei umbenennen …") }, onClick = { menu = false; actions.onRename(track) })
                 DropdownMenuItem(text = { Text("Datei löschen …") }, onClick = { menu = false; actions.onDelete(track) })
             }
         }

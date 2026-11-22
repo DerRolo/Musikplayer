@@ -28,7 +28,6 @@ object Spectrum {
     val bands: StateFlow<FloatArray> = _bands
 
     private var visualizer: Visualizer? = null
-    private val smooth = FloatArray(BANDS)
 
     /** Startet die Analyse. Gibt false zurück, wenn das Gerät sie nicht liefert (dann zeigt die App eine Animation). */
     @Synchronized
@@ -45,7 +44,7 @@ object Spectrum {
                 override fun onFftDataCapture(visualizer: Visualizer?, fft: ByteArray?, samplingRate: Int) {
                     if (fft != null) process(fft, samplingRate / 1000)
                 }
-            }, Visualizer.getMaxCaptureRate() / 2, false, true)
+            }, Visualizer.getMaxCaptureRate(), false, true)
             v.enabled = true
             visualizer = v
             true
@@ -65,7 +64,6 @@ object Spectrum {
             }
         }
         visualizer = null
-        smooth.fill(0f)
         _bands.value = FloatArray(BANDS)
     }
 
@@ -90,9 +88,8 @@ object Spectrum {
             // Höhen sind von Natur aus leiser: sanft anheben; dann komprimieren
             val tilt = 1f + 1.4f * i / BANDS
             val level = ((peak * tilt) / 110f).coerceIn(0f, 1f).pow(0.8f)
-            // schnell hoch, langsam runter
-            smooth[i] = if (level > smooth[i]) level else smooth[i] * 0.82f + level * 0.18f
-            out[i] = smooth[i]
+            // Glättung passiert in der Anzeige (jedes Bild), hier nur die Rohwerte
+            out[i] = level
         }
         _bands.value = out
     }

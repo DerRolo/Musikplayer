@@ -31,7 +31,7 @@ object Names {
     }
 
     fun clean(raw: String, artist: String? = null, folderNumbered: Boolean = false): String {
-        var s = raw.trim()
+        var s = tidy(raw).trim()
         val artistStartsWithDigit = !artist.isNullOrBlank() && artist.first().isDigit()
         val protectedByArtist = artistStartsWithDigit && s.startsWith(artist!!, ignoreCase = true)
         if (!protectedByArtist) s = stripNumber(s, folderNumbered)
@@ -52,7 +52,24 @@ object Names {
         return if (rest.isBlank()) s else rest
     }
 
-    fun cleanArtist(raw: String): String = raw.replace('_', ' ').replace(SPACES, " ").trim()
+    fun cleanArtist(raw: String): String = tidy(raw).replace('_', ' ').replace(SPACES, " ").trim()
+
+    private val INVISIBLE = Regex("[\\u200B-\\u200D\\u2060\\uFEFF]")
+    private val UNI_SPACE = Regex("[\\p{Zs}\\u0085]")
+    private val BAD_FILE_CHARS = Regex("[\\\\/:*?\"<>|]")
+
+    /** Unsichtbare Zeichen entfernen, geschützte/Sonderleerzeichen zu normalen Leerzeichen machen (sonst greifen die Regeln nicht). */
+    fun tidy(s: String): String = s.replace(INVISIBLE, "").replace(UNI_SPACE, " ")
+
+    /** Anfangsbuchstabe für die Buchstabenleiste: A–Z, alles andere (Zahlen, Zeichen) unter „#“. */
+    fun letterOf(name: String): String {
+        val c = fold(name).firstOrNull { it.isLetterOrDigit() } ?: return "#"
+        return if (c in 'a'..'z') c.uppercaseChar().toString() else "#"
+    }
+
+    /** Dateiname (ohne Endung) aus einem Titel: Zeichen, die Android in Dateinamen nicht erlaubt, werden zu „-“. */
+    fun fileBaseName(title: String): String =
+        title.replace(BAD_FILE_CHARS, "-").replace(SPACES, " ").trim().trimEnd('.').ifEmpty { "_" }
 
     /** Kleinschreibung ohne Akzente – für Sortierung und Suche. */
     fun fold(s: String): String =

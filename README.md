@@ -38,3 +38,12 @@ Updates: Code ändern, hochladen, neue APK laden und drüberinstallieren (gleich
 Die App meldet sich als Medien-App. Weil sie nicht aus dem Play Store kommt, muss in der
 Android-Auto-App auf dem Handy die Entwicklereinstellung **„Unbekannte Quellen“** aktiviert sein:
 Android Auto → Einstellungen → Version mehrfach antippen → Entwicklereinstellungen → Unbekannte Quellen.
+
+
+## Neu
+- Interpreten: Buchstaben-Filter (A–Z, #)
+- Herz (Lieblingssongs) und „+“ (zu Playlist) in Zeilen, Player und Mini-Player
+- Mini-Player farbig mit Cover und Fortschritt
+- Player: Wischen mit Vorschau des nächsten/vorigen Liedes, ruckelfreier Regler und Equalizer, neue Schallplatte
+- Einstellungen → Dateinamen übernehmen (einzeln, pro Interpret, alle; immer mit Bestätigung), Datei umbenennen im Titelmenü
+- Duplikate: Grund der Erkennung, „Dateinamen übernehmen“

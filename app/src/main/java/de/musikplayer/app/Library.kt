@@ -279,6 +279,49 @@ object Library {
         return MoveResult(map.size, failed, map)
     }
 
+    // ---------- Dateinamen übernehmen ----------
+
+    /** Dateiname so, wie das Lied in der App heißt (bereinigter Titel + alte Endung). */
+    fun proposedFileName(t: Track): String {
+        val ext = File(t.path).extension
+        return Names.fileBaseName(t.title) + if (ext.isEmpty()) "" else ".$ext"
+    }
+
+    /** Lieder, deren Dateiname vom Namen in der App abweicht. */
+    fun renameCandidates(): List<Track> = tracks.filter { File(it.path).name != proposedFileName(it) }
+
+    data class RenameResult(val renamed: Int, val failed: Int, val skipped: Int)
+
+    /** Benennt Dateien um (Titel, neuer Name ohne Endung). Playlists und Zuordnungen ziehen mit. */
+    fun renameFiles(ctx: Context, items: List<Pair<Track, String>>): RenameResult {
+        val map = LinkedHashMap<String, String>()
+        var failed = 0
+        var skipped = 0
+        for ((t, base) in items) {
+            val src = File(t.path)
+            val dir = src.parentFile
+            if (!src.isFile || dir == null) { failed++; continue }
+            val ext = src.extension
+            val name = Names.fileBaseName(base) + if (ext.isEmpty()) "" else ".$ext"
+            if (name == src.name) { skipped++; continue }
+            var target: File
+            val ok: Boolean
+            if (name.equals(src.name, ignoreCase = true)) {
+                // nur Groß-/Kleinschreibung: auf FAT/exFAT (SD-Karte) über einen Zwischennamen
+                target = File(dir, name)
+                val tmp = File(dir, "." + System.nanoTime() + ".tmp")
+                ok = src.renameTo(tmp) && (tmp.renameTo(target) || run { tmp.renameTo(src); false })
+            } else {
+                target = uniqueTarget(dir, name)
+                ok = src.renameTo(target)
+            }
+            if (ok) map[t.path] = target.path else failed++
+        }
+        Store.remapPaths(ctx, map)
+        rescan(ctx, map.keys.toList() + map.values.toList())
+        return RenameResult(map.size, failed, skipped)
+    }
+
     /** Löscht Dateien endgültig. Gibt die Anzahl der gelöschten Dateien zurück. */
     fun deleteFiles(ctx: Context, list: List<Track>): Int {
         val done = ArrayList<String>()

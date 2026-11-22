@@ -4,7 +4,15 @@ package de.musikplayer.app
 
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -72,6 +80,7 @@ fun GroupTile(
     circle: Boolean,
     actions: GroupActions,
     modifier: Modifier = Modifier,
+    heart: Boolean = false,
     onClick: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
@@ -80,10 +89,9 @@ fun GroupTile(
             Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = { menu = true }).padding(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Cover(
-                tracks, name,
-                Modifier.fillMaxWidth().aspectRatio(1f).clip(if (circle) CircleShape else RoundedCornerShape(12.dp))
-            )
+            val shape = if (circle) CircleShape else RoundedCornerShape(12.dp)
+            if (heart) FavCover(Modifier.fillMaxWidth().aspectRatio(1f).clip(shape))
+            else Cover(tracks, name, Modifier.fillMaxWidth().aspectRatio(1f).clip(shape))
             Text(
                 name, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp)
@@ -104,6 +112,7 @@ fun GroupRow(
     count: Int,
     circle: Boolean,
     actions: GroupActions,
+    heart: Boolean = false,
     onClick: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
@@ -112,7 +121,9 @@ fun GroupRow(
             Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = { menu = true }).padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Cover(tracks, name, Modifier.size(48.dp).clip(if (circle) CircleShape else RoundedCornerShape(8.dp)), sizePx = 128)
+            val shape = if (circle) CircleShape else RoundedCornerShape(8.dp)
+            if (heart) FavCover(Modifier.size(48.dp).clip(shape))
+            else Cover(tracks, name, Modifier.size(48.dp).clip(shape), sizePx = 128)
             Text(name, Modifier.weight(1f).padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -193,4 +204,41 @@ fun DuplicateAddDialog(
             }
         }
     )
+}
+
+/** Cover der Lieblingssongs: rosa Verlauf mit Herz. */
+@Composable
+fun FavCover(modifier: Modifier) {
+    Box(
+        modifier.background(Brush.linearGradient(listOf(Color(0xFF7B2FF7), Color(0xFFE5486B)))),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(Icons.Filled.Favorite, null, tint = Color.White, modifier = Modifier.fillMaxSize(0.5f))
+    }
+}
+
+/** Buchstaben-Leiste: „Alle“, „#“, A–Z. Buchstaben ohne Einträge sind ausgegraut. */
+@Composable
+fun LetterBar(selected: String?, available: Set<String>, onSelect: (String?) -> Unit) {
+    val letters = remember { listOf("#") + ('A'..'Z').map { it.toString() } }
+    LazyRow(
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        item { LetterChip("Alle", selected == null, true) { onSelect(null) } }
+        items(letters) { l -> LetterChip(l, selected == l, l in available) { onSelect(if (selected == l) null else l) } }
+    }
+}
+
+@Composable
+private fun LetterChip(text: String, active: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val bg = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val fg = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        Modifier.clip(RoundedCornerShape(50)).background(bg.copy(alpha = if (enabled) 1f else 0.35f))
+            .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = fg.copy(alpha = if (enabled) 1f else 0.4f), style = MaterialTheme.typography.labelLarge)
+    }
 }

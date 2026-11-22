@@ -16,6 +16,10 @@ object Dupes {
 
     private val SUFFIX = Regex("(\\s*\\(\\d+\\)|\\s*\\[\\d+\\]|[-_ ]\\d{1,2}|[-_ ]?(kopie|copy)(\\s*\\(\\d+\\))?)$", RegexOption.IGNORE_CASE)
     private val TRACK_NO = Regex("^\\d{1,3}\\s*[-_. ]+\\s*")
+    private val BRACKETS = Regex("\\([^)]*\\)|\\[[^\\]]*\\]")
+
+    /** Titel ohne Klammerzusätze, nur Buchstaben/Ziffern, ohne Akzente. */
+    private fun coreTitle(title: String): String = Names.fold(title.replace(BRACKETS, " ")).filter { it.isLetterOrDigit() }
 
     /** Dateiname ohne Endung, ohne „(1)“, „- Kopie“, „_2“ und führende Titelnummer; nur Buchstaben/Ziffern. */
     fun normName(fileName: String): String {
@@ -82,10 +86,35 @@ object Dupes {
                 j++
             }
         }
+        // Zweites Kriterium: gleicher Interpret + gleicher Titel (ohne Klammern wie „feat. …“), Länge ähnlich.
+        // Fängt auch Lieder, die erst durch die Namens-Bereinigung gleich heißen oder leicht unterschiedlich lang sind.
+        val byKey = HashMap<String, MutableList<Int>>()
+        for (i in list.indices) {
+            val t = list[i]
+            if (t.artist == UNKNOWN_ARTIST) continue
+            val core = coreTitle(t.title)
+            if (core.length < 3) continue
+            byKey.getOrPut(t.artistKey + "|" + core) { ArrayList() }.add(i)
+        }
+        for (idx in byKey.values) {
+            for (a in 0 until idx.size - 1) {
+                val x = list[idx[a]]
+                val y = list[idx[a + 1]]
+                val tol = max(6000L, (max(x.durationMs, y.durationMs) * 0.03).toLong())
+                if (abs(x.durationMs - y.durationMs) <= tol) parent[root(idx[a + 1])] = root(idx[a])
+            }
+        }
         val groups = HashMap<Int, MutableList<Track>>()
         for (i in list.indices) groups.getOrPut(root(i)) { ArrayList() }.add(list[i])
         return groups.values.filter { it.size >= 2 }
-            .map { g -> DupGroup(order(g), g.all { it.size == g[0].size }) }
+            .map { g ->
+                val o = order(g)
+                val ident = o.all { sizeClose(it.size, o[0].size) && abs(it.durationMs - o[0].durationMs) <= DURATION_TOLERANCE_MS }
+                DupGroup(
+                    o, o.all { it.size == o[0].size },
+                    if (ident) "Name, Größe und Länge passen" else "Gleicher Titel und Interpret, Länge ähnlich"
+                )
+            }
             .sortedWith(compareByDescending<DupGroup> { it.sameSize }.thenByDescending { it.tracks[0].size * it.tracks.size })
     }
 

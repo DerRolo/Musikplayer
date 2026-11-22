@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -31,6 +32,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         private set
     var message by mutableStateOf<String?>(null)
     var artistGrid by mutableStateOf(true)
+        private set
+    var favoritePaths by mutableStateOf<Set<String>>(emptySet())
         private set
 
     // ---------- Duplikate ----------
@@ -57,6 +60,11 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         private set
     var currentIndex by mutableStateOf(0)
         private set
+    /** Das Lied, das als Nächstes bzw. davor käme (für die Vorschau beim Wischen); null = keins. */
+    var nextItem by mutableStateOf<MediaItem?>(null)
+        private set
+    var prevItem by mutableStateOf<MediaItem?>(null)
+        private set
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) = syncFromPlayer()
@@ -66,6 +74,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         Store.load(app)
         sortBy = Store.sortBy
         artistGrid = Store.artistGrid
+        syncPlaylists()
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         val f = MediaController.Builder(app, token).buildAsync()
         f.addListener({
@@ -81,7 +90,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
                 controller?.let {
                     if (it.isPlaying) positionMs = it.currentPosition
                 }
-                kotlinx.coroutines.delay(500)
+                kotlinx.coroutines.delay(250)
             }
         }
     }
@@ -99,6 +108,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
             else -> RepeatMode.Off
         }
         currentIndex = c.currentMediaItemIndex
+        nextItem = c.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET }?.let { c.getMediaItemAt(it) }
+        prevItem = c.previousMediaItemIndex.takeIf { it != C.INDEX_UNSET }?.let { c.getMediaItemAt(it) }
         queue = (0 until c.mediaItemCount).map { c.getMediaItemAt(it) }
     }
 
@@ -116,7 +127,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private fun refreshFromLibrary() {
         tracks = Library.tracks
-        playlists = Store.playlists
+        syncPlaylists()
         folders = Library.folders()
         sortBy = Store.sortBy
     }
@@ -147,6 +158,9 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         c.prepare()
         c.play()
     }
+
+    /** Aktuelle Abspielposition, direkt vom Player (für ruckelfreie Anzeige, jedes Bild neu abgefragt). */
+    fun livePositionMs(): Long = controller?.currentPosition ?: positionMs
 
     fun togglePlay() {
         val c = controller ?: return
@@ -210,22 +224,56 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ---------- Playlists (nur in der App, keine Dateikopien) ----------
 
+    private fun syncPlaylists() {
+        playlists = Store.playlists
+        favoritePaths = Store.playlists.firstOrNull { it.id == FAV_ID }?.trackPaths?.toHashSet() ?: emptySet()
+    }
+
+    fun isFavorite(path: String) = path in favoritePaths
+
+    /** Herz an/aus für ein Lied (Lieblingssongs). */
+    fun toggleFavorite(path: String) {
+        val now = Store.toggleFavorite(app, path)
+        syncPlaylists()
+        message = if (now) "Zu Lieblingssongs hinzugefügt" else "Aus Lieblingssongs entfernt"
+    }
+
+    // ---------- Dateinamen übernehmen / umbenennen (immer erst nach Bestätigung in der Oberfläche) ----------
+
+    fun renameCandidates(): List<Track> = Library.renameCandidates()
+
+    fun renameFiles(items: List<Pair<Track, String>>) {
+        if (items.isEmpty()) return
+        loading = true
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.IO) {
+                val res = Library.renameFiles(app, items)
+                Library.load(app)
+                res
+            }
+            refreshFromLibrary()
+            if (dupes != null) dupes = withContext(Dispatchers.Default) { Dupes.find(Library.tracks) }
+            loading = false
+            message = "${r.renamed} Dateien umbenannt" + if (r.failed > 0) ", ${r.failed} fehlgeschlagen" else ""
+        }
+    }
+
     fun createPlaylist(name: String, firstTracks: List<Track> = emptyList()) {
         if (name.isBlank()) return
         val p = Store.createPlaylist(app, name)
         if (firstTracks.isNotEmpty()) Store.addToPlaylist(app, p.id, firstTracks.map { it.path })
-        playlists = Store.playlists
+        syncPlaylists()
     }
 
     fun renamePlaylist(id: String, name: String) {
         if (name.isBlank()) return
         Store.renamePlaylist(app, id, name)
-        playlists = Store.playlists
+        syncPlaylists()
     }
 
     fun deletePlaylist(id: String) {
         Store.deletePlaylist(app, id)
-        playlists = Store.playlists
+        syncPlaylists()
     }
 
     /** Lieder aus [list], die schon in der Playlist [id] sind (für die Warnung vor Doppelten). */
@@ -237,14 +285,14 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun addToPlaylist(id: String, list: List<Track>, skipDuplicates: Boolean = true) {
         val before = Store.playlists.firstOrNull { it.id == id }?.trackPaths?.size ?: 0
         Store.addToPlaylist(app, id, list.map { it.path }, skipDuplicates)
-        playlists = Store.playlists
+        syncPlaylists()
         val added = (Store.playlists.firstOrNull { it.id == id }?.trackPaths?.size ?: 0) - before
         message = if (added == 1) "1 Lied hinzugefügt" else "$added Lieder hinzugefügt"
     }
 
     fun removeFromPlaylistAt(id: String, index: Int) {
         Store.removeFromPlaylistAt(app, id, index)
-        playlists = Store.playlists
+        syncPlaylists()
     }
 
     fun playlistEntries(id: String): List<Pair<Int, Track>> = Library.playlistEntries(id)
@@ -258,7 +306,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun movePlaylistTrack(id: String, from: Int, to: Int) {
         Store.movePlaylistTrack(app, id, from, to)
-        playlists = Store.playlists
+        syncPlaylists()
     }
 
     fun playlistTracks(id: String): List<Track> = Library.tracksFor("p:$id")
@@ -312,7 +360,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
                 c
             }
             refreshFromLibrary()
-            dupes = dupes?.map { g -> DupGroup(g.tracks.filter { t -> tracks.any { it.path == t.path } }, g.sameSize) }
+            dupes = dupes?.map { g -> g.copy(tracks = g.tracks.filter { t -> tracks.any { it.path == t.path } }) }
                 ?.filter { it.tracks.size >= 2 }
             loading = false
             message = "$n Dateien gelöscht"
