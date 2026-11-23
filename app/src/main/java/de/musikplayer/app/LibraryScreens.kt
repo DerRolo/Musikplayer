@@ -295,11 +295,7 @@ fun ArtistsTab(
             }
         }
     } else {
-        val fullList = remember(groups, artist) { (groups[artist] ?: emptyList()).sortedBy { it.sortKey } }
-        val albums = remember(fullList) { fullList.groupBy { it.albumName }.filterKeys { it.isNotBlank() }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
-        var album by rememberSaveable(artist) { mutableStateOf<String?>(null) }
-        val chosenAlbum: String? = album
-        val list = if (chosenAlbum != null && albums.containsKey(chosenAlbum)) albums[chosenAlbum].orEmpty() else fullList
+        val list = remember(groups, artist) { (groups[artist] ?: emptyList()).sortedBy { it.sortKey } }
         val ctx = "a:$artist"
         var menu by remember { mutableStateOf(false) }
         Column(Modifier.fillMaxSize()) {
@@ -310,12 +306,6 @@ fun ArtistsTab(
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Alle Lieder …") }
                     GroupMenu(menu, { menu = false }, groupActions(vm, list, ctx, actions) { vm.blockArtist(artist); open = null })
-                }
-            }
-            if (albums.isNotEmpty()) {
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LetterChip("Alle (${fullList.size})", album == null, true) { album = null }
-                    for ((name, l) in albums) LetterChip("$name (${l.size})", album == name, true) { album = if (album == name) null else name }
                 }
             }
             if (list.isEmpty()) {

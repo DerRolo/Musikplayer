@@ -196,7 +196,7 @@ private fun DupesPage(vm: MusicViewModel, onBack: () -> Unit) {
     val marked: SnapshotStateList<String> = remember { mutableStateListOf() }
     var showDelete by remember { mutableStateOf(false) }
     var renameConfirm by remember { mutableStateOf<List<Pair<Track, String>>?>(null) }
-    val groups = vm.visibleDupes()
+    val groups = vm.dupes
     val byPath = vm.tracks.associateBy { it.path }
     val toDelete = marked.mapNotNull { byPath[it] }
 
@@ -216,12 +216,6 @@ private fun DupesPage(vm: MusicViewModel, onBack: () -> Unit) {
                 }) { Text("Alle Reste markieren") }
             }
             if (vm.dupBusy) CircularProgressIndicator(Modifier.padding(start = 4.dp))
-        }
-        if (vm.dupes?.any { it.albumVariant } == true) {
-            Row(Modifier.clickable { vm.dupAlbums = !vm.dupAlbums }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = vm.dupAlbums, onCheckedChange = { vm.dupAlbums = it })
-                Text("Auch gleiche Lieder auf verschiedenen Alben zeigen (${vm.dupes?.count { it.albumVariant }})", style = MaterialTheme.typography.bodySmall)
-            }
         }
         if (toDelete.isNotEmpty()) {
             Button(

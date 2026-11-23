@@ -18,9 +18,7 @@ data class Track(
     val manual: Boolean = false,
     /** Zum Sortieren und Suchen: ohne Akzente, kleingeschrieben. */
     val sortKey: String = Names.fold(title),
-    val artistKey: String = Names.fold(artist),
-    /** Album: aus Tag oder Unterordner, sonst aus dem Dateinamen („Interpret (1993) - Album - Titel“); leer = keins. */
-    val albumName: String = ""
+    val artistKey: String = Names.fold(artist)
 ) {
     val folder: String get() = File(path).parent ?: ""
     val fileName: String get() = File(path).name
@@ -41,7 +39,7 @@ data class Playlist(
 )
 
 /** Gruppe von Titeln, die vermutlich dasselbe Lied sind. */
-data class DupGroup(val tracks: List<Track>, val sameSize: Boolean, val reason: String = "", val albumVariant: Boolean = false)
+data class DupGroup(val tracks: List<Track>, val sameSize: Boolean, val reason: String = "")
 
 /** Vorschlag: Ordner ohne eindeutigen Interpret im Tag. */
 data class FolderInfo(

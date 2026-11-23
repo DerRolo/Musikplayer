@@ -110,7 +110,7 @@ fun TrackRow(
     onClick: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
-    val state = rememberSwipeToDismissBoxState(positionalThreshold = { total -> total * 0.45f }, confirmValueChange = { v ->
+    val state = rememberSwipeToDismissBoxState(confirmValueChange = { v ->
         when (v) {
             SwipeToDismissBoxValue.EndToStart -> actions.onAddToQueue(track)
             SwipeToDismissBoxValue.StartToEnd -> actions.onToggleFavorite(track)

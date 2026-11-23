@@ -1,6 +1,5 @@
 package de.musikplayer.app
 
-import androidx.compose.ui.graphics.asImageBitmap
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -174,21 +173,8 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onOpen: () 
 private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier) {
     val title = item?.mediaMetadata?.title?.toString() ?: "Nichts ausgewählt"
     val artist = item?.mediaMetadata?.artist?.toString().orEmpty()
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    val t = remember(item?.mediaId) { trackOf(item) }
-    val art by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, item?.mediaId) {
-        value = t?.let { Art.large(ctx, it)?.asImageBitmap() }
-    }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        val a = art
-        if (a == null) Vinyl(spinning, Modifier.fillMaxWidth(0.72f))
-        else Box(Modifier.fillMaxWidth(0.72f).aspectRatio(1f)) {
-            androidx.compose.foundation.Image(
-                a, null, Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-            )
-            Vinyl(spinning, Modifier.align(Alignment.BottomEnd).fillMaxWidth(0.3f).padding(4.dp))
-        }
+        Vinyl(spinning, Modifier.fillMaxWidth(0.72f))
         Spacer(Modifier.height(20.dp))
         Text(
             title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center,
