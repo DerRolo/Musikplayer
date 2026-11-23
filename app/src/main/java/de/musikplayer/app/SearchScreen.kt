@@ -37,6 +37,7 @@ fun SearchTab(
     onOpenPlaylist: (String) -> Unit
 ) {
     var query by rememberSaveable { mutableStateOf("") }
+    var picked by rememberSaveable { mutableStateOf("") }
     OnReset(reset) { query = "" }
     val q = Names.fold(query.trim())
 
@@ -70,7 +71,6 @@ fun SearchTab(
                 .distinct().filter { Names.fold(it).let { f -> f.startsWith(q) || f.contains(q) } && Names.fold(it) != q }
                 .sortedBy { if (Names.fold(it).startsWith(q)) 0 else 1 }.take(5)
         }
-        var picked by rememberSaveable { mutableStateOf("") }
         val showSug = query != picked
         if (q.isEmpty()) {
             val recent = vm.blockTick.let { Store.recentSearches }

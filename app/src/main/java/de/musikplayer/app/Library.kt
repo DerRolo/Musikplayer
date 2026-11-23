@@ -138,7 +138,7 @@ object Library {
     }
 
     private val ALBUM_IN_NAME = Regex("^(?:\\d{1,3}\\s*[.\\-_ ]+\\s*)?(.+?)\\s*\\((\\d{4})\\)\\s*-\\s*(.+?)\\s*-\\s*(.+)$")
-    private val GENERIC_FOLDERS = setOf("musik", "music", "download", "downloads", "unknown", "<unknown>", "audio", "songs", "lieder", "sdcard", "hiphop", "hip hop")
+    private val ALBUM_GENERIC = setOf("musik", "music", "download", "downloads", "unknown", "<unknown>", "audio", "songs", "lieder", "sdcard", "hiphop", "hip hop")
 
     /** Album eines Liedes: Dateiname „Interpret (Jahr) - Album - Titel“, sonst Tag/Ordner (wenn er nicht nur der Interpretenordner ist). */
     fun albumOf(path: String, tagAlbum: String, artist: String, artistsInFolder: Int): String {
@@ -152,7 +152,7 @@ object Library {
         val a = tagAlbum.trim()
         if (a.isEmpty()) return ""
         val fa = Names.fold(a)
-        if (fa in GENERIC_FOLDERS || fa == Names.fold(artist)) return ""
+        if (fa in ALBUM_GENERIC || fa == Names.fold(artist)) return ""
         val folderName = Names.fold(f.parentFile?.name.orEmpty())
         // Album = bloß der Ordnername und im Ordner liegen viele verschiedene Interpreten → kein Album, nur eine Sammelablage
         if (fa == folderName && artistsInFolder >= 4) return ""
