@@ -42,6 +42,22 @@ object Art {
         null
     }
 
+    private val bigCache = object : LruCache<Long, Bitmap>(24 * 1024 * 1024) {
+        override fun sizeOf(key: Long, value: Bitmap) = value.byteCount
+    }
+
+    /** Großes Cover für den Player (nur wenn im Lied wirklich ein Bild steckt). */
+    suspend fun large(ctx: Context, t: Track): Bitmap? = withContext(Dispatchers.IO) {
+        bigCache.get(t.id)?.let { return@withContext it }
+        var bmp: Bitmap? = null
+        if (Build.VERSION.SDK_INT >= 29) {
+            bmp = try { ctx.contentResolver.loadThumbnail(t.uri(), Size(900, 900), null) } catch (e: Exception) { null }
+        }
+        if (bmp == null) bmp = embedded(t.path, 900)
+        if (bmp != null) bigCache.put(t.id, bmp)
+        bmp
+    }
+
     private fun load(ctx: Context, t: Track, size: Int): Bitmap? {
         cache.get(t.id)?.let { return it }
         if (t.id in missing) return null

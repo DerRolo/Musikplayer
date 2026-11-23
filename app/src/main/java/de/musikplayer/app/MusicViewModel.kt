@@ -56,6 +56,9 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         private set
     var dupBusy by mutableStateOf(false)
         private set
+    /** false = nur echte Duplikate; true = auch „gleiches Lied auf verschiedenen Alben“. */
+    var dupAlbums by mutableStateOf(false)
+    fun visibleDupes(): List<DupGroup>? = dupes?.filter { dupAlbums || !it.albumVariant }
 
     // ---------- Wiedergabe ----------
     private var controller: MediaController? = null
@@ -535,6 +538,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
                 res
             }
             refreshFromLibrary()
+            if (dupes != null) dupes = withContext(Dispatchers.Default) { Dupes.find(Library.tracks) }
             loading = false
             message = if (r != null && r.failed > 0) "Umbenennen fehlgeschlagen" else "Gespeichert"
         }

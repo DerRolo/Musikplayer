@@ -109,13 +109,17 @@ object Dupes {
         return groups.values.filter { it.size >= 2 }
             .map { g ->
                 val o = order(g)
+                val albums = o.map { it.albumName }
+                val variant = albums.all { it.isNotBlank() } && albums.map { Names.fold(it) }.toSet().size == o.size
                 val ident = o.all { sizeClose(it.size, o[0].size) && abs(it.durationMs - o[0].durationMs) <= DURATION_TOLERANCE_MS }
                 DupGroup(
                     o, o.all { it.size == o[0].size },
-                    if (ident) "Name, Größe und Länge passen" else "Gleicher Titel und Interpret, Länge ähnlich"
+                    if (variant) "Gleiches Lied auf verschiedenen Alben"
+                    else if (ident) "Name, Größe und Länge passen" else "Gleicher Titel und Interpret, Länge ähnlich",
+                    variant
                 )
             }
-            .sortedWith(compareByDescending<DupGroup> { it.sameSize }.thenByDescending { it.tracks[0].size * it.tracks.size })
+            .sortedWith(compareBy<DupGroup> { it.albumVariant }.thenByDescending { it.sameSize }.thenByDescending { it.tracks[0].size * it.tracks.size })
     }
 
     /** Erster Eintrag = Vorschlag zum Behalten: größte Datei (beste Qualität), Original statt „(1)“-Kopie, ältere zuerst. */

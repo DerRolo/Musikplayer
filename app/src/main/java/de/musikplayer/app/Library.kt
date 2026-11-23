@@ -112,16 +112,51 @@ object Library {
         // Zweiter Durchgang: Namen bereinigen (Tracknummern, Unterstriche); Ordner-Mehrheit für „1 Song“-Muster
         val numbered = raws.groupBy { File(it.path).parent.orEmpty() }
             .mapValues { (_, l) -> Names.folderIsNumbered(l.map { File(it.path).nameWithoutExtension }) }
+        val artistsPerFolder = HashMap<String, MutableSet<String>>()
+        for (r in raws) artistsPerFolder.getOrPut(File(r.path).parent.orEmpty()) { HashSet() }.add(effectiveArtist(r.path, r.tag).first)
         for (r in raws) {
             val (artist, manual) = effectiveArtist(r.path, r.tag)
             val artistForCheck = r.tag ?: artist.takeIf { it != UNKNOWN_ARTIST }
             val title = Names.clean(r.title, artistForCheck, numbered[File(r.path).parent.orEmpty()] == true)
+            val folder = File(r.path).parent.orEmpty()
             out += Track(
                 r.id, r.path, title, artist, r.tag ?: "", r.album,
-                r.albumId, r.durationMs, r.size, r.modified, manual
+                r.albumId, r.durationMs, r.size, r.modified, manual,
+                albumName = albumOf(r.path, r.album, artist, (artistsPerFolder[folder]?.size ?: 1))
             )
         }
         return out
+    }
+
+    private val ARTIST_DASH = Regex("^(?:\\d{1,3}\\s*[.\\-_ ]+\\s*)?(.{2,40}?)\\s+-\\s+\\S.*$")
+
+    /** „Colin Hay - Overkill“ → „Colin Hay“ (nur ein Vorschlag, wenn kein Interpret bekannt ist). */
+    fun guessArtistFromName(t: Track): String? {
+        val base = Names.tidy(File(t.path).nameWithoutExtension).replace('_', ' ')
+        val a = ARTIST_DASH.find(base)?.groupValues?.get(1)?.trim() ?: return null
+        return a.takeIf { it.any { c -> c.isLetter() } }
+    }
+
+    private val ALBUM_IN_NAME = Regex("^(?:\\d{1,3}\\s*[.\\-_ ]+\\s*)?(.+?)\\s*\\((\\d{4})\\)\\s*-\\s*(.+?)\\s*-\\s*(.+)$")
+    private val GENERIC_FOLDERS = setOf("musik", "music", "download", "downloads", "unknown", "<unknown>", "audio", "songs", "lieder", "sdcard", "hiphop", "hip hop")
+
+    /** Album eines Liedes: Dateiname „Interpret (Jahr) - Album - Titel“, sonst Tag/Ordner (wenn er nicht nur der Interpretenordner ist). */
+    fun albumOf(path: String, tagAlbum: String, artist: String, artistsInFolder: Int): String {
+        val f = File(path)
+        val m = ALBUM_IN_NAME.find(Names.tidy(f.nameWithoutExtension).replace('_', ' '))
+        if (m != null) {
+            val a = Names.fold(m.groupValues[1]).filter { it.isLetterOrDigit() }
+            val ar = Names.fold(artist).filter { it.isLetterOrDigit() }
+            if (a.isNotEmpty() && (a == ar || a.contains(ar) || ar.contains(a))) return m.groupValues[3].trim() + " (" + m.groupValues[2] + ")"
+        }
+        val a = tagAlbum.trim()
+        if (a.isEmpty()) return ""
+        val fa = Names.fold(a)
+        if (fa in GENERIC_FOLDERS || fa == Names.fold(artist)) return ""
+        val folderName = Names.fold(f.parentFile?.name.orEmpty())
+        // Album = bloß der Ordnername und im Ordner liegen viele verschiedene Interpreten → kein Album, nur eine Sammelablage
+        if (fa == folderName && artistsInFolder >= 4) return ""
+        return a
     }
 
     private class Raw(

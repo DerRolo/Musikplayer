@@ -1,7 +1,10 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package de.musikplayer.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,7 +48,8 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
     val choice = remember { mutableStateMapOf<String, Int>() }
     var confirm by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { if (vm.dupes == null) vm.scanDupes() }
-    val groups = vm.dupes
+    val groups = vm.visibleDupes()
+    var edit by remember { mutableStateOf<Track?>(null) }
     val byPath = vm.tracks.associateBy { it.path }
 
     val toDelete = choice.filterValues { it == DELETE }.keys.mapNotNull { byPath[it] }
@@ -56,8 +60,8 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         PageHeader("Aufräumen (erweitert)", onBack)
         Text(
-            "Zu jeder Gruppe ähnlicher Lieder siehst du alle Versionen. Tippe auf eine Version, um sie anzuhören, " +
-                "und wähle dann: Behalten, Behalten + Name säubern oder Löschen. Nichts ist vorausgewählt.",
+            "Zu jeder Gruppe ähnlicher Lieder siehst du alle Versionen mit Ordner, Interpret und Album. Tippe auf eine Version, um sie anzuhören, " +
+                "halte sie gedrückt, um Name und Interpret zu bearbeiten, und wähle dann: Behalten, Behalten + Name säubern oder Löschen. Nichts ist vorausgewählt.",
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
         )
         Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -66,6 +70,12 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
                 enabled = (toDelete.isNotEmpty() || toRename.isNotEmpty()) && allDeleted == 0 && !vm.loading
             ) { Text("Ausführen (${toDelete.size} löschen, ${toRename.size} umbenennen)") }
             if (vm.dupBusy || vm.loading) CircularProgressIndicator(Modifier.padding(start = 4.dp))
+        }
+        if (vm.dupes?.any { it.albumVariant } == true) {
+            Row(Modifier.clickable { vm.dupAlbums = !vm.dupAlbums }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = vm.dupAlbums, onCheckedChange = { vm.dupAlbums = it })
+                Text("Auch gleiche Lieder auf verschiedenen Alben zeigen (${vm.dupes?.count { it.albumVariant }})", style = MaterialTheme.typography.bodySmall)
+            }
         }
         if (allDeleted > 0) {
             Text(
@@ -90,12 +100,34 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
                     val t = g.tracks[idx]
                     val proposed = Library.proposedFileName(t)
                     val c = choice[t.path]
-                    Column(Modifier.fillMaxWidth().clickable { vm.play(listOf(t), 0, "q") }.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    val guess = remember(t.path, t.artist) { if (t.artist == UNKNOWN_ARTIST) Library.guessArtistFromName(t) else null }
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .combinedClickable(onClick = { vm.play(listOf(t), 0, "q") }, onLongClick = { edit = t })
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
                         Text(t.fileName, style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            formatSize(t.size) + " · " + formatDuration(t.durationMs) + " · " + t.folder,
+                            formatSize(t.size) + " · " + formatDuration(t.durationMs),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Text(
+                            "Ordner: " + t.folder.removePrefix("/storage/emulated/0/").removePrefix("/sdcard/"),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (t.artist == UNKNOWN_ARTIST) {
+                            Text("Interpret: unbekannt", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            if (guess != null) Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Vorschlag aus dem Namen: $guess", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+                                TextButton(onClick = { vm.assignTrack(t.path, guess) }) { Text("Übernehmen") }
+                            }
+                        } else {
+                            Text(
+                                "Interpret: ${t.artist}" + if (t.manual) " (zugeordnet)" else "",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (t.albumName.isNotBlank()) Text("Album: ${t.albumName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (proposed != t.fileName) {
                             Text("In der App: $proposed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                         }
@@ -114,6 +146,13 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
         }
     }
 
+    edit?.let { t ->
+        EditTrackDialog(
+            t, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
+            onDismiss = { edit = null },
+            onConfirm = { n, a -> vm.editTrack(t, n, a); edit = null; choice.remove(t.path) }
+        )
+    }
     if (confirm) {
         var sure by remember { mutableStateOf(false) }
         val needSure = toDelete.isNotEmpty()

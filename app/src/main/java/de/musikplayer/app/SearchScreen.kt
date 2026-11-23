@@ -48,6 +48,13 @@ fun SearchTab(
             .map { (name, list) -> name to list.sortedBy { it.sortKey } }
             .take(20)
     }
+    val albumHits = remember(vm.tracks, q) {
+        if (q.isEmpty()) emptyList()
+        else vm.tracks.filter { it.albumName.isNotBlank() && q in Names.fold(it.albumName) }
+            .groupBy { it.artist to it.albumName }
+            .map { (k, l) -> Triple(k.first, k.second, l.sortedBy { it.sortKey }) }
+            .sortedBy { Names.fold(it.second) }.take(20)
+    }
     val playlistHits = remember(vm.playlists, q) {
         if (q.isEmpty()) emptyList() else vm.playlists.filter { q in Names.fold(it.name) }
     }
@@ -88,7 +95,7 @@ fun SearchTab(
                     Text(sg, Modifier.padding(start = 16.dp), maxLines = 1)
                 }
             }
-        } else if (artistHits.isEmpty() && playlistHits.isEmpty() && trackHits.isEmpty()) {
+        } else if (artistHits.isEmpty() && albumHits.isEmpty() && playlistHits.isEmpty() && trackHits.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nichts gefunden") }
         } else {
             val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
@@ -97,6 +104,12 @@ fun SearchTab(
                     item(key = "h_a") { Header("Interpreten") }
                     itemsIndexed(artistHits, key = { _, h -> "a_" + h.first }) { _, (name, list) ->
                         GroupRow(name, list, list.size, true, groupActions(vm, list, "a:$name", actions)) { onOpenArtist(name) }
+                    }
+                }
+                if (albumHits.isNotEmpty()) {
+                    item(key = "h_al") { Header("Alben") }
+                    itemsIndexed(albumHits, key = { _, h -> "al_" + h.first + "|" + h.second }) { _, (artistName, albumName, list) ->
+                        GroupRow(albumName + "  ·  " + artistName, list, list.size, false, groupActions(vm, list, "a:$artistName", actions)) { onOpenArtist(artistName) }
                     }
                 }
                 if (playlistHits.isNotEmpty()) {
