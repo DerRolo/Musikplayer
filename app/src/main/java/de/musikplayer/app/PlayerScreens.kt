@@ -277,7 +277,7 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                         ) { menu = false; actions.onToggleFavorite(track) }
                         MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
                         MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
-                        MenuItem("Sperren", Icons.Filled.Block) { menu = false; actions.onBlock(track) }
+                        MenuItem("Sperren", Icons.Filled.Block, danger = true) { menu = false; actions.onBlock(track) }
                         MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
                     }
                 }
@@ -331,7 +331,8 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                 }
             }
             if (track != null) {
-                Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { vm.toggleFavorite(track.path) }) {
                         Icon(
                             if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Lieblingssong",
@@ -342,10 +343,10 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                     IconButton(onClick = { onAddToPlaylist(track) }) {
                         Icon(Icons.Filled.Add, "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(30.dp))
                     }
-                    Spacer(Modifier.size(64.dp))
-                    IconButton(onClick = { actions.onBlock(track) }) {
-                        Icon(Icons.Filled.Block, "Sperren", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(26.dp))
-                    }
+                }
+                IconButton(onClick = { actions.onBlock(track) }, Modifier.align(Alignment.CenterEnd).padding(end = 12.dp)) {
+                    Icon(Icons.Filled.Block, "Sperren", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(24.dp))
+                }
                 }
             }
             Spacer(Modifier.height(4.dp))

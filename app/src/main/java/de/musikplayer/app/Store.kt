@@ -90,6 +90,7 @@ object Store {
             stripStrings = o.optJSONArray("stripStrings").strings()
             recentSearches = o.optJSONArray("recent").strings()
             Names.extraStrip = stripStrings
+            playlistPlays = o.optJSONObject("playlistPlays").toMap().mapValues { it.value.toIntOrNull() ?: 0 }
             knownPaths = o.optJSONArray("known").strings().toHashSet()
         } catch (e: Exception) {
             // kaputte Datei ignorieren, mit leeren Daten weitermachen
@@ -139,6 +140,7 @@ object Store {
         o.put("blockedFolders", JSONArray(blockedFolders.toList()))
         o.put("playCounts", JSONObject(playCounts.mapValues { it.value.toString() }))
         o.put("stripStrings", JSONArray(stripStrings))
+        o.put("playlistPlays", JSONObject(playlistPlays.mapValues { it.value.toString() }))
         o.put("recent", JSONArray(recentSearches))
         o.put("known", JSONArray().also { a -> knownPaths.forEach { a.put(it) } })
         val tmp = File(ctx.filesDir, "$FILE.tmp")
@@ -154,6 +156,25 @@ object Store {
         return list.filter { it.id == FAV_ID } +
             rest.filter { it.pinned } +
             rest.filter { !it.pinned }.sortedByDescending { maxOf(it.lastAdded, it.id.toLongOrNull() ?: 0L) }
+    }
+
+    /** Wie oft ein Lied aus dieser Playlist gestartet wurde. */
+    var playlistPlays: Map<String, Int> = emptyMap()
+        private set
+
+    fun incPlaylistPlay(ctx: Context, id: String) {
+        playlistPlays = playlistPlays + (id to ((playlistPlays[id] ?: 0) + 1))
+        save(ctx)
+    }
+
+    /** Für den Playlist-Reiter: Lieblingssongs, fixierte, dann nach Häufigkeit des Hörens. */
+    fun orderedByUse(list: List<Playlist>): List<Playlist> {
+        val rest = list.filter { it.id != FAV_ID }
+        return list.filter { it.id == FAV_ID } +
+            rest.filter { it.pinned } +
+            rest.filter { !it.pinned }.sortedWith(
+                compareByDescending<Playlist> { playlistPlays[it.id] ?: 0 }.thenByDescending { maxOf(it.lastAdded, it.id.toLongOrNull() ?: 0L) }
+            )
     }
 
     fun setPinned(ctx: Context, id: String, pinned: Boolean) {

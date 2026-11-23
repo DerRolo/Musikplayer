@@ -117,7 +117,9 @@ object Library {
         for (r in raws) {
             val (artist, manual) = effectiveArtist(r.path, r.tag)
             val artistForCheck = r.tag ?: artist.takeIf { it != UNKNOWN_ARTIST }
-            val title = Names.clean(r.title, artistForCheck, numbered[File(r.path).parent.orEmpty()] == true)
+            val fromName = albumPattern(r.path, artist)
+            val title = if (fromName != null) Names.clean(fromName.second, artistForCheck, false)
+            else Names.clean(r.title, artistForCheck, numbered[File(r.path).parent.orEmpty()] == true)
             val folder = File(r.path).parent.orEmpty()
             out += Track(
                 r.id, r.path, title, artist, r.tag ?: "", r.album,
@@ -141,14 +143,29 @@ object Library {
     private val ALBUM_GENERIC = setOf("musik", "music", "download", "downloads", "unknown", "<unknown>", "audio", "songs", "lieder", "sdcard", "hiphop", "hip hop")
 
     /** Album eines Liedes: Dateiname „Interpret (Jahr) - Album - Titel“, sonst Tag/Ordner (wenn er nicht nur der Interpretenordner ist). */
+    private val ALBUM_NUMBERED = Regex("^(?:\\d{1,3}\\s*[.\\-_ ]+\\s*)?(.+?)\\s+-\\s+(.+?)\\s+-\\s+\\d{1,2}\\s*[.\\-]?\\s*-?\\s*(.+)$")
+
+    /** „Interpret (1993) - Album - Titel“ oder „Interpret - Album - 01 - Titel“ → (Album, Titel); nur wenn der Interpret stimmt. */
+    fun albumPattern(path: String, artist: String): Pair<String, String>? {
+        val base = Names.tidy(File(path).nameWithoutExtension).replace('_', ' ')
+        val ar = Names.fold(artist).filter { it.isLetterOrDigit() }
+        if (ar.isEmpty()) return null
+        fun same(x: String): Boolean {
+            val a = Names.fold(x).filter { it.isLetterOrDigit() }
+            return a.isNotEmpty() && (a == ar || a.contains(ar) || ar.contains(a))
+        }
+        ALBUM_IN_NAME.find(base)?.let { m ->
+            if (same(m.groupValues[1])) return (m.groupValues[3].trim() + " (" + m.groupValues[2] + ")") to m.groupValues[4].trim()
+        }
+        ALBUM_NUMBERED.find(base)?.let { m ->
+            if (same(m.groupValues[1])) return m.groupValues[2].trim() to m.groupValues[3].trim()
+        }
+        return null
+    }
+
     fun albumOf(path: String, tagAlbum: String, artist: String, artistsInFolder: Int): String {
         val f = File(path)
-        val m = ALBUM_IN_NAME.find(Names.tidy(f.nameWithoutExtension).replace('_', ' '))
-        if (m != null) {
-            val a = Names.fold(m.groupValues[1]).filter { it.isLetterOrDigit() }
-            val ar = Names.fold(artist).filter { it.isLetterOrDigit() }
-            if (a.isNotEmpty() && (a == ar || a.contains(ar) || ar.contains(a))) return m.groupValues[3].trim() + " (" + m.groupValues[2] + ")"
-        }
+        albumPattern(path, artist)?.let { return it.first }
         val a = tagAlbum.trim()
         if (a.isEmpty()) return ""
         val fa = Names.fold(a)

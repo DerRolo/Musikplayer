@@ -30,7 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
 
-private val TAB_TITLES = listOf("Bibliothek", "Suche", "Playlists", "Hörbücher", "Einstellungen")
+private val TAB_TITLES = listOf("Bibliothek", "Suche", "Playlists", "Hörbücher", "Optionen")
 
 @Composable
 fun MusicApp(vm: MusicViewModel) {
@@ -61,12 +61,11 @@ fun MusicApp(vm: MusicViewModel) {
     LaunchedEffect(vm.message) {
         vm.message?.let { m ->
             val u = vm.undo
-            vm.message = null
-            vm.undo = null
             if (u != null) {
                 val r = snack.showSnackbar(m, actionLabel = "Rückgängig", duration = SnackbarDuration.Short)
                 if (r == SnackbarResult.ActionPerformed) u()
             } else snack.showSnackbar(m)
+            if (vm.message == m) { vm.message = null; vm.undo = null }
         }
     }
     LaunchedEffect(tab) { sel.clear() }

@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -63,7 +64,7 @@ fun SearchTab(
         if (q.isEmpty()) emptyList() else Library.sorted(filterTracks(vm.tracks, query), SortBy.Title).take(150)
     }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = if (q.isEmpty()) Arrangement.Center else Arrangement.Top) {
         SearchField(query, { query = it }, "Titel, Interpreten, Playlists", onSubmit = { picked = query; vm.addRecentSearch(query) })
         val suggestions = remember(vm.tracks, q) {
             if (q.isEmpty()) emptyList()
@@ -75,9 +76,10 @@ fun SearchTab(
         if (q.isEmpty()) {
             val recent = vm.blockTick.let { Store.recentSearches }
             if (recent.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Suche nach Titeln, Interpreten oder Playlists", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                Text(
+                    "Suche nach Titeln, Interpreten, Alben oder Playlists", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(16.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             } else {
                 Header("Zuletzt gesucht")
                 for (r in recent) {

@@ -93,6 +93,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
             val id = mediaItem?.mediaId?.substringAfterLast(':')?.toLongOrNull() ?: return
             if (id == lastCounted && reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) return
             lastCounted = id
+            val ctxId = mediaItem?.mediaId.orEmpty().removePrefix("t:").substringBeforeLast(':')
+            if (ctxId.startsWith("p:")) Store.incPlaylistPlay(app, ctxId.removePrefix("p:"))
             tracks.firstOrNull { it.id == id }?.let { Store.incPlay(app, it.path) }
         }
     }
@@ -360,6 +362,16 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Reihenfolge: Lieblingssongs, fixierte, dann zuletzt Hinzugefügtes. */
     fun orderedPlaylists(): List<Playlist> = Store.ordered(playlists)
+
+    /** Playlist-Reiter: Lieblingssongs, fixierte, dann die am häufigsten gehörten. */
+    fun playlistsByUse(): List<Playlist> = Store.orderedByUse(playlists)
+
+    /** Playlist ⇄ Hörbuch/Podcast umschalten. */
+    fun setAudio(id: String, audio: Boolean) {
+        Store.setAudio(app, id, audio)
+        syncPlaylists()
+        message = if (audio) "Zu Hörbuch/Podcast umgewandelt" else "Zu Playlist umgewandelt"
+    }
 
     fun showPlaylistsAsGrid(grid: Boolean) {
         Store.setPlaylistGrid(app, grid)

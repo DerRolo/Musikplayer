@@ -185,7 +185,7 @@ fun TrackRow(
                         MenuItem("Aus Playlist entfernen", Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
                     }
                     MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
-                    MenuItem("Sperren", Icons.Filled.Block) { menu = false; actions.onBlock(track) }
+                    MenuItem("Sperren", Icons.Filled.Block, danger = true) { menu = false; actions.onBlock(track) }
                     MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
                 }
             }
