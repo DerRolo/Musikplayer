@@ -564,6 +564,14 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         message = "Interpret für ${list.size} Lieder gesetzt"
     }
 
+    /** Albumname für die Lieder ändern (nur in der App, Dateien bleiben unberührt). */
+    fun renameAlbum(list: List<Track>, name: String) {
+        if (list.isEmpty() || name.isBlank()) return
+        Store.setAlbum(app, list.map { it.path }, name)
+        reindex()
+        message = "Album umbenannt"
+    }
+
     // ---------- Sperrliste ----------
 
     private fun dropFromPlayer(pred: (Long) -> Boolean) {

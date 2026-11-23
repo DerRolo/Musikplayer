@@ -124,7 +124,7 @@ object Library {
             out += Track(
                 r.id, r.path, title, artist, r.tag ?: "", r.album,
                 r.albumId, r.durationMs, r.size, r.modified, manual,
-                albumName = albumOf(r.path, r.album, artist, (artistsPerFolder[folder]?.size ?: 1))
+                albumName = Store.trackAlbums[r.path] ?: albumOf(r.path, r.album, artist, (artistsPerFolder[folder]?.size ?: 1))
             )
         }
         return out

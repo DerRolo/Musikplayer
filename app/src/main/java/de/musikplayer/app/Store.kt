@@ -51,6 +51,9 @@ object Store {
     /** Wie oft ein Lied gestartet wurde (für „Meistgehört“). */
     var playCounts: Map<String, Int> = emptyMap()
         private set
+    /** Von dir vergebene Albumnamen (nur in der App), je Dateipfad. */
+    var trackAlbums: Map<String, String> = emptyMap()
+        private set
     var stripStrings: List<String> = emptyList()
         private set
     var recentSearches: List<String> = emptyList()
@@ -90,6 +93,7 @@ object Store {
             stripStrings = o.optJSONArray("stripStrings").strings()
             recentSearches = o.optJSONArray("recent").strings()
             Names.extraStrip = stripStrings
+            trackAlbums = o.optJSONObject("trackAlbums").toMap()
             playlistPlays = o.optJSONObject("playlistPlays").toMap().mapValues { it.value.toIntOrNull() ?: 0 }
             knownPaths = o.optJSONArray("known").strings().toHashSet()
         } catch (e: Exception) {
@@ -140,6 +144,7 @@ object Store {
         o.put("blockedFolders", JSONArray(blockedFolders.toList()))
         o.put("playCounts", JSONObject(playCounts.mapValues { it.value.toString() }))
         o.put("stripStrings", JSONArray(stripStrings))
+        o.put("trackAlbums", JSONObject(trackAlbums))
         o.put("playlistPlays", JSONObject(playlistPlays.mapValues { it.value.toString() }))
         o.put("recent", JSONArray(recentSearches))
         o.put("known", JSONArray().also { a -> knownPaths.forEach { a.put(it) } })
@@ -212,6 +217,11 @@ object Store {
     fun unblockFolder(ctx: Context, path: String) { blockedFolders = blockedFolders - path; save(ctx) }
 
     // ---------- Zähler, Filter, Suchverlauf ----------
+
+    fun setAlbum(ctx: Context, paths: List<String>, album: String?) {
+        trackAlbums = if (album.isNullOrBlank()) trackAlbums - paths.toSet() else trackAlbums + paths.associateWith { album.trim() }
+        save(ctx)
+    }
 
     fun incPlay(ctx: Context, path: String) {
         playCounts = playCounts + (path to ((playCounts[path] ?: 0) + 1))
@@ -299,6 +309,7 @@ object Store {
         trackArtists = trackArtists.mapKeys { map[it.key] ?: it.key }
         knownPaths = knownPaths.map { map[it] ?: it }.toHashSet()
         blockedTracks = blockedTracks.map { map[it] ?: it }.toHashSet()
+        trackAlbums = trackAlbums.mapKeys { map[it.key] ?: it.key }
         playCounts = playCounts.mapKeys { map[it.key] ?: it.key }
         save(ctx)
     }

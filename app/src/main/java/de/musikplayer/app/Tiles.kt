@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PlaylistPlay
@@ -66,7 +67,9 @@ data class GroupActions(
     val onPlayNext: () -> Unit,
     val onAddToQueue: () -> Unit,
     val onAddToPlaylist: (() -> Unit)? = null,
-    val onBlock: (() -> Unit)? = null
+    val onBlock: (() -> Unit)? = null,
+    val onEdit: (() -> Unit)? = null,
+    val onDelete: (() -> Unit)? = null
 )
 
 @Composable
@@ -79,7 +82,9 @@ fun GroupMenu(expanded: Boolean, onDismiss: () -> Unit, a: GroupActions) {
         a.onAddToPlaylist?.let { add ->
             MenuItem("Zu Playlist hinzufügen", Icons.Filled.PlaylistAdd) { onDismiss(); add() }
         }
-        a.onBlock?.let { b -> MenuItem("Sperren", Icons.Filled.Block) { onDismiss(); b() } }
+        a.onEdit?.let { e -> MenuItem("Album bearbeiten …", Icons.Filled.Edit, warn = true) { onDismiss(); e() } }
+        a.onBlock?.let { b -> MenuItem("Sperren", Icons.Filled.Block, danger = true) { onDismiss(); b() } }
+        a.onDelete?.let { d -> MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { onDismiss(); d() } }
     }
 }
 

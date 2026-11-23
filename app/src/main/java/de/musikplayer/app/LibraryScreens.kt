@@ -342,6 +342,17 @@ fun ArtistsTab(
         }
         val ctx = "a:$artist"
         var menu by remember { mutableStateOf(false) }
+        var editAlbum by remember { mutableStateOf(false) }
+        val isAlbum = v != "" && v != "*"
+        LaunchedEffect(albums.keys, v) { if (isAlbum && !albums.containsKey(v)) view = "" }
+        if (editAlbum && isAlbum) {
+            AlbumEditDialog(
+                artist, v, shown,
+                onDismiss = { editAlbum = false },
+                onRenameAlbum = { n -> vm.renameAlbum(shown, n); view = n },
+                onRenameFiles = { vm.renameAlbum(shown, v); vm.renameFiles(it) }
+            )
+        }
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { if (v != "") view = "" else open = null }) { Text("‹ Zurück") }
@@ -352,7 +363,12 @@ fun ArtistsTab(
                 IconButton(onClick = { vm.playShuffled(shown, ctx) }) { Icon(Icons.Filled.Shuffle, "Zufällig") }
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Alle Lieder …") }
-                    GroupMenu(menu, { menu = false }, groupActions(vm, shown, ctx, actions) { vm.blockArtist(artist); open = null })
+                    GroupMenu(
+                        menu, { menu = false },
+                        if (isAlbum) groupActions(vm, shown, ctx, actions) { vm.blockTracks(shown); view = "" }
+                            .copy(onEdit = { editAlbum = true }, onDelete = { actions.onDeleteMany(shown) })
+                        else groupActions(vm, shown, ctx, actions) { vm.blockArtist(artist); open = null }
+                    )
                 }
             }
             if (shown.isEmpty()) {
