@@ -32,11 +32,67 @@ object Names {
 
     fun clean(raw: String, artist: String? = null, folderNumbered: Boolean = false): String {
         var s = tidy(raw).trim()
+        while (EXT.containsMatchIn(s)) s = s.replace(EXT, "").trim()
         val artistStartsWithDigit = !artist.isNullOrBlank() && artist.first().isDigit()
         val protectedByArtist = artistStartsWithDigit && s.startsWith(artist!!, ignoreCase = true)
         if (!protectedByArtist) s = stripNumber(s, folderNumbered)
         s = s.replace('_', ' ').replace(SPACES, " ").trim().trim('-', '–', '—', ' ')
+        s = collapseRepeat(stripArtistPrefix(s, artist))
         return if (s.isEmpty()) raw.trim() else s
+    }
+
+    /** Dateiendungen gehören nie in den Namen („Song.mp3“ → „Song“). */
+    private val EXT = Regex("\\.(mp3|wav|flac|m4a|aac|ogg|oga|opus|wma|mp4|webm|mka|aiff?|amr|3gp)$", RegexOption.IGNORE_CASE)
+
+    private val ARTIST_SEP = Regex("^\\s*[-–—:]\\s*")
+
+    /** „Ice Cube - Titel“ bei Interpret „Ice Cube“ → „Titel“ (nur mit Trennstrich, und es muss etwas übrig bleiben). */
+    private fun stripArtistPrefix(s: String, artist: String?): String {
+        if (artist.isNullOrBlank() || artist == UNKNOWN_ARTIST) return s
+        if (!s.startsWith(artist, ignoreCase = true)) return s
+        val rest = s.substring(artist.length)
+        val m = ARTIST_SEP.find(rest) ?: return s
+        val r2 = rest.substring(m.value.length).trim()
+        return if (r2.isBlank()) s else r2
+    }
+
+    private fun key(x: String) = fold(x).filter { it.isLetterOrDigit() }
+
+    /** „Titel - Titel“ (die letzten beiden Teile sind bis auf Leerzeichen/Satzzeichen gleich) → „Titel“. */
+    private fun collapseRepeat(s: String): String {
+        val parts = s.split(" - ").map { it.trim() }
+        if (parts.size < 2) return s
+        val a = parts[parts.size - 2]
+        val b = parts.last()
+        return if (key(a).isNotEmpty() && key(a) == key(b)) (parts.dropLast(2) + b).joinToString(" - ") else s
+    }
+
+    private fun editDistance(a: String, b: String): Int {
+        var prev = IntArray(b.length + 1) { it }
+        var cur = IntArray(b.length + 1)
+        for (i in 1..a.length) {
+            cur[0] = i
+            for (j in 1..b.length) {
+                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+                cur[j] = minOf(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost)
+            }
+            val t = prev; prev = cur; cur = t
+        }
+        return prev[b.length]
+    }
+
+    /** Interpreten aus [pool], die [name] ähnlich sind (andere Schreibweise, Tippfehler, „X feat. Y“). */
+    fun similarArtists(name: String, pool: Collection<String>): List<String> {
+        val k = key(name)
+        if (k.length < 3) return emptyList()
+        return pool.filter { o ->
+            if (o == name || o == UNKNOWN_ARTIST) return@filter false
+            val ok = key(o)
+            if (ok.isEmpty()) return@filter false
+            ok == k ||
+                (minOf(k.length, ok.length) >= 4 && (ok.contains(k) || k.contains(ok))) ||
+                editDistance(k, ok) <= (if (maxOf(k.length, ok.length) >= 8) 2 else 1)
+        }.distinct().take(3)
     }
 
     private fun stripNumber(s: String, folderNumbered: Boolean): String {

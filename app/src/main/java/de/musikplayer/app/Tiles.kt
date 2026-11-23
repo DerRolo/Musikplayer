@@ -2,6 +2,10 @@
 
 package de.musikplayer.app
 
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
@@ -137,11 +141,14 @@ fun GroupRow(
 
 @Composable
 fun SearchField(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier) {
+    val focus = LocalFocusManager.current
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
         modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
         singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
         placeholder = { Text(placeholder) },
         leadingIcon = { Icon(Icons.Filled.Search, null) },
         trailingIcon = {

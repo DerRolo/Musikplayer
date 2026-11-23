@@ -24,7 +24,19 @@ data class Track(
     val fileName: String get() = File(path).name
 }
 
-data class Playlist(val id: String, val name: String, val trackPaths: List<String>)
+data class Playlist(
+    val id: String,
+    val name: String,
+    val trackPaths: List<String>,
+    val pinned: Boolean = false,
+    val description: String = "",
+    /** 0 = kein eigenes Bild, sonst Zeitstempel (damit sich das Bild neu lädt, wenn es ersetzt wird). */
+    val coverStamp: Long = 0L,
+    /** Wann zuletzt ein Lied hinzugefügt wurde (für die Reihenfolge in der Auswahl). */
+    val lastAdded: Long = 0L,
+    /** Hörbuch/Podcast-Liste statt Musik-Playlist. */
+    val audio: Boolean = false
+)
 
 /** Gruppe von Titeln, die vermutlich dasselbe Lied sind. */
 data class DupGroup(val tracks: List<Track>, val sameSize: Boolean, val reason: String = "")

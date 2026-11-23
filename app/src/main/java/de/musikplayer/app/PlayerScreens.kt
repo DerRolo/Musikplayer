@@ -23,6 +23,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
@@ -131,11 +140,22 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onOpen: () 
                     }
                     IconButton(onClick = { onAddToPlaylist(track) }, Modifier.size(36.dp)) { Icon(Icons.Filled.Add, "Zu Playlist") }
                 }
-                IconButton(onClick = { vm.previous() }, Modifier.size(36.dp)) { Icon(Icons.Filled.SkipPrevious, "Zurück") }
-                IconButton(onClick = { vm.togglePlay() }, Modifier.size(42.dp)) {
-                    Icon(if (vm.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (vm.isPlaying) "Pause" else "Abspielen", Modifier.size(32.dp))
+            }
+            Row(Modifier.fillMaxWidth().padding(bottom = 2.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { vm.toggleShuffle() }, Modifier.size(40.dp)) {
+                    Icon(Icons.Filled.Shuffle, "Zufall", tint = if (vm.shuffle) MaterialTheme.colorScheme.primary else LocalContentColor.current.copy(alpha = 0.6f))
                 }
-                IconButton(onClick = { vm.next() }, Modifier.size(36.dp)) { Icon(Icons.Filled.SkipNext, "Weiter") }
+                IconButton(onClick = { vm.previous() }, Modifier.size(44.dp)) { Icon(Icons.Filled.SkipPrevious, "Zurück", Modifier.size(30.dp)) }
+                IconButton(onClick = { vm.togglePlay() }, Modifier.size(48.dp)) {
+                    Icon(if (vm.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (vm.isPlaying) "Pause" else "Abspielen", Modifier.size(36.dp))
+                }
+                IconButton(onClick = { vm.next() }, Modifier.size(44.dp)) { Icon(Icons.Filled.SkipNext, "Weiter", Modifier.size(30.dp)) }
+                IconButton(onClick = { vm.cycleRepeat() }, Modifier.size(40.dp)) {
+                    Icon(
+                        if (vm.repeat == RepeatMode.One) Icons.Filled.RepeatOne else Icons.Filled.Repeat, "Wiederholen",
+                        tint = if (vm.repeat == RepeatMode.Off) LocalContentColor.current.copy(alpha = 0.6f) else MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             LinearProgressIndicator(
                 progress = { frac },
@@ -157,10 +177,10 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier) 
         Spacer(Modifier.height(20.dp))
         Text(
             title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center,
-            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth()
+            minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth()
         )
         Text(
-            artist, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            artist.ifBlank { " " }, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
         )
@@ -168,7 +188,8 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier) 
 }
 
 @Composable
-fun NowPlayingScreen(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onClose: () -> Unit) {
+fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist: (Track) -> Unit, onClose: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
     var showFade by remember { mutableStateOf(false) }
@@ -214,19 +235,36 @@ fun NowPlayingScreen(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onClo
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.Filled.KeyboardArrowDown, "Schließen") }
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { showSleep = true }) {
+            TextButton(onClick = { showSleep = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
                 Icon(Icons.Filled.Bedtime, null, Modifier.size(18.dp))
                 Text(
                     if (sleepLeft > 0) "  " + formatDuration(sleepLeft) else "  Sleep-Timer",
                     color = if (sleepLeft > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )
             }
-            TextButton(onClick = { showFade = true }) {
+            TextButton(onClick = { showFade = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
                 Icon(Icons.Filled.VolumeDown, null, Modifier.size(18.dp))
                 Text(
                     if (fadeLeft > 0) "  $volume % · " + formatDuration(fadeLeft) else "  Ausfaden",
                     color = if (fadeLeft > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )
+            }
+            Box {
+                IconButton(onClick = { menu = true }, enabled = track != null) { Icon(Icons.Filled.MoreVert, "Menü") }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    if (track != null) {
+                        MenuItem("Zu Playlist hinzufügen", Icons.Filled.PlaylistAdd) { menu = false; onAddToPlaylist(track) }
+                        MenuItem("Zur Warteschlange", Icons.Filled.QueueMusic) { menu = false; actions.onAddToQueue(track) }
+                        MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { menu = false; actions.onPlayNext(track) }
+                        MenuItem(
+                            if (fav) "Aus Lieblingssongs entfernen" else "Zu Lieblingssongs",
+                            if (fav) Icons.Outlined.FavoriteBorder else Icons.Filled.Favorite
+                        ) { menu = false; actions.onToggleFavorite(track) }
+                        MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
+                        MenuItem("Datei umbenennen …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                        MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
+                    }
+                }
             }
         }
 
@@ -309,23 +347,23 @@ fun NowPlayingScreen(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onClo
             Text(formatDuration(vm.durationMs), style = MaterialTheme.typography.bodySmall)
         }
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { vm.toggleShuffle() }) {
+            IconButton(onClick = { vm.toggleShuffle() }, Modifier.size(44.dp)) {
                 Icon(Icons.Filled.Shuffle, "Zufall", tint = if (vm.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(onClick = { vm.previous() }, Modifier.size(56.dp)) { Icon(Icons.Filled.SkipPrevious, "Zurück", Modifier.size(36.dp)) }
-            IconButton(onClick = { vm.togglePlay() }, Modifier.size(72.dp)) {
-                Icon(if (vm.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Abspielen/Pause", Modifier.size(52.dp))
+            IconButton(onClick = { vm.previous() }, Modifier.size(52.dp)) { Icon(Icons.Filled.SkipPrevious, "Zurück", Modifier.size(34.dp)) }
+            IconButton(onClick = { vm.togglePlay() }, Modifier.size(68.dp)) {
+                Icon(if (vm.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Abspielen/Pause", Modifier.size(48.dp))
             }
-            IconButton(onClick = { vm.next() }, Modifier.size(56.dp)) { Icon(Icons.Filled.SkipNext, "Weiter", Modifier.size(36.dp)) }
-            IconButton(onClick = { vm.cycleRepeat() }) {
+            IconButton(onClick = { vm.next() }, Modifier.size(52.dp)) { Icon(Icons.Filled.SkipNext, "Weiter", Modifier.size(34.dp)) }
+            IconButton(onClick = { vm.cycleRepeat() }, Modifier.size(44.dp)) {
                 Icon(
                     if (vm.repeat == RepeatMode.One) Icons.Filled.RepeatOne else Icons.Filled.Repeat, "Wiederholen",
                     tint = if (vm.repeat == RepeatMode.Off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
                 )
             }
-        }
-        TextButton(onClick = { showQueue = !showQueue }, Modifier.align(Alignment.CenterHorizontally)) {
-            Text(if (showQueue) "Zurück zum Player" else "Warteschlange (${vm.queue.size})")
+            IconButton(onClick = { showQueue = !showQueue }, Modifier.size(44.dp)) {
+                Icon(Icons.Filled.QueueMusic, "Warteschlange", tint = if (showQueue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 
@@ -504,23 +542,33 @@ private fun EqBars(playing: Boolean, live: Boolean, modifier: Modifier) {
 
 @Composable
 private fun QueueList(vm: MusicViewModel, modifier: Modifier) {
+    val start = (vm.currentIndex + 1).coerceAtMost(vm.queue.size)
+    val queued = vm.queuedCount
     LazyColumn(modifier) {
-        itemsIndexed(vm.queue, key = { i, m -> "$i:${m.mediaId}" }) { i, m ->
-            val active = i == vm.currentIndex
-            Row(Modifier.fillMaxWidth().clickable { vm.jumpTo(i) }.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        m.mediaMetadata.title?.toString().orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        m.mediaMetadata.artist?.toString().orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+        if (queued > 0) item(key = "hq") {
+            Text("Deine Warteschlange", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp, bottom = 4.dp))
+        }
+        for (i in start until vm.queue.size) {
+            val m = vm.queue[i]
+            if (i == start + queued) item(key = "hn") {
+                Text(
+                    if (vm.shuffle) "Danach (zufällige Reihenfolge)" else "Danach", style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp)
+                )
+            }
+            item(key = "$i:${m.mediaId}") {
+                Row(Modifier.fillMaxWidth().clickable { vm.jumpTo(i) }.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(m.mediaMetadata.title?.toString().orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            m.mediaMetadata.artist?.toString().orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = { vm.moveInQueue(i, i - 1) }, enabled = i > start) { Icon(Icons.Filled.ArrowUpward, "Nach oben") }
+                    IconButton(onClick = { vm.moveInQueue(i, i + 1) }, enabled = i < vm.queue.lastIndex) { Icon(Icons.Filled.ArrowDownward, "Nach unten") }
+                    IconButton(onClick = { vm.removeFromQueue(i) }) { Icon(Icons.Filled.Close, "Entfernen") }
                 }
-                IconButton(onClick = { vm.moveInQueue(i, i - 1) }, enabled = i > 0) { Icon(Icons.Filled.ArrowUpward, "Nach oben") }
-                IconButton(onClick = { vm.moveInQueue(i, i + 1) }, enabled = i < vm.queue.lastIndex) { Icon(Icons.Filled.ArrowDownward, "Nach unten") }
-                IconButton(onClick = { vm.removeFromQueue(i) }) { Icon(Icons.Filled.Close, "Entfernen") }
             }
         }
     }

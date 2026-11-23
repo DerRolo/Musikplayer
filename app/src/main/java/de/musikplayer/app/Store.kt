@@ -33,6 +33,15 @@ object Store {
         private set
     var sortBy: SortBy = SortBy.Title
         private set
+    /** 0 = Standardrichtung, 1 = umgekehrt, 2 = keine Sortierung (Reihenfolge der Bibliothek). */
+    var sortLevel: Int = 0
+        private set
+    /** Lieder, die du schon gesehen hast (für „Neue Lieder“). */
+    var knownPaths: Set<String> = emptySet()
+        private set
+    private var knownInit = false
+    var playlistGrid: Boolean = false
+        private set
 
     private var loaded = false
 
@@ -45,7 +54,11 @@ object Store {
         try {
             val o = JSONObject(f.readText())
             playlists = o.optJSONArray("playlists").mapObjects { p ->
-                Playlist(p.getString("id"), p.getString("name"), p.optJSONArray("tracks").strings())
+                Playlist(
+                    p.getString("id"), p.getString("name"), p.optJSONArray("tracks").strings(),
+                    p.optBoolean("pinned", false), p.optString("desc", ""), p.optLong("cover", 0L),
+                    p.optLong("lastAdded", 0L), p.optBoolean("audio", false)
+                )
             }
             folderArtists = o.optJSONObject("folderArtists").toMap()
             trackArtists = o.optJSONObject("trackArtists").toMap()
@@ -54,6 +67,10 @@ object Store {
             artistGrid = o.optBoolean("artistGrid", true)
             eqAsked = o.optBoolean("eqAsked", false)
             sortBy = try { SortBy.valueOf(o.optString("sortBy", "Title")) } catch (e: Exception) { SortBy.Title }
+            sortLevel = o.optInt("sortLevel", 0)
+            knownInit = o.optBoolean("knownInit", false)
+            playlistGrid = o.optBoolean("playlistGrid", false)
+            knownPaths = o.optJSONArray("known").strings().toHashSet()
         } catch (e: Exception) {
             // kaputte Datei ignorieren, mit leeren Daten weitermachen
         }
@@ -82,6 +99,8 @@ object Store {
         o.put("playlists", JSONArray().also { arr ->
             for (p in playlists) arr.put(
                 JSONObject().put("id", p.id).put("name", p.name)
+                    .put("pinned", p.pinned).put("desc", p.description).put("cover", p.coverStamp)
+                    .put("lastAdded", p.lastAdded).put("audio", p.audio)
                     .put("tracks", JSONArray().also { t -> p.trackPaths.forEach { t.put(it) } })
             )
         })
@@ -92,6 +111,10 @@ object Store {
         o.put("artistGrid", artistGrid)
         o.put("eqAsked", eqAsked)
         o.put("sortBy", sortBy.name)
+        o.put("sortLevel", sortLevel)
+        o.put("knownInit", knownInit)
+        o.put("playlistGrid", playlistGrid)
+        o.put("known", JSONArray().also { a -> knownPaths.forEach { a.put(it) } })
         val tmp = File(ctx.filesDir, "$FILE.tmp")
         tmp.writeText(o.toString())
         tmp.renameTo(File(ctx.filesDir, FILE))
@@ -99,8 +122,38 @@ object Store {
 
     // ---------- Playlists ----------
 
-    fun createPlaylist(ctx: Context, name: String): Playlist {
-        val p = Playlist(System.currentTimeMillis().toString(), name.trim(), emptyList())
+    /** Reihenfolge in Auswahl und Übersicht: Lieblingssongs, dann fixierte, dann nach zuletzt Hinzugefügtem. */
+    fun ordered(list: List<Playlist>): List<Playlist> {
+        val rest = list.filter { it.id != FAV_ID }
+        return list.filter { it.id == FAV_ID } +
+            rest.filter { it.pinned } +
+            rest.filter { !it.pinned }.sortedByDescending { maxOf(it.lastAdded, it.id.toLongOrNull() ?: 0L) }
+    }
+
+    fun setPinned(ctx: Context, id: String, pinned: Boolean) {
+        playlists = playlists.map { if (it.id == id) it.copy(pinned = pinned) else it }
+        save(ctx)
+    }
+
+    fun editPlaylist(ctx: Context, id: String, name: String, description: String) {
+        playlists = playlists.map {
+            if (it.id == id) it.copy(name = if (id == FAV_ID || name.isBlank()) it.name else name.trim(), description = description.trim()) else it
+        }
+        save(ctx)
+    }
+
+    fun setCoverStamp(ctx: Context, id: String, stamp: Long) {
+        playlists = playlists.map { if (it.id == id) it.copy(coverStamp = stamp) else it }
+        save(ctx)
+    }
+
+    fun setPlaylistGrid(ctx: Context, grid: Boolean) {
+        playlistGrid = grid
+        save(ctx)
+    }
+
+    fun createPlaylist(ctx: Context, name: String, audio: Boolean = false): Playlist {
+        val p = Playlist(System.currentTimeMillis().toString(), name.trim(), emptyList(), audio = audio)
         playlists = playlists + p
         save(ctx)
         return p
@@ -124,8 +177,9 @@ object Store {
             if (p.id != id) p
             else if (skipDuplicates) {
                 val have = p.trackPaths.toHashSet()
-                p.copy(trackPaths = p.trackPaths + paths.filter { have.add(it) })
-            } else p.copy(trackPaths = p.trackPaths + paths)
+                val add = paths.filter { have.add(it) }
+                if (add.isEmpty()) p else p.copy(trackPaths = p.trackPaths + add, lastAdded = System.currentTimeMillis())
+            } else p.copy(trackPaths = p.trackPaths + paths, lastAdded = System.currentTimeMillis())
         }
         save(ctx)
     }
@@ -154,6 +208,7 @@ object Store {
         if (map.isEmpty()) return
         playlists = playlists.map { p -> p.copy(trackPaths = p.trackPaths.map { map[it] ?: it }) }
         trackArtists = trackArtists.mapKeys { map[it.key] ?: it.key }
+        knownPaths = knownPaths.map { map[it] ?: it }.toHashSet()
         save(ctx)
     }
 
@@ -191,8 +246,22 @@ object Store {
         save(ctx)
     }
 
-    fun setSort(ctx: Context, s: SortBy) {
+    fun setSort(ctx: Context, s: SortBy, level: Int) {
         sortBy = s
+        sortLevel = level
+        save(ctx)
+    }
+
+    /** Beim ersten Start gelten alle vorhandenen Lieder als gesehen. */
+    fun initKnown(ctx: Context, paths: Collection<String>) {
+        if (knownInit) return
+        knownInit = true
+        knownPaths = paths.toHashSet()
+        save(ctx)
+    }
+
+    fun markSeen(ctx: Context, paths: Collection<String>) {
+        knownPaths = knownPaths + paths
         save(ctx)
     }
 }

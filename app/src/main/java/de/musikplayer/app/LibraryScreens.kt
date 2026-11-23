@@ -1,6 +1,33 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
 package de.musikplayer.app
 
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.toMutableStateList
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +71,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
+/** Reagiert einmal, wenn der Reiter ein zweites Mal angetippt wurde (zurück auf die oberste Ebene). */
+@Composable
+fun OnReset(reset: Int, block: () -> Unit) {
+    var handled by rememberSaveable { mutableIntStateOf(reset) }
+    LaunchedEffect(reset) { if (reset != handled) { handled = reset; block() } }
+}
+
 /** Ausgewählte Lieder (Gedrückt-halten startet die Auswahl). */
 class Selection {
     val ids = mutableStateListOf<Long>()
@@ -80,7 +114,8 @@ fun TrackListBody(
     context: String,
     actions: TrackActions,
     sel: Selection,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    listState: LazyListState = rememberLazyListState()
 ) {
     BackHandler(enabled = sel.active) { sel.clear() }
     Column(modifier) {
@@ -97,7 +132,7 @@ fun TrackListBody(
             )
         }
         val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
-        LazyColumn(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState) {
             itemsIndexed(list, key = { _, t -> t.id }) { i, t ->
                 TrackRow(
                     t, actions,
@@ -117,25 +152,30 @@ fun TrackListBody(
 // ---------- Bibliothek (Titel + Interpreten) ----------
 
 @Composable
-fun LibraryTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, openArtist: String?, onArtistConsumed: () -> Unit) {
+fun LibraryTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, openArtist: String?, onArtistConsumed: () -> Unit, reset: Int) {
     var mode by rememberSaveable { mutableIntStateOf(0) }
+    val holder = rememberSaveableStateHolder()
+    val songsState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    OnReset(reset) { if (mode == 0) scope.launch { songsState.animateScrollToItem(0) } }
     LaunchedEffect(openArtist) { if (openArtist != null) mode = 1 }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             LetterChip("Titel", mode == 0, true) { mode = 0 }
             LetterChip("Interpreten", mode == 1, true) { mode = 1 }
         }
-        if (mode == 0) SongsTab(vm, actions, sel) else ArtistsTab(vm, actions, sel, openArtist, onArtistConsumed)
+        holder.SaveableStateProvider(mode) {
+            if (mode == 0) SongsTab(vm, actions, sel, songsState) else ArtistsTab(vm, actions, sel, openArtist, onArtistConsumed, reset)
+        }
     }
 }
 
 // ---------- Titel ----------
 
 @Composable
-fun SongsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection) {
+fun SongsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, listState: LazyListState) {
     var query by rememberSaveable { mutableStateOf("") }
-    var sortMenu by remember { mutableStateOf(false) }
-    val all = remember(vm.tracks, vm.sortBy) { Library.sorted(vm.tracks, vm.sortBy) }
+    val all = remember(vm.tracks, vm.sortBy, vm.sortLevel) { Library.sorted(vm.tracks, vm.sortBy, vm.sortLevel) }
     val list = remember(all, query) { filterTracks(all, query) }
     Column(Modifier.fillMaxSize()) {
         SearchField(query, { query = it }, "Titel oder Interpret suchen")
@@ -144,13 +184,15 @@ fun SongsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection) {
                 if (query.isBlank()) "${all.size} Titel" else "${list.size} von ${all.size}",
                 Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.titleSmall
             )
-            Box {
-                TextButton(onClick = { sortMenu = true }) { Text("Sortierung: ${vm.sortBy.label}") }
-                DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
-                    for (s in SortBy.values()) DropdownMenuItem(text = { Text(s.label) }, onClick = { sortMenu = false; vm.setSort(s) })
-                }
-            }
             IconButton(onClick = { vm.playShuffled(list, "all") }, enabled = list.isNotEmpty()) { Icon(Icons.Filled.Shuffle, "Zufällig") }
+        }
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (sb in SortBy.values()) {
+                val active = vm.sortBy == sb && vm.sortLevel != 2
+                val naturalDown = sb == SortBy.Added || sb == SortBy.Duration
+                val down = if (vm.sortLevel == 1) !naturalDown else naturalDown
+                LetterChip(sb.label + if (active) (if (down) " ↓" else " ↑") else "", active, true) { vm.cycleSort(sb) }
+            }
         }
         if (vm.loading && all.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
@@ -160,7 +202,7 @@ fun SongsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection) {
             }
         } else {
             // Beim Suchen nur die Treffer abspielen; ohne Suche die ganze Bibliothek
-            TrackListBody(vm, list, if (query.isBlank()) "all" else "s", actions, sel)
+            TrackListBody(vm, list, if (query.isBlank()) "all" else "s", actions, sel, listState = listState)
         }
     }
 }
@@ -173,11 +215,20 @@ fun ArtistsTab(
     actions: TrackActions,
     sel: Selection,
     openRequest: String?,
-    onConsumed: () -> Unit
+    onConsumed: () -> Unit,
+    reset: Int
 ) {
     var open by rememberSaveable { mutableStateOf<String?>(null) }
+    val gridState = rememberLazyGridState()
+    val artistsListState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    OnReset(reset) {
+        if (open != null) open = null
+        else scope.launch { if (vm.artistGrid) gridState.animateScrollToItem(0) else artistsListState.animateScrollToItem(0) }
+    }
     var query by rememberSaveable { mutableStateOf("") }
     var letter by rememberSaveable { mutableStateOf<String?>(null) }
+    var aSort by rememberSaveable { mutableIntStateOf(0) } // 0 A–Z, 1 Z–A, 2 keine Sortierung
     LaunchedEffect(openRequest) {
         if (openRequest != null) { open = openRequest; onConsumed() }
     }
@@ -188,9 +239,14 @@ fun ArtistsTab(
     if (artist == null) {
         val available = remember(groups) { groups.keys.map { Names.letterOf(it) }.toSet() }
         val activeLetter = letter?.takeIf { it in available }
-        val names = remember(groups, query, activeLetter) {
+        val names = remember(groups, query, activeLetter, aSort) {
             val q = Names.fold(query.trim())
-            groups.keys.filter { (q.isEmpty() || q in Names.fold(it)) && (activeLetter == null || Names.letterOf(it) == activeLetter) }
+            val f = groups.keys.filter { (q.isEmpty() || q in Names.fold(it)) && (activeLetter == null || Names.letterOf(it) == activeLetter) }
+            when (aSort) {
+                0 -> f
+                1 -> f.reversed()
+                else -> { val first = HashMap<String, Int>(); vm.tracks.forEachIndexed { i, t -> first.putIfAbsent(t.artist, i) }; f.sortedBy { first[it] ?: Int.MAX_VALUE } }
+            }
         }
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -200,11 +256,15 @@ fun ArtistsTab(
                 }
             }
             LetterBar(activeLetter, available) { letter = it }
+            Row(Modifier.padding(horizontal = 12.dp)) {
+                LetterChip(when (aSort) { 0 -> "Name ↑"; 1 -> "Name ↓"; else -> "Ohne Sortierung" }, aSort != 2, true) { aSort = (aSort + 1) % 3 }
+            }
             if (names.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Keine Interpreten") }
             } else if (vm.artistGrid) {
                 LazyVerticalGrid(
                     GridCells.Adaptive(112.dp), Modifier.fillMaxSize(),
+                    state = gridState,
                     contentPadding = PaddingValues(8.dp)
                 ) {
                     items(names, key = { it }) { name ->
@@ -213,7 +273,7 @@ fun ArtistsTab(
                     }
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize(), state = artistsListState) {
                     items(names, key = { it }) { name ->
                         val list = remember(groups, name) { (groups[name] ?: emptyList()).sortedBy { it.sortKey } }
                         GroupRow(name, list, list.size, true, groupActions(vm, list, "a:$name", actions)) { open = name }
@@ -254,55 +314,107 @@ fun PlaylistsTab(
     onRename: (Playlist) -> Unit,
     onDeleteList: (Playlist) -> Unit,
     openRequest: String?,
-    onConsumed: () -> Unit
+    onConsumed: () -> Unit,
+    reset: Int
 ) {
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
+    val plListState = rememberLazyListState()
+    val plGridState = rememberLazyGridState()
+    val plScope = rememberCoroutineScope()
+    OnReset(reset) { if (openId != null) openId = null else plScope.launch { plListState.animateScrollToItem(0) } }
     LaunchedEffect(openRequest) {
         if (openRequest != null) { openId = openRequest; onConsumed() }
     }
     BackHandler(enabled = openId != null) { openId = null }
     val open = vm.playlists.firstOrNull { it.id == openId }
     if (open == null) {
+        val ordered = vm.orderedPlaylists()
         Column(Modifier.fillMaxSize()) {
-            TextButton(onClick = onNew, Modifier.padding(horizontal = 8.dp)) { Text("+ Neue Playlist") }
-            if (vm.playlists.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Noch keine Playlists – wähle Lieder oder einen Interpreten aus und füge sie hinzu")
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onNew) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text("  Neue Playlist") }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = { vm.showPlaylistsAsGrid(!vm.playlistGrid) }) {
+                    Icon(if (vm.playlistGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.playlistGrid) "Listenansicht" else "Kachelansicht")
                 }
             }
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(vm.playlists, key = { it.id }) { p ->
-                    val list = vm.playlistEntries(p.id).map { it.second }
-                    GroupRow(p.name, list, p.trackPaths.size, false, groupActions(vm, list, "p:${p.id}", null), heart = p.id == FAV_ID) { openId = p.id }
+            if (vm.playlistGrid) {
+                LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize(), state = plGridState, contentPadding = PaddingValues(6.dp)) {
+                    items(ordered, key = { it.id }) { p ->
+                        PlaylistTile(vm, p, onOpen = { openId = p.id }, onEdit = { onRename(p) }, onDelete = { onDeleteList(p) })
+                    }
+                }
+            } else {
+                LazyColumn(Modifier.fillMaxSize(), state = plListState) {
+                    items(ordered, key = { it.id }) { p ->
+                        PlaylistRow(vm, p, onOpen = { openId = p.id }, onEdit = { onRename(p) }, onDelete = { onDeleteList(p) })
+                    }
                 }
             }
         }
     } else {
         val entries = vm.playlistEntries(open.id)
-        val list = entries.map { it.second }
         val ctx = "p:${open.id}"
+        var mode by rememberSaveable { mutableIntStateOf(0) } // 0 eigene Reihenfolge, 1 zuletzt hinzugefügt, 2 Titel, 3 Interpret, 4 Länge
+        val modes = listOf("Eigene Reihenfolge", "Zuletzt hinzugefügt", "Titel", "Interpret", "Länge")
+        val order = remember(entries) { entries.toMutableStateList() }
+        val shown: List<Pair<Int, Track>> = when (mode) {
+            0 -> order
+            1 -> if (open.id == FAV_ID) entries else entries.reversed()
+            2 -> entries.sortedBy { it.second.sortKey }
+            3 -> entries.sortedWith(compareBy({ it.second.artistKey }, { it.second.sortKey }))
+            else -> entries.sortedByDescending { it.second.durationMs }
+        }
+        val list = shown.map { it.second }
+        val listState = rememberLazyListState()
+        val orderRef by rememberUpdatedState(order)
+        val rs = remember(open.id) { ReorderState(listState) { from, to -> orderRef.add(to, orderRef.removeAt(from)) } }
+        val scope = rememberCoroutineScope()
+        val haptic = LocalHapticFeedback.current
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { openId = null }) { Text("‹ Zurück") }
-                Text(open.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                IconButton(onClick = { vm.playShuffled(list, ctx) }, enabled = list.isNotEmpty()) { Icon(Icons.Filled.Shuffle, "Zufällig") }
+            PlaylistHeader(
+                vm, open, list,
+                onBack = { openId = null },
+                onStart = { if (vm.shuffle) vm.playShuffled(list, ctx) else vm.play(list, 0, ctx) },
+                onEdit = { onRename(open) },
+                onDelete = { onDeleteList(open); openId = null }
+            )
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                modes.forEachIndexed { m, label -> LetterChip(label, mode == m, true) { mode = m } }
             }
-            if (open.id != FAV_ID) Row(Modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { onRename(open) }) { Text("Umbenennen") }
-                TextButton(onClick = { onDeleteList(open); openId = null }) { Text("Playlist löschen", color = MaterialTheme.colorScheme.error) }
+            if (mode == 0 && entries.size > 1) {
+                Text(
+                    "Lied gedrückt halten und mit dem Finger verschieben.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
             }
-            LazyColumn(Modifier.fillMaxSize()) {
+            ReorderEffects(rs)
+            LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 // Index in der gespeicherten Liste als Schlüssel: dasselbe Lied darf mehrfach vorkommen
-                itemsIndexed(entries, key = { _, e -> e.first }) { i, (idx, t) ->
+                itemsIndexed(shown, key = { _, e -> e.first }) { i, (idx, t) ->
                     val rowActions = actions.copy(onRemoveFromPlaylist = { vm.removeFromPlaylistAt(open.id, idx) })
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TrackRow(t, rowActions, modifier = Modifier.weight(1f), compact = true) { vm.play(list, i, ctx) }
-                        IconButton(onClick = { vm.movePlaylistTrack(open.id, idx, entries[i - 1].first) }, enabled = i > 0) {
-                            Icon(Icons.Filled.ArrowUpward, "Nach oben")
+                    if (mode == 0) {
+                        val pos by rememberUpdatedState(i)
+                        val isDrag = rs.dragging == i
+                        Box(
+                            Modifier.fillMaxWidth()
+                                .then(
+                                    if (isDrag) Modifier.zIndex(1f).graphicsLayer { translationY = rs.delta; shadowElevation = 16f }
+                                    else Modifier.animateItemPlacement()
+                                )
+                                .pointerInput(Unit) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); rs.start(pos) },
+                                        onDrag = { change, offset -> change.consume(); rs.drag(offset.y) },
+                                        onDragEnd = { rs.end(scope) { from, to -> vm.movePlaylistTrack(open.id, entries[from].first, entries[to].first) } },
+                                        onDragCancel = { rs.end(scope) { from, to -> vm.movePlaylistTrack(open.id, entries[from].first, entries[to].first) } }
+                                    )
+                                }
+                        ) {
+                            TrackRow(t, rowActions, modifier = Modifier.fillMaxWidth(), compact = true, swipe = false) { vm.play(list, i, ctx) }
                         }
-                        IconButton(onClick = { vm.movePlaylistTrack(open.id, idx, entries[i + 1].first) }, enabled = i < entries.lastIndex) {
-                            Icon(Icons.Filled.ArrowDownward, "Nach unten")
-                        }
+                    } else {
+                        TrackRow(t, rowActions, modifier = Modifier.fillMaxWidth()) { vm.play(list, i, ctx) }
                     }
                 }
             }

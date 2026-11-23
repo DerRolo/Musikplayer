@@ -2,7 +2,9 @@ package de.musikplayer.app
 
 import android.app.Application
 import android.content.ComponentName
+import android.os.Bundle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
@@ -27,6 +29,14 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     var playlists by mutableStateOf<List<Playlist>>(emptyList())
         private set
     var folders by mutableStateOf<List<FolderInfo>>(emptyList())
+        private set
+    var playlistGrid by mutableStateOf(false)
+        private set
+    var sortLevel by mutableIntStateOf(0)
+        private set
+    var seenTick by mutableIntStateOf(0)
+        private set
+    var queuedCount by mutableIntStateOf(0)
         private set
     var sortBy by mutableStateOf(SortBy.Title)
         private set
@@ -73,7 +83,9 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     init {
         Store.load(app)
         sortBy = Store.sortBy
+        sortLevel = Store.sortLevel
         artistGrid = Store.artistGrid
+        playlistGrid = Store.playlistGrid
         syncPlaylists()
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         val f = MediaController.Builder(app, token).buildAsync()
@@ -101,7 +113,6 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         isPlaying = c.isPlaying
         positionMs = c.currentPosition
         durationMs = if (c.duration > 0) c.duration else 0L
-        shuffle = c.shuffleModeEnabled
         repeat = when (c.repeatMode) {
             Player.REPEAT_MODE_ALL -> RepeatMode.All
             Player.REPEAT_MODE_ONE -> RepeatMode.One
@@ -111,6 +122,10 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         nextItem = c.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET }?.let { c.getMediaItemAt(it) }
         prevItem = c.previousMediaItemIndex.takeIf { it != C.INDEX_UNSET }?.let { c.getMediaItemAt(it) }
         queue = (0 until c.mediaItemCount).map { c.getMediaItemAt(it) }
+        var n = 0
+        var i = currentIndex + 1
+        while (i < queue.size && isQueued(queue[i])) { n++; i++ }
+        queuedCount = n
     }
 
     // ---------- Laden ----------
@@ -120,6 +135,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         loading = true
         viewModelScope.launch {
             withContext(Dispatchers.IO) { Library.load(app) }
+            Store.initKnown(app, Library.tracks.map { it.path })
             refreshFromLibrary()
             loading = false
         }
@@ -130,22 +146,61 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         syncPlaylists()
         folders = Library.folders()
         sortBy = Store.sortBy
+        sortLevel = Store.sortLevel
     }
 
-    val sortedTracks: List<Track> get() = Library.sorted(tracks, sortBy)
+    val sortedTracks: List<Track> get() = Library.sorted(tracks, sortBy, sortLevel)
 
-    fun setSort(s: SortBy) {
-        Store.setSort(app, s)
+    /** Mehrmals auf dieselbe Sortierung tippen: Standard → umgekehrt → keine Sortierung → wieder Standard. */
+    fun cycleSort(s: SortBy) {
+        val level = if (s == sortBy) (sortLevel + 1) % 3 else 0
+        Store.setSort(app, s, level)
         sortBy = s
+        sortLevel = level
+    }
+
+    // ---------- Neue Lieder ----------
+
+    fun newTracks(): List<Track> = tracks.filter { it.path !in Store.knownPaths }
+
+    fun existingArtists(): Set<String> = tracks.filter { it.path in Store.knownPaths && it.artist != UNKNOWN_ARTIST }.map { it.artist }.toSet()
+
+    fun markSeen(list: List<Track>) {
+        Store.markSeen(app, list.map { it.path })
+        seenTick++
     }
 
     // ---------- Wiedergabe-Steuerung ----------
 
-    /** Spielt [list] ab Position [index]; der Kontext bestimmt die Warteschlange (alles aus derselben Liste). */
+    /** Ursprüngliche Reihenfolge der zuletzt gestarteten Liste (um „Zufall aus“ wiederherzustellen). */
+    private var baseList: List<MediaItem> = emptyList()
+
+    private fun isQueued(m: MediaItem) = m.mediaMetadata.extras?.getBoolean("queued", false) == true
+
+    private fun asQueued(m: MediaItem): MediaItem {
+        val b = Bundle().apply { putBoolean("queued", true) }
+        return m.buildUpon().setMediaMetadata(m.mediaMetadata.buildUpon().setExtras(b).build()).build()
+    }
+
+    /**
+     * Spielt [list] ab Position [index]. Zufall wird hier selbst gemacht (nicht vom Player): bei jedem Start und
+     * jedem Ein-/Ausschalten wird neu gemischt, und eingereihte Lieder bleiben immer direkt als Nächstes dran.
+     */
     fun play(list: List<Track>, index: Int, context: String) {
-        val c = controller ?: return
         if (list.isEmpty()) return
-        c.setMediaItems(list.map { Library.mediaItem(it, context) }, index.coerceIn(0, list.lastIndex), 0L)
+        startItems(list.map { Library.mediaItem(it, context) }, index.coerceIn(0, list.lastIndex))
+    }
+
+    private fun startItems(items: List<MediaItem>, index: Int) {
+        val c = controller ?: return
+        baseList = items
+        c.shuffleModeEnabled = false
+        if (shuffle) {
+            val rest = items.filterIndexed { i, _ -> i != index }.shuffled()
+            c.setMediaItems(listOf(items[index]) + rest, 0, 0L)
+        } else {
+            c.setMediaItems(items, index, 0L)
+        }
         c.prepare()
         c.play()
     }
@@ -153,8 +208,11 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun playShuffled(list: List<Track>, context: String) {
         val c = controller ?: return
         if (list.isEmpty()) return
-        c.shuffleModeEnabled = true
-        c.setMediaItems(list.map { Library.mediaItem(it, context) }, (list.indices).random(), 0L)
+        shuffle = true
+        c.shuffleModeEnabled = false
+        val items = list.map { Library.mediaItem(it, context) }
+        baseList = items
+        c.setMediaItems(items.shuffled(), 0, 0L)
         c.prepare()
         c.play()
     }
@@ -178,7 +236,22 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         positionMs = ms
     }
 
-    fun toggleShuffle() { controller?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled } }
+    fun toggleShuffle() {
+        val c = controller ?: return
+        shuffle = !shuffle
+        c.shuffleModeEnabled = false
+        message = if (shuffle) "Zufall an" else "Zufall aus"
+        val from = c.currentMediaItemIndex + 1 + queuedCount
+        val count = c.mediaItemCount
+        if (from >= count) return
+        val tail = (from until count).map { c.getMediaItemAt(it) }
+        val newTail = if (shuffle) tail.shuffled() else {
+            val curId = c.currentMediaItem?.mediaId
+            val pos = baseList.indexOfFirst { it.mediaId == curId }
+            if (pos >= 0) baseList.drop(pos + 1).filter { b -> tail.any { it.mediaId == b.mediaId } } else tail
+        }
+        if (newTail.size == tail.size) c.replaceMediaItems(from, count, newTail)
+    }
 
     fun cycleRepeat() {
         val c = controller ?: return
@@ -191,8 +264,9 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ---------- Warteschlange ----------
 
-    private fun itemsOf(list: List<Track>) = list.map { Library.mediaItem(it, "q") }
+    private fun itemsOf(list: List<Track>) = list.map { asQueued(Library.mediaItem(it, "q")) }
 
+    /** Direkt nach dem aktuellen Lied (vor schon eingereihten). */
     fun playNext(list: List<Track>) {
         val c = controller ?: return
         if (c.mediaItemCount == 0) { play(list, 0, "q"); return }
@@ -200,10 +274,11 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         message = "Als Nächstes eingereiht"
     }
 
+    /** Hinten an die Warteschlange: nach dem aktuellen Lied und nach allem, was schon eingereiht ist. */
     fun addToQueue(list: List<Track>) {
         val c = controller ?: return
         if (c.mediaItemCount == 0) { play(list, 0, "q"); return }
-        c.addMediaItems(itemsOf(list))
+        c.addMediaItems(c.currentMediaItemIndex + 1 + queuedCount, itemsOf(list))
         message = "Zur Warteschlange hinzugefügt"
     }
 
@@ -258,11 +333,91 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun createPlaylist(name: String, firstTracks: List<Track> = emptyList()) {
-        if (name.isBlank()) return
+    fun createPlaylist(name: String, firstTracks: List<Track> = emptyList()): String? {
+        if (name.isBlank()) return null
         val p = Store.createPlaylist(app, name)
         if (firstTracks.isNotEmpty()) Store.addToPlaylist(app, p.id, firstTracks.map { it.path })
         syncPlaylists()
+        return p.id
+    }
+
+    /** Reihenfolge: Lieblingssongs, fixierte, dann zuletzt Hinzugefügtes. */
+    fun orderedPlaylists(): List<Playlist> = Store.ordered(playlists)
+
+    fun showPlaylistsAsGrid(grid: Boolean) {
+        Store.setPlaylistGrid(app, grid)
+        playlistGrid = grid
+    }
+
+    fun setPinned(id: String, pinned: Boolean) {
+        Store.setPinned(app, id, pinned)
+        syncPlaylists()
+        message = if (pinned) "Playlist fixiert" else "Fixierung gelöst"
+    }
+
+    fun editPlaylist(id: String, name: String, description: String) {
+        Store.editPlaylist(app, id, name, description)
+        syncPlaylists()
+    }
+
+    /** Eigenes Bild für eine Playlist: wird verkleinert, quadratisch zugeschnitten und in der App gespeichert. */
+    fun setCover(id: String, uri: android.net.Uri) {
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@withContext false
+                    val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
+                    var sample = 1
+                    while (o.outWidth / (sample * 2) >= 800 && o.outHeight / (sample * 2) >= 800) sample *= 2
+                    val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }) ?: return@withContext false
+                    val side = minOf(bmp.width, bmp.height)
+                    val sq = android.graphics.Bitmap.createBitmap(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side)
+                    val out = android.graphics.Bitmap.createScaledBitmap(sq, minOf(side, 600), minOf(side, 600), true)
+                    val dir = java.io.File(app.filesDir, "covers").also { it.mkdirs() }
+                    java.io.File(dir, "$id.jpg").outputStream().use { out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+                    true
+                } catch (e: Exception) { false }
+            }
+            if (ok) { Store.setCoverStamp(app, id, System.currentTimeMillis()); syncPlaylists() } else message = "Bild konnte nicht geladen werden"
+        }
+    }
+
+    fun removeCover(id: String) {
+        java.io.File(java.io.File(app.filesDir, "covers"), "$id.jpg").delete()
+        Store.setCoverStamp(app, id, 0L)
+        syncPlaylists()
+    }
+
+    /** Kontext der laufenden Wiedergabe, z. B. „p:<Playlist-ID>“ (für die Markierung „diese Playlist läuft“). */
+    val playingContext: String? get() = current?.mediaId?.removePrefix("t:")?.substringBeforeLast(':')
+
+    fun playPlaylist(p: Playlist) {
+        val list = playlistTracks(p.id)
+        if (list.isEmpty()) { message = "Die Playlist ist leer"; return }
+        if (shuffle) playShuffled(list, "p:${p.id}") else play(list, 0, "p:${p.id}")
+    }
+
+    /** Spielt die Playlist, oder Pause/Weiter, wenn sie gerade läuft. */
+    fun togglePlaylistPlay(p: Playlist) {
+        if (playingContext == "p:${p.id}") togglePlay() else playPlaylist(p)
+    }
+
+    /** Fügt Lieder zu mehreren Playlists hinzu (Doppelte werden übersprungen) und meldet das Ergebnis. */
+    fun addToPlaylists(ids: List<String>, list: List<Track>) {
+        var added = 0
+        for (id in ids) {
+            val before = Store.playlists.firstOrNull { it.id == id }?.trackPaths?.size ?: 0
+            Store.addToPlaylist(app, id, list.map { it.path }, true)
+            added += (Store.playlists.firstOrNull { it.id == id }?.trackPaths?.size ?: 0) - before
+        }
+        syncPlaylists()
+        val names = ids.mapNotNull { id -> Store.playlists.firstOrNull { it.id == id }?.name }
+        message = when {
+            added == 0 -> "Schon in der Playlist"
+            names.size == 1 -> "Zu „${names[0]}“ hinzugefügt"
+            else -> "Zu ${names.size} Playlists hinzugefügt"
+        }
     }
 
     fun renamePlaylist(id: String, name: String) {
@@ -272,6 +427,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun deletePlaylist(id: String) {
+        java.io.File(java.io.File(app.filesDir, "covers"), "$id.jpg").delete()
         Store.deletePlaylist(app, id)
         syncPlaylists()
     }

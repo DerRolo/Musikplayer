@@ -1,5 +1,6 @@
 package de.musikplayer.app
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +18,13 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FiberNew
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -35,19 +43,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private enum class Page { Menu, Folders, Sort, Names, Dupes, Cleanup }
+private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup }
 
 @Composable
-fun SettingsTab(vm: MusicViewModel) {
-    var page by remember { mutableStateOf(Page.Menu) }
+fun SettingsTab(vm: MusicViewModel, reset: Int) {
+    var page by rememberSaveable { mutableStateOf(Page.Menu) }
+    OnReset(reset) { page = Page.Menu }
     BackHandler(enabled = page != Page.Menu) { page = Page.Menu }
     when (page) {
         Page.Menu -> Column(Modifier.fillMaxSize()) {
-            MenuEntry("Interpreten & Ordner", "Ordner prüfen, Interpret zuordnen") { page = Page.Folders }
-            MenuEntry("Nach Interpret einsortieren", "Zugeordnete Lieder in Musik/<Interpret> verschieben") { page = Page.Sort }
-            MenuEntry("Dateinamen übernehmen", "Dateien so benennen, wie sie in der App angezeigt werden") { page = Page.Names }
-            MenuEntry("Aufräumen (erweitert)", "Duplikate und Dateinamen zusammen: pro Version behalten, säubern oder löschen") { page = Page.Cleanup }
-            MenuEntry("Duplikate", "Ähnliche Lieder finden und aufräumen") { page = Page.Dupes }
+            MenuEntry(Icons.Filled.FiberNew, "Neue Lieder", "Neu gefundene Lieder: Interpret zuordnen, umbenennen, einsortieren") { page = Page.New }
+            MenuEntry(Icons.Filled.Person, "Interpreten & Ordner", "Ordner prüfen, Interpret zuordnen") { page = Page.Folders }
+            MenuEntry(Icons.Filled.DriveFileMove, "Nach Interpret einsortieren", "Zugeordnete Lieder in Musik/<Interpret> verschieben") { page = Page.Sort }
+            MenuEntry(Icons.Filled.Edit, "Dateinamen übernehmen", "Dateien so benennen, wie sie in der App angezeigt werden") { page = Page.Names }
+            MenuEntry(Icons.Filled.ContentCopy, "Duplikate", "Ähnliche Lieder finden und aufräumen") { page = Page.Dupes }
+            MenuEntry(Icons.Filled.Build, "Aufräumen (erweitert)", "Duplikate und Dateinamen zusammen: pro Version behalten, säubern oder löschen") { page = Page.Cleanup }
             Text(
                 "Playlists, Zuordnungen und Einstellungen liegen nur in der App. Deine Dateien werden nie kopiert.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -56,6 +66,7 @@ fun SettingsTab(vm: MusicViewModel) {
         }
         Page.Folders -> FoldersPage(vm) { page = Page.Menu }
         Page.Sort -> SortPage(vm) { page = Page.Menu }
+        Page.New -> NewSongsPage(vm) { page = Page.Menu }
         Page.Names -> NamesPage(vm) { page = Page.Menu }
         Page.Dupes -> DupesPage(vm) { page = Page.Menu }
         Page.Cleanup -> CleanupPage(vm) { page = Page.Menu }
@@ -63,10 +74,13 @@ fun SettingsTab(vm: MusicViewModel) {
 }
 
 @Composable
-private fun MenuEntry(title: String, sub: String, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun MenuEntry(icon: ImageVector, title: String, sub: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 16.dp))
+        Column {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
@@ -244,7 +258,7 @@ private fun DupesPage(vm: MusicViewModel, onBack: () -> Unit) {
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis
                                 )
-                                TextButton(onClick = { renameConfirm = listOf(t to proposed.substringBeforeLast('.')) }) { Text("Dateinamen übernehmen") }
+                                TextButton(onClick = { renameConfirm = listOf(t to proposed.substringBeforeLast('.')) }) { Text("Dateinamen übernehmen", color = ORANGE) }
                             }
                         }
                         if (t == g.tracks[0]) Text("behalten?", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
@@ -291,7 +305,7 @@ private fun RenameConfirmDialog(entries: List<Pair<Track, String>>, onDismiss: (
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Umbenennen") } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Umbenennen", color = ORANGE) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
 }
@@ -329,6 +343,7 @@ private fun NamesPage(vm: MusicViewModel, onBack: () -> Unit) {
             Button(
                 onClick = { confirm = proposals(shownGroups.values.flatten()) },
                 enabled = shownCount > 0 && !vm.loading,
+                colors = ButtonDefaults.buttonColors(containerColor = ORANGE, contentColor = androidx.compose.ui.graphics.Color.Black),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             ) { Text(if (active == null) "Alle $shownCount übernehmen …" else "Alle mit $active ($shownCount) übernehmen …") }
             LazyColumn(Modifier.fillMaxSize()) {
@@ -340,7 +355,7 @@ private fun NamesPage(vm: MusicViewModel, onBack: () -> Unit) {
                                 style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
-                            TextButton(onClick = { confirm = proposals(list) }) { Text("Alle übernehmen") }
+                            TextButton(onClick = { confirm = proposals(list) }) { Text("Alle übernehmen", color = ORANGE) }
                         }
                     }
                     items(list, key = { "n${it.path}" }) { t ->
@@ -353,8 +368,8 @@ private fun NamesPage(vm: MusicViewModel, onBack: () -> Unit) {
                             Text(proposed, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                             if (clash) Text("Name gibt es schon – wird nummeriert", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                TextButton(onClick = { manual = t }) { Text("Ändern …") }
-                                TextButton(onClick = { confirm = proposals(listOf(t)) }) { Text("Übernehmen") }
+                                TextButton(onClick = { manual = t }) { Text("Ändern …", color = ORANGE) }
+                                TextButton(onClick = { confirm = proposals(listOf(t)) }) { Text("Übernehmen", color = ORANGE) }
                             }
                         }
                     }

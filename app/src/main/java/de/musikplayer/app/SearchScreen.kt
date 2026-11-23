@@ -24,10 +24,12 @@ import androidx.compose.ui.unit.dp
 fun SearchTab(
     vm: MusicViewModel,
     actions: TrackActions,
+    reset: Int,
     onOpenArtist: (String) -> Unit,
     onOpenPlaylist: (String) -> Unit
 ) {
     var query by rememberSaveable { mutableStateOf("") }
+    OnReset(reset) { query = "" }
     val q = Names.fold(query.trim())
 
     val artistHits = remember(vm.tracks, q) {

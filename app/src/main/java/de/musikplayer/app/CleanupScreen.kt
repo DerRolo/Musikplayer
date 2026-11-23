@@ -102,7 +102,7 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
                         Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Choice("Behalten", c == KEEP, MaterialTheme.colorScheme.primary) { if (c == KEEP) choice.remove(t.path) else choice[t.path] = KEEP }
                             if (proposed != t.fileName) {
-                                Choice("Behalten + Name säubern", c == KEEP_RENAME, MaterialTheme.colorScheme.primary) {
+                                Choice("Behalten + Name säubern", c == KEEP_RENAME, ORANGE) {
                                     if (c == KEEP_RENAME) choice.remove(t.path) else choice[t.path] = KEEP_RENAME
                                 }
                             }
@@ -134,7 +134,7 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
                 TextButton(
                     onClick = { confirm = false; vm.cleanup(toDelete, toRename); choice.clear() },
                     enabled = !needSure || sure
-                ) { Text("Ausführen", color = if (needSure) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
+                ) { Text("Ausführen", color = if (needSure) MaterialTheme.colorScheme.error else ORANGE) }
             },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Abbrechen") } }
         )

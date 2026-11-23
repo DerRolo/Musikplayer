@@ -139,11 +139,16 @@ object Library {
     fun byAlbum(): Map<String, List<Track>> =
         tracks.filter { it.album.isNotBlank() }.groupBy { it.album }.toSortedMap(String.CASE_INSENSITIVE_ORDER)
 
-    fun sorted(list: List<Track>, by: SortBy): List<Track> = when (by) {
-        SortBy.Title -> list.sortedBy { it.sortKey }
-        SortBy.Artist -> list.sortedWith(compareBy({ it.artistKey }, { it.sortKey }))
-        SortBy.Added -> list.sortedByDescending { it.modified }
-        SortBy.Duration -> list.sortedByDescending { it.durationMs }
+    /** [level]: 0 = Standardrichtung, 1 = umgekehrt, 2 = keine Sortierung. */
+    fun sorted(list: List<Track>, by: SortBy, level: Int = 0): List<Track> {
+        if (level >= 2) return list
+        val asc = when (by) {
+            SortBy.Title -> list.sortedBy { it.sortKey }
+            SortBy.Artist -> list.sortedWith(compareBy({ it.artistKey }, { it.sortKey }))
+            SortBy.Added -> list.sortedByDescending { it.modified }
+            SortBy.Duration -> list.sortedByDescending { it.durationMs }
+        }
+        return if (level == 1) asc.asReversed() else asc
     }
 
     /** Ordner mit Liedern ohne Interpret im Tag (oder mit deiner Zuordnung) – für die Einstellungen. */

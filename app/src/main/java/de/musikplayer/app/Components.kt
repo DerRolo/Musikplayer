@@ -72,13 +72,16 @@ data class TrackActions(
     val onRename: (Track) -> Unit = {}
 )
 
+/** Orange = ändert Dateien auf dem Handy (Umbenennen, Verschieben); Rot ist nur für Löschen. */
+val ORANGE = Color(0xFFF59E0B)
+
 /** Menüeintrag mit Symbol. [danger] = rot (Löschen). */
 @Composable
-fun MenuItem(text: String, icon: ImageVector, danger: Boolean = false, onClick: () -> Unit) {
-    val red = MaterialTheme.colorScheme.error
+fun MenuItem(text: String, icon: ImageVector, danger: Boolean = false, warn: Boolean = false, onClick: () -> Unit) {
+    val c = if (danger) MaterialTheme.colorScheme.error else if (warn) ORANGE else Color.Unspecified
     DropdownMenuItem(
-        text = { Text(text, color = if (danger) red else Color.Unspecified) },
-        leadingIcon = { Icon(icon, null, tint = if (danger) red else LocalContentColor.current) },
+        text = { Text(text, color = c) },
+        leadingIcon = { Icon(icon, null, tint = if (c == Color.Unspecified) LocalContentColor.current else c) },
         onClick = onClick
     )
 }
@@ -97,6 +100,7 @@ fun TrackRow(
     selected: Boolean = false,
     /** Ohne Herz/„+“ in der Zeile (steht dann im Menü), z. B. in Playlists mit Pfeilen. */
     compact: Boolean = false,
+    swipe: Boolean = true,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
@@ -112,8 +116,8 @@ fun TrackRow(
     SwipeToDismissBox(
         state = state,
         modifier = modifier,
-        enableDismissFromStartToEnd = !selectionMode,
-        enableDismissFromEndToStart = !selectionMode,
+        enableDismissFromStartToEnd = !selectionMode && swipe,
+        enableDismissFromEndToStart = !selectionMode && swipe,
         backgroundContent = {
             when (state.dismissDirection) {
                 SwipeToDismissBoxValue.StartToEnd -> Box(Modifier.fillMaxSize().background(HEART_PINK).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart) {
@@ -175,7 +179,7 @@ fun TrackRow(
                     actions.onRemoveFromPlaylist?.let { rm ->
                         MenuItem("Aus Playlist entfernen", Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
                     }
-                    MenuItem("Datei umbenennen …", Icons.Filled.Edit) { menu = false; actions.onRename(track) }
+                    MenuItem("Datei umbenennen …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
                     MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
                 }
             }

@@ -1,5 +1,7 @@
 package de.musikplayer.app
 
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -48,6 +50,8 @@ fun MusicApp(vm: MusicViewModel) {
     var renameTrack by remember { mutableStateOf<Track?>(null) }
 
     val snack = remember { SnackbarHostState() }
+    val holder = rememberSaveableStateHolder()
+    val resets = remember { mutableStateListOf(0, 0, 0, 0) }
     LaunchedEffect(Unit) { vm.load() }
     LaunchedEffect(vm.message) {
         vm.message?.let { snack.showSnackbar(it); vm.message = null }
@@ -68,72 +72,56 @@ fun MusicApp(vm: MusicViewModel) {
         onRename = { renameTrack = it }
     )
 
-    if (showPlayer) {
-        NowPlayingScreen(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }) { showPlayer = false }
-    } else {
-        Scaffold(
-            snackbarHost = { SnackbarHost(snack) },
-            bottomBar = {
-                Column {
-                    MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }) { showPlayer = true }
-                    NavigationBar {
-                        val icons = listOf(Icons.Filled.LibraryMusic, Icons.Filled.Search, Icons.Filled.PlaylistPlay, Icons.Filled.Settings)
-                        TAB_TITLES.forEachIndexed { i, title ->
-                            NavigationBarItem(
-                                selected = tab == i,
-                                onClick = { tab = i },
-                                icon = { Icon(icons[i], null) },
-                                label = { Text(title, fontSize = 10.sp, maxLines = 1, softWrap = false) }
-                            )
-                        }
+    Scaffold(
+        snackbarHost = { SnackbarHost(snack) },
+        bottomBar = {
+            Column {
+                if (!showPlayer) MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }) { showPlayer = true }
+                NavigationBar {
+                    val icons = listOf(Icons.Filled.LibraryMusic, Icons.Filled.Search, Icons.Filled.PlaylistPlay, Icons.Filled.Settings)
+                    TAB_TITLES.forEachIndexed { i, title ->
+                        NavigationBarItem(
+                            selected = !showPlayer && tab == i,
+                            onClick = {
+                                // Nochmal auf den aktuellen Reiter: zurück auf die oberste Ebene
+                                if (!showPlayer && tab == i) resets[i] = resets[i] + 1
+                                tab = i; showPlayer = false
+                            },
+                            icon = { Icon(icons[i], null) },
+                            label = { Text(title, fontSize = 10.sp, maxLines = 1, softWrap = false) }
+                        )
                     }
                 }
             }
-        ) { pad ->
-            Column(Modifier.padding(pad)) {
-                when (tab) {
-                    0 -> LibraryTab(vm, actions, sel, artistToOpen) { artistToOpen = null }
-                    1 -> SearchTab(
-                        vm, actions,
-                        onOpenArtist = { artistToOpen = it; tab = 0 },
-                        onOpenPlaylist = { playlistToOpen = it; tab = 2 }
-                    )
-                    2 -> PlaylistsTab(
-                        vm, actions,
-                        onNew = { newPlaylistFor = emptyList() },
-                        onRename = { renameList = it },
-                        onDeleteList = { deleteList = it },
-                        openRequest = playlistToOpen,
-                        onConsumed = { playlistToOpen = null }
-                    )
-                    else -> SettingsTab(vm)
-                }
-            }
+        }
+    ) { pad ->
+        Column(Modifier.padding(pad)) {
+            if (showPlayer) {
+                NowPlayingScreen(vm, actions, onAddToPlaylist = { addToPlaylist = listOf(it) }) { showPlayer = false }
+            } else holder.SaveableStateProvider(tab) { when (tab) {
+                0 -> LibraryTab(vm, actions, sel, artistToOpen, { artistToOpen = null }, resets[0])
+                1 -> SearchTab(
+                    vm, actions, resets[1],
+                    onOpenArtist = { artistToOpen = it; tab = 0 },
+                    onOpenPlaylist = { playlistToOpen = it; tab = 2 }
+                )
+                2 -> PlaylistsTab(
+                    vm, actions,
+                    onNew = { newPlaylistFor = emptyList() },
+                    onRename = { renameList = it },
+                    onDeleteList = { deleteList = it },
+                    openRequest = playlistToOpen,
+                    onConsumed = { playlistToOpen = null },
+                    reset = resets[2]
+                )
+                else -> SettingsTab(vm, resets[3])
+            } }
         }
     }
 
     // ---------- Dialoge ----------
     addToPlaylist?.let { list ->
-        PlaylistPickerDialog(
-            playlists = vm.playlists,
-            onDismiss = { addToPlaylist = null },
-            onPick = { p ->
-                addToPlaylist = null
-                // Warnung, wenn Lieder schon in der Playlist sind
-                if (vm.alreadyIn(p.id, list).isEmpty()) vm.addToPlaylist(p.id, list) else dupAdd = p to list
-            },
-            onNew = { newPlaylistFor = list; addToPlaylist = null }
-        )
-    }
-    dupAdd?.let { (p, list) ->
-        DuplicateAddDialog(
-            playlistName = p.name,
-            dupCount = vm.alreadyIn(p.id, list).size,
-            total = list.size,
-            onSkip = { vm.addToPlaylist(p.id, list, skipDuplicates = true); dupAdd = null },
-            onAddAll = { vm.addToPlaylist(p.id, list, skipDuplicates = false); dupAdd = null },
-            onCancel = { dupAdd = null }
-        )
+        AddToPlaylistDialog(vm, list, onDismiss = { addToPlaylist = null })
     }
     newPlaylistFor?.let { first ->
         TextInputDialog(
@@ -143,11 +131,7 @@ fun MusicApp(vm: MusicViewModel) {
         )
     }
     renameList?.let { p ->
-        TextInputDialog(
-            title = "Playlist umbenennen", label = "Name", initial = p.name,
-            onDismiss = { renameList = null },
-            onConfirm = { vm.renamePlaylist(p.id, it); renameList = null }
-        )
+        EditPlaylistDialog(vm, p.id, onDismiss = { renameList = null })
     }
     deleteList?.let { p ->
         ConfirmDialog(
