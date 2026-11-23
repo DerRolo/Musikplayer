@@ -2,6 +2,8 @@
 
 package de.musikplayer.app
 
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalFocusManager
@@ -63,7 +65,8 @@ data class GroupActions(
     val onShuffle: () -> Unit,
     val onPlayNext: () -> Unit,
     val onAddToQueue: () -> Unit,
-    val onAddToPlaylist: (() -> Unit)? = null
+    val onAddToPlaylist: (() -> Unit)? = null,
+    val onBlock: (() -> Unit)? = null
 )
 
 @Composable
@@ -76,6 +79,7 @@ fun GroupMenu(expanded: Boolean, onDismiss: () -> Unit, a: GroupActions) {
         a.onAddToPlaylist?.let { add ->
             MenuItem("Zu Playlist hinzufügen", Icons.Filled.PlaylistAdd) { onDismiss(); add() }
         }
+        a.onBlock?.let { b -> MenuItem("Sperren", Icons.Filled.Block) { onDismiss(); b() } }
     }
 }
 
@@ -140,7 +144,7 @@ fun GroupRow(
 }
 
 @Composable
-fun SearchField(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier) {
+fun SearchField(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier, onSubmit: (() -> Unit)? = null) {
     val focus = LocalFocusManager.current
     OutlinedTextField(
         value = value,
@@ -148,7 +152,7 @@ fun SearchField(value: String, onChange: (String) -> Unit, placeholder: String, 
         modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
+        keyboardActions = KeyboardActions(onSearch = { onSubmit?.invoke(); focus.clearFocus() }),
         placeholder = { Text(placeholder) },
         leadingIcon = { Icon(Icons.Filled.Search, null) },
         trailingIcon = {
@@ -167,7 +171,9 @@ fun SelectionBar(
     onPlaylist: () -> Unit,
     onQueue: () -> Unit,
     onPlayNext: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onBlock: () -> Unit = {},
+    onAssign: () -> Unit = {}
 ) {
     var more by remember { mutableStateOf(false) }
     Surface(tonalElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
@@ -181,6 +187,8 @@ fun SelectionBar(
                 IconButton(onClick = { more = true }, enabled = count > 0) { Icon(Icons.Filled.MoreVert, "Mehr") }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
                     MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { more = false; onPlayNext() }
+                    MenuItem("Interpret zuordnen …", Icons.Filled.Person) { more = false; onAssign() }
+                    MenuItem("Sperren", Icons.Filled.Block) { more = false; onBlock() }
                     MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { more = false; onDelete() }
                 }
             }

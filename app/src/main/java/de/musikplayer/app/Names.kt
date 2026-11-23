@@ -13,6 +13,10 @@ import java.text.Normalizer
  */
 object Names {
 
+    /** Eigene Wörter/Zeichenfolgen, die aus Namen entfernt werden (z. B. „(Official Video)“). Pflegst du in den Einstellungen. */
+    @Volatile
+    var extraStrip: List<String> = emptyList()
+
     private val BRACKET = Regex("^\\s*[\\[(]\\d{1,3}[\\])]\\s*[.\\-_–—]*\\s*")
     private val WITH_SEP = Regex("^\\s*\\d{1,3}\\s*[.\\-_–—)]+\\s*")
     private val ZERO_PADDED = Regex("^\\s*0\\d{1,2}\\s+")
@@ -37,6 +41,10 @@ object Names {
         val protectedByArtist = artistStartsWithDigit && s.startsWith(artist!!, ignoreCase = true)
         if (!protectedByArtist) s = stripNumber(s, folderNumbered)
         s = s.replace('_', ' ').replace(SPACES, " ").trim().trim('-', '–', '—', ' ')
+        if (extraStrip.isNotEmpty()) {
+            for (x in extraStrip) if (x.isNotBlank()) s = s.replace(x, " ", ignoreCase = true)
+            s = s.replace(SPACES, " ").trim().trim('-', '–', '—', ' ')
+        }
         s = collapseRepeat(stripArtistPrefix(s, artist))
         return if (s.isEmpty()) raw.trim() else s
     }

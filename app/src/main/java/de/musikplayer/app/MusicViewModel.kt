@@ -41,6 +41,11 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     var sortBy by mutableStateOf(SortBy.Title)
         private set
     var message by mutableStateOf<String?>(null)
+    /** Wenn gesetzt, zeigt die Meldung einen „Rückgängig“-Knopf. */
+    var undo by mutableStateOf<(() -> Unit)?>(null)
+    /** Zählt hoch, wenn sich Sperrliste/Filter/Verlauf ändern (damit Seiten neu lesen). */
+    var blockTick by mutableIntStateOf(0)
+        private set
     var artistGrid by mutableStateOf(true)
         private set
     var favoritePaths by mutableStateOf<Set<String>>(emptySet())
@@ -76,8 +81,17 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     var prevItem by mutableStateOf<MediaItem?>(null)
         private set
 
+    private var lastCounted = -1L
+
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) = syncFromPlayer()
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            // Hörzähler: jedes gestartete Lied zählt einmal
+            val id = mediaItem?.mediaId?.substringAfterLast(':')?.toLongOrNull() ?: return
+            if (id == lastCounted && reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) return
+            lastCounted = id
+            tracks.firstOrNull { it.id == id }?.let { Store.incPlay(app, it.path) }
+        }
     }
 
     init {
@@ -333,9 +347,9 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun createPlaylist(name: String, firstTracks: List<Track> = emptyList()): String? {
+    fun createPlaylist(name: String, firstTracks: List<Track> = emptyList(), audio: Boolean = false): String? {
         if (name.isBlank()) return null
-        val p = Store.createPlaylist(app, name)
+        val p = Store.createPlaylist(app, name, audio)
         if (firstTracks.isNotEmpty()) Store.addToPlaylist(app, p.id, firstTracks.map { it.path })
         syncPlaylists()
         return p.id
@@ -503,6 +517,98 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
             message = "${r.moved} Dateien einsortiert" + if (r.failed > 0) ", ${r.failed} fehlgeschlagen" else ""
         }
     }
+
+    // ---------- Datei bearbeiten ----------
+
+    /** Name (Datei) und/oder Interpret in einem Schritt ändern. */
+    fun editTrack(t: Track, newBaseName: String, artist: String?) {
+        val nameChanged = newBaseName.isNotBlank() && newBaseName != t.fileName.substringBeforeLast('.')
+        val artistChanged = (artist ?: "") != (if (t.artist == UNKNOWN_ARTIST) "" else t.artist)
+        if (!nameChanged && !artistChanged) return
+        loading = true
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.IO) {
+                // erst Interpret (nach Pfad), dann Umbenennen (Store zieht den Pfad nach)
+                if (artistChanged) Store.setTrackArtist(app, t.path, artist?.takeIf { it.isNotBlank() })
+                val res = if (nameChanged) Library.renameFiles(app, listOf(t to newBaseName)) else null
+                Library.load(app)
+                res
+            }
+            refreshFromLibrary()
+            loading = false
+            message = if (r != null && r.failed > 0) "Umbenennen fehlgeschlagen" else "Gespeichert"
+        }
+    }
+
+    /** Interpret für viele Lieder auf einmal. */
+    fun assignTracks(list: List<Track>, artist: String?) {
+        if (list.isEmpty()) return
+        Store.setTrackArtists(app, list.map { it.path }, artist?.takeIf { it.isNotBlank() })
+        reindex()
+        message = "Interpret für ${list.size} Lieder gesetzt"
+    }
+
+    // ---------- Sperrliste ----------
+
+    private fun dropFromPlayer(pred: (Long) -> Boolean) {
+        val c = controller ?: return
+        fun idAt(i: Int) = c.getMediaItemAt(i).mediaId.substringAfterLast(':').toLongOrNull() ?: -1L
+        if (c.mediaItemCount == 0) return
+        if (pred(idAt(c.currentMediaItemIndex))) {
+            if (c.hasNextMediaItem()) c.seekToNextMediaItem() else c.pause()
+        }
+        for (i in c.mediaItemCount - 1 downTo 0) if (i != c.currentMediaItemIndex && pred(idAt(i))) c.removeMediaItem(i)
+        // war das aktuelle Lied gesperrt und ist es noch da (kein Nachfolger), entfernen
+        if (c.mediaItemCount > 0 && pred(idAt(c.currentMediaItemIndex))) c.removeMediaItem(c.currentMediaItemIndex)
+    }
+
+    private fun afterBlock(label: String, affected: List<Track>, undoAction: () -> Unit) {
+        val ids = affected.map { it.id }.toHashSet()
+        dropFromPlayer { it in ids }
+        blockTick++
+        reindex()
+        message = label
+        undo = undoAction
+    }
+
+    fun blockTracks(list: List<Track>) {
+        if (list.isEmpty()) return
+        val paths = list.map { it.path }
+        Store.blockTracks(app, paths)
+        afterBlock(if (list.size == 1) "Gesperrt: ${list[0].title}" else "${list.size} Lieder gesperrt", list) {
+            Store.unblockTracks(app, paths); blockTick++; reindex()
+        }
+    }
+
+    fun blockArtist(name: String) {
+        val affected = tracks.filter { it.artist == name }
+        Store.blockArtist(app, name)
+        afterBlock("Gesperrt: $name", affected) { Store.unblockArtist(app, name); blockTick++; reindex() }
+    }
+
+    fun blockFolder(path: String) {
+        val affected = tracks.filter { it.folder == path }
+        Store.blockFolder(app, path)
+        afterBlock("Ordner gesperrt: ${path.substringAfterLast('/')}", affected) { Store.unblockFolder(app, path); blockTick++; reindex() }
+    }
+
+    fun unblockTracks(paths: List<String>) { Store.unblockTracks(app, paths); blockTick++; reindex(); message = "Entsperrt" }
+    fun unblockArtist(name: String) { Store.unblockArtist(app, name); blockTick++; reindex(); message = "Entsperrt: $name" }
+    fun unblockFolder(path: String) { Store.unblockFolder(app, path); blockTick++; reindex(); message = "Ordner entsperrt" }
+
+    // ---------- Filterliste für Namen, Suchverlauf ----------
+
+    fun setStripStrings(list: List<String>) {
+        Store.setStripStrings(app, list)
+        blockTick++
+        reindex()
+    }
+
+    fun addRecentSearch(q: String) { Store.addRecentSearch(app, q); blockTick++ }
+    fun removeRecentSearch(q: String) { Store.removeRecentSearch(app, q); blockTick++ }
+
+    /** Wie oft ein Lied gespielt wurde. */
+    fun plays(path: String): Int = Store.playCounts[path] ?: 0
 
     // ---------- Löschen (immer nach Bestätigung in der Oberfläche) ----------
 

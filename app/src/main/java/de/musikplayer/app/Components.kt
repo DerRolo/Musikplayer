@@ -3,6 +3,7 @@
 package de.musikplayer.app
 
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
@@ -69,7 +70,11 @@ data class TrackActions(
     /** Herz (Lieblingssongs) und Datei umbenennen. */
     val onToggleFavorite: (Track) -> Unit = {},
     val isFavorite: (Track) -> Boolean = { false },
-    val onRename: (Track) -> Unit = {}
+    val onRename: (Track) -> Unit = {},
+    /** Sperrliste: bleibt auf dem Handy, wird aber von der App ignoriert. */
+    val onBlock: (Track) -> Unit = {},
+    val onBlockMany: (List<Track>) -> Unit = {},
+    val onAssignMany: (List<Track>) -> Unit = {}
 )
 
 /** Orange = ändert Dateien auf dem Handy (Umbenennen, Verschieben); Rot ist nur für Löschen. */
@@ -179,7 +184,8 @@ fun TrackRow(
                     actions.onRemoveFromPlaylist?.let { rm ->
                         MenuItem("Aus Playlist entfernen", Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
                     }
-                    MenuItem("Datei umbenennen …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                    MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                    MenuItem("Sperren", Icons.Filled.Block) { menu = false; actions.onBlock(track) }
                     MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
                 }
             }
@@ -292,6 +298,59 @@ fun PlaylistPickerDialog(
             }
         },
         confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
+}
+
+/** Eingabefeld für einen Interpreten mit Vorschlägen aus den vorhandenen Interpreten (filtert beim Tippen). */
+@Composable
+fun ArtistField(value: String, onChange: (String) -> Unit, artists: List<String>, label: String = "Interpret") {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        OutlinedTextField(value, onChange, label = { Text(label) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        val q = Names.fold(value.trim())
+        val hits = if (q.isEmpty()) emptyList() else artists.filter { Names.fold(it).contains(q) && it != value }.take(4)
+        for (a in hits) {
+            Row(
+                Modifier.fillMaxWidth().clickable { onChange(a) }.padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.Person, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(a, Modifier.padding(start = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+/** „Datei bearbeiten“: Name der Datei und Interpret in einem Dialog. */
+@Composable
+fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, onConfirm: (name: String, artist: String) -> Unit) {
+    var name by remember { mutableStateOf(track.fileName.substringBeforeLast('.')) }
+    var artist by remember { mutableStateOf(if (track.artist == UNKNOWN_ARTIST) "" else track.artist) }
+    val proposal = Library.proposedFileName(track).substringBeforeLast('.')
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Datei bearbeiten") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(name, { name = it }, label = { Text("Dateiname (ohne Endung)") }, modifier = Modifier.fillMaxWidth())
+                if (proposal != name) TextButton(onClick = { name = proposal }) { Text(proposal, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                ArtistField(artist, { artist = it }, artists)
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(name.trim(), artist.trim()) }, enabled = name.isNotBlank()) { Text("Speichern", color = ORANGE) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
+}
+
+/** Interpret für mehrere Lieder auf einmal. */
+@Composable
+fun AssignArtistDialog(count: Int, artists: List<String>, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var artist by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (count == 1) "Interpret zuordnen" else "Interpret für $count Lieder") },
+        text = { ArtistField(artist, { artist = it }, artists) },
+        confirmButton = { TextButton(onClick = { onConfirm(artist.trim()) }, enabled = artist.isNotBlank()) { Text("Zuordnen") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
 }

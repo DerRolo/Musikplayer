@@ -97,13 +97,14 @@ fun filterTracks(all: List<Track>, query: String): List<Track> {
     }
 }
 
-fun groupActions(vm: MusicViewModel, list: List<Track>, context: String, actions: TrackActions?): GroupActions =
+fun groupActions(vm: MusicViewModel, list: List<Track>, context: String, actions: TrackActions?, onBlock: (() -> Unit)? = null): GroupActions =
     GroupActions(
         onPlay = { vm.play(list, 0, context) },
         onShuffle = { vm.playShuffled(list, context) },
         onPlayNext = { vm.playNext(list) },
         onAddToQueue = { vm.addToQueue(list) },
-        onAddToPlaylist = actions?.let { a -> { a.onAddManyToPlaylist(list) } }
+        onAddToPlaylist = actions?.let { a -> { a.onAddManyToPlaylist(list) } },
+        onBlock = onBlock
     )
 
 /** Liste von Liedern mit Auswahlmodus. Tippen spielt ab, Gedrückt-halten wählt aus. */
@@ -128,7 +129,9 @@ fun TrackListBody(
                 onPlaylist = { actions.onAddManyToPlaylist(chosen()); sel.clear() },
                 onQueue = { vm.addToQueue(chosen()); sel.clear() },
                 onPlayNext = { vm.playNext(chosen()); sel.clear() },
-                onDelete = { actions.onDeleteMany(chosen()); sel.clear() }
+                onDelete = { actions.onDeleteMany(chosen()); sel.clear() },
+                onBlock = { actions.onBlockMany(chosen()); sel.clear() },
+                onAssign = { actions.onAssignMany(chosen()); sel.clear() }
             )
         }
         val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
@@ -189,7 +192,7 @@ fun SongsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, listStat
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (sb in SortBy.values()) {
                 val active = vm.sortBy == sb && vm.sortLevel != 2
-                val naturalDown = sb == SortBy.Added || sb == SortBy.Duration
+                val naturalDown = sb == SortBy.Added || sb == SortBy.Duration || sb == SortBy.Plays
                 val down = if (vm.sortLevel == 1) !naturalDown else naturalDown
                 LetterChip(sb.label + if (active) (if (down) " ↓" else " ↑") else "", active, true) { vm.cycleSort(sb) }
             }
@@ -228,7 +231,7 @@ fun ArtistsTab(
     }
     var query by rememberSaveable { mutableStateOf("") }
     var letter by rememberSaveable { mutableStateOf<String?>(null) }
-    var aSort by rememberSaveable { mutableIntStateOf(0) } // 0 A–Z, 1 Z–A, 2 keine Sortierung
+    var aSort by rememberSaveable { mutableIntStateOf(0) } // 0 A–Z, 1 Z–A, 2 meiste Lieder, 3 meistgehört, 4 keine Sortierung
     LaunchedEffect(openRequest) {
         if (openRequest != null) { open = openRequest; onConsumed() }
     }
@@ -245,6 +248,12 @@ fun ArtistsTab(
             when (aSort) {
                 0 -> f
                 1 -> f.reversed()
+                2 -> f.sortedWith(compareByDescending<String> { groups[it]?.size ?: 0 }.thenBy { Names.fold(it) })
+                3 -> {
+                    val plays = HashMap<String, Int>()
+                    vm.tracks.forEach { t -> plays[t.artist] = (plays[t.artist] ?: 0) + vm.plays(t.path) }
+                    f.sortedWith(compareByDescending<String> { plays[it] ?: 0 }.thenBy { Names.fold(it) })
+                }
                 else -> { val first = HashMap<String, Int>(); vm.tracks.forEachIndexed { i, t -> first.putIfAbsent(t.artist, i) }; f.sortedBy { first[it] ?: Int.MAX_VALUE } }
             }
         }
@@ -256,8 +265,12 @@ fun ArtistsTab(
                 }
             }
             LetterBar(activeLetter, available) { letter = it }
-            Row(Modifier.padding(horizontal = 12.dp)) {
-                LetterChip(when (aSort) { 0 -> "Name ↑"; 1 -> "Name ↓"; else -> "Ohne Sortierung" }, aSort != 2, true) { aSort = (aSort + 1) % 3 }
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LetterChip(when (aSort) { 0 -> "Name ↑"; 1 -> "Name ↓"; 4 -> "Ohne Sortierung"; else -> "Name" }, aSort < 2, true) {
+                    aSort = when (aSort) { 0 -> 1; 1 -> 4; else -> 0 }
+                }
+                LetterChip("Meiste Lieder", aSort == 2, true) { aSort = if (aSort == 2) 0 else 2 }
+                LetterChip("Meistgehört", aSort == 3, true) { aSort = if (aSort == 3) 0 else 3 }
             }
             if (names.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Keine Interpreten") }
@@ -269,14 +282,14 @@ fun ArtistsTab(
                 ) {
                     items(names, key = { it }) { name ->
                         val list = remember(groups, name) { (groups[name] ?: emptyList()).sortedBy { it.sortKey } }
-                        GroupTile(name, list, list.size, true, groupActions(vm, list, "a:$name", actions)) { open = name }
+                        GroupTile(name, list, list.size, true, groupActions(vm, list, "a:$name", actions) { vm.blockArtist(name) }) { open = name }
                     }
                 }
             } else {
                 LazyColumn(Modifier.fillMaxSize(), state = artistsListState) {
                     items(names, key = { it }) { name ->
                         val list = remember(groups, name) { (groups[name] ?: emptyList()).sortedBy { it.sortKey } }
-                        GroupRow(name, list, list.size, true, groupActions(vm, list, "a:$name", actions)) { open = name }
+                        GroupRow(name, list, list.size, true, groupActions(vm, list, "a:$name", actions) { vm.blockArtist(name) }) { open = name }
                     }
                 }
             }
@@ -292,7 +305,7 @@ fun ArtistsTab(
                 IconButton(onClick = { vm.playShuffled(list, ctx) }) { Icon(Icons.Filled.Shuffle, "Zufällig") }
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Alle Lieder …") }
-                    GroupMenu(menu, { menu = false }, groupActions(vm, list, ctx, actions))
+                    GroupMenu(menu, { menu = false }, groupActions(vm, list, ctx, actions) { vm.blockArtist(artist); open = null })
                 }
             }
             if (list.isEmpty()) {
@@ -315,7 +328,9 @@ fun PlaylistsTab(
     onDeleteList: (Playlist) -> Unit,
     openRequest: String?,
     onConsumed: () -> Unit,
-    reset: Int
+    reset: Int,
+    /** true = Reiter „Hörbücher & Podcasts“ (eigene Listen, getrennt von den Musik-Playlists). */
+    audio: Boolean = false
 ) {
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
     val plListState = rememberLazyListState()
@@ -328,16 +343,23 @@ fun PlaylistsTab(
     BackHandler(enabled = openId != null) { openId = null }
     val open = vm.playlists.firstOrNull { it.id == openId }
     if (open == null) {
-        val ordered = vm.orderedPlaylists()
+        val ordered = vm.orderedPlaylists().filter { it.audio == audio }
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onNew) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text("  Neue Playlist") }
+                TextButton(onClick = onNew) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text(if (audio) "  Neue Liste" else "  Neue Playlist") }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { vm.showPlaylistsAsGrid(!vm.playlistGrid) }) {
                     Icon(if (vm.playlistGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.playlistGrid) "Listenansicht" else "Kachelansicht")
                 }
             }
-            if (vm.playlistGrid) {
+            if (ordered.isEmpty()) {
+                Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        "Noch keine Hörbuch- oder Podcast-Listen. Lege eine Liste an und füge Folgen oder Kapitel über „Zu Playlist hinzufügen“ hinzu (dort „Hörbuch-Listen anzeigen“).",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else if (vm.playlistGrid) {
                 LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize(), state = plGridState, contentPadding = PaddingValues(6.dp)) {
                     items(ordered, key = { it.id }) { p ->
                         PlaylistTile(vm, p, onOpen = { openId = p.id }, onEdit = { onRename(p) }, onDelete = { onDeleteList(p) })

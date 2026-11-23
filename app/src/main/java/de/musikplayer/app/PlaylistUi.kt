@@ -290,14 +290,16 @@ fun EditPlaylistDialog(vm: MusicViewModel, playlistId: String, onDismiss: () -> 
 fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -> Unit) {
     val checked = remember { mutableStateListOf<String>() }
     var creating by remember { mutableStateOf(false) }
-    val ordered = vm.orderedPlaylists()
+    var showAudio by remember { mutableStateOf(false) }
+    val hasAudio = vm.playlists.any { it.audio }
+    val ordered = vm.orderedPlaylists().filter { !it.audio || showAudio }
     val paths = remember(tracks) { tracks.map { it.path }.toHashSet() }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (tracks.size == 1) "Zu Playlist hinzufügen" else "${tracks.size} Lieder hinzufügen") },
         text = {
             Column {
-                TextButton(onClick = { creating = true }) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text("  Neue Playlist") }
+                TextButton(onClick = { creating = true }) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text(if (showAudio) "  Neue Hörbuch-Liste" else "  Neue Playlist") }
                 LazyColumn(Modifier.heightIn(max = 380.dp)) {
                     items(ordered, key = { it.id }) { p ->
                         val already = paths.isNotEmpty() && p.trackPaths.toHashSet().containsAll(paths)
@@ -323,8 +325,11 @@ fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -
             }
         },
         confirmButton = {
-            TextButton(onClick = { vm.addToPlaylists(checked.toList(), tracks); onDismiss() }, enabled = checked.isNotEmpty()) {
-                Text("Fertig" + if (checked.isNotEmpty()) " (${checked.size})" else "")
+            Row {
+                if (hasAudio) TextButton(onClick = { showAudio = !showAudio }) { Text(if (showAudio) "Nur Playlists" else "Hörbuch-Listen") }
+                TextButton(onClick = { vm.addToPlaylists(checked.toList(), tracks); onDismiss() }, enabled = checked.isNotEmpty()) {
+                    Text("Fertig" + if (checked.isNotEmpty()) " (${checked.size})" else "")
+                }
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
@@ -333,7 +338,7 @@ fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -
         TextInputDialog(
             title = "Neue Playlist", label = "Name", confirmText = "Erstellen",
             onDismiss = { creating = false },
-            onConfirm = { n -> vm.createPlaylist(n)?.let { checked.add(it) }; creating = false }
+            onConfirm = { n -> vm.createPlaylist(n, audio = showAudio)?.let { checked.add(it) }; creating = false }
         )
     }
 }

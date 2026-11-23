@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Search
@@ -16,6 +17,8 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,7 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
 
-private val TAB_TITLES = listOf("Bibliothek", "Suche", "Playlists", "Einstellungen")
+private val TAB_TITLES = listOf("Bibliothek", "Suche", "Playlists", "Hörbücher", "Einstellungen")
 
 @Composable
 fun MusicApp(vm: MusicViewModel) {
@@ -48,13 +51,23 @@ fun MusicApp(vm: MusicViewModel) {
     var assign by remember { mutableStateOf<Track?>(null) }
     var delete by remember { mutableStateOf<List<Track>?>(null) }
     var renameTrack by remember { mutableStateOf<Track?>(null) }
+    var assignMany by remember { mutableStateOf<List<Track>?>(null) }
+    var newAudioList by remember { mutableStateOf(false) }
 
     val snack = remember { SnackbarHostState() }
     val holder = rememberSaveableStateHolder()
-    val resets = remember { mutableStateListOf(0, 0, 0, 0) }
+    val resets = remember { mutableStateListOf(0, 0, 0, 0, 0) }
     LaunchedEffect(Unit) { vm.load() }
     LaunchedEffect(vm.message) {
-        vm.message?.let { snack.showSnackbar(it); vm.message = null }
+        vm.message?.let { m ->
+            val u = vm.undo
+            vm.message = null
+            vm.undo = null
+            if (u != null) {
+                val r = snack.showSnackbar(m, actionLabel = "Rückgängig", duration = SnackbarDuration.Short)
+                if (r == SnackbarResult.ActionPerformed) u()
+            } else snack.showSnackbar(m)
+        }
     }
     LaunchedEffect(tab) { sel.clear() }
     BackHandler(enabled = showPlayer) { showPlayer = false }
@@ -69,7 +82,10 @@ fun MusicApp(vm: MusicViewModel) {
         onDeleteMany = { delete = it },
         onToggleFavorite = { vm.toggleFavorite(it.path) },
         isFavorite = { vm.isFavorite(it.path) },
-        onRename = { renameTrack = it }
+        onRename = { renameTrack = it },
+        onBlock = { vm.blockTracks(listOf(it)) },
+        onBlockMany = { vm.blockTracks(it) },
+        onAssignMany = { assignMany = it }
     )
 
     Scaffold(
@@ -78,7 +94,7 @@ fun MusicApp(vm: MusicViewModel) {
             Column {
                 if (!showPlayer) MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }) { showPlayer = true }
                 NavigationBar {
-                    val icons = listOf(Icons.Filled.LibraryMusic, Icons.Filled.Search, Icons.Filled.PlaylistPlay, Icons.Filled.Settings)
+                    val icons = listOf(Icons.Filled.LibraryMusic, Icons.Filled.Search, Icons.Filled.PlaylistPlay, Icons.Filled.Headphones, Icons.Filled.Settings)
                     TAB_TITLES.forEachIndexed { i, title ->
                         NavigationBarItem(
                             selected = !showPlayer && tab == i,
@@ -114,7 +130,17 @@ fun MusicApp(vm: MusicViewModel) {
                     onConsumed = { playlistToOpen = null },
                     reset = resets[2]
                 )
-                else -> SettingsTab(vm, resets[3])
+                3 -> PlaylistsTab(
+                    vm, actions,
+                    onNew = { newAudioList = true },
+                    onRename = { renameList = it },
+                    onDeleteList = { deleteList = it },
+                    openRequest = null,
+                    onConsumed = {},
+                    reset = resets[3],
+                    audio = true
+                )
+                else -> SettingsTab(vm, resets[4])
             } }
         }
     }
@@ -143,21 +169,31 @@ fun MusicApp(vm: MusicViewModel) {
         )
     }
     assign?.let { t ->
-        TextInputDialog(
-            title = "Interpret zuordnen", label = "Interpret",
-            initial = if (t.artist == UNKNOWN_ARTIST) "" else t.artist,
+        AssignArtistDialog(
+            1, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
             onDismiss = { assign = null },
             onConfirm = { vm.assignTrack(t.path, it); assign = null }
         )
     }
     renameTrack?.let { t ->
-        TextInputDialog(
-            title = "Datei umbenennen", label = "Name (ohne Endung)",
-            initial = t.fileName.substringBeforeLast('.'),
-            suggestions = listOf(Library.proposedFileName(t).substringBeforeLast('.')),
-            confirmText = "Umbenennen",
+        EditTrackDialog(
+            t, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
             onDismiss = { renameTrack = null },
-            onConfirm = { vm.renameFiles(listOf(t to it)); renameTrack = null }
+            onConfirm = { n, a -> vm.editTrack(t, n, a); renameTrack = null }
+        )
+    }
+    assignMany?.let { list ->
+        AssignArtistDialog(
+            list.size, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
+            onDismiss = { assignMany = null },
+            onConfirm = { vm.assignTracks(list, it); assignMany = null }
+        )
+    }
+    if (newAudioList) {
+        TextInputDialog(
+            title = "Neue Hörbuch-/Podcast-Liste", label = "Name", confirmText = "Erstellen",
+            onDismiss = { newAudioList = false },
+            onConfirm = { vm.createPlaylist(it, audio = true); newAudioList = false }
         )
     }
     delete?.let { list ->

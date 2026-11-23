@@ -3,6 +3,8 @@ package de.musikplayer.app
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +20,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DriveFileMove
@@ -43,7 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup }
+private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked }
 
 @Composable
 fun SettingsTab(vm: MusicViewModel, reset: Int) {
@@ -58,6 +62,8 @@ fun SettingsTab(vm: MusicViewModel, reset: Int) {
             MenuEntry(Icons.Filled.Edit, "Dateinamen übernehmen", "Dateien so benennen, wie sie in der App angezeigt werden") { page = Page.Names }
             MenuEntry(Icons.Filled.ContentCopy, "Duplikate", "Ähnliche Lieder finden und aufräumen") { page = Page.Dupes }
             MenuEntry(Icons.Filled.Build, "Aufräumen (erweitert)", "Duplikate und Dateinamen zusammen: pro Version behalten, säubern oder löschen") { page = Page.Cleanup }
+            MenuEntry(Icons.Filled.FilterAlt, "Namen-Filter", "Texte, die aus Titeln entfernt werden (z. B. „Official Video“)") { page = Page.Strip }
+            MenuEntry(Icons.Filled.Block, "Gesperrt", "Gesperrte Lieder, Interpreten und Ordner ansehen und entsperren") { page = Page.Blocked }
             Text(
                 "Playlists, Zuordnungen und Einstellungen liegen nur in der App. Deine Dateien werden nie kopiert.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -70,6 +76,8 @@ fun SettingsTab(vm: MusicViewModel, reset: Int) {
         Page.Names -> NamesPage(vm) { page = Page.Menu }
         Page.Dupes -> DupesPage(vm) { page = Page.Menu }
         Page.Cleanup -> CleanupPage(vm) { page = Page.Menu }
+        Page.Strip -> StripPage(vm) { page = Page.Menu }
+        Page.Blocked -> BlockedPage(vm) { page = Page.Menu }
     }
 }
 
@@ -118,7 +126,8 @@ private fun FoldersPage(vm: MusicViewModel, onBack: () -> Unit) {
                     if (f.assigned != null) {
                         Text("Zugeordnet: ${f.assigned}", color = MaterialTheme.colorScheme.primary)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { vm.blockFolder(f.path) }) { Icon(Icons.Filled.Block, null, Modifier.size(18.dp)); Text("  Sperren") }
                         if (f.assigned == null && f.suggestion != null) {
                             TextButton(onClick = { vm.assignFolder(f.path, f.suggestion) }) { Text("Als „${f.suggestion}“ übernehmen") }
                         }

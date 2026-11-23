@@ -51,7 +51,7 @@ data class FolderInfo(
     val assigned: String?
 )
 
-enum class SortBy(val label: String) { Title("Titel"), Artist("Interpret"), Added("Hinzugefügt"), Duration("Länge") }
+enum class SortBy(val label: String) { Title("Titel"), Artist("Interpret"), Added("Hinzugefügt"), Duration("Länge"), Plays("Meistgehört") }
 
 enum class RepeatMode { Off, All, One }
 

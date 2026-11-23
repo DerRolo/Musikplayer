@@ -42,6 +42,19 @@ object Store {
     private var knownInit = false
     var playlistGrid: Boolean = false
         private set
+    var blockedTracks: Set<String> = emptySet()
+        private set
+    var blockedArtists: Set<String> = emptySet()
+        private set
+    var blockedFolders: Set<String> = emptySet()
+        private set
+    /** Wie oft ein Lied gestartet wurde (für „Meistgehört“). */
+    var playCounts: Map<String, Int> = emptyMap()
+        private set
+    var stripStrings: List<String> = emptyList()
+        private set
+    var recentSearches: List<String> = emptyList()
+        private set
 
     private var loaded = false
 
@@ -70,6 +83,13 @@ object Store {
             sortLevel = o.optInt("sortLevel", 0)
             knownInit = o.optBoolean("knownInit", false)
             playlistGrid = o.optBoolean("playlistGrid", false)
+            blockedTracks = o.optJSONArray("blockedTracks").strings().toHashSet()
+            blockedArtists = o.optJSONArray("blockedArtists").strings().toHashSet()
+            blockedFolders = o.optJSONArray("blockedFolders").strings().toHashSet()
+            playCounts = o.optJSONObject("playCounts").toMap().mapValues { it.value.toIntOrNull() ?: 0 }
+            stripStrings = o.optJSONArray("stripStrings").strings()
+            recentSearches = o.optJSONArray("recent").strings()
+            Names.extraStrip = stripStrings
             knownPaths = o.optJSONArray("known").strings().toHashSet()
         } catch (e: Exception) {
             // kaputte Datei ignorieren, mit leeren Daten weitermachen
@@ -114,6 +134,12 @@ object Store {
         o.put("sortLevel", sortLevel)
         o.put("knownInit", knownInit)
         o.put("playlistGrid", playlistGrid)
+        o.put("blockedTracks", JSONArray(blockedTracks.toList()))
+        o.put("blockedArtists", JSONArray(blockedArtists.toList()))
+        o.put("blockedFolders", JSONArray(blockedFolders.toList()))
+        o.put("playCounts", JSONObject(playCounts.mapValues { it.value.toString() }))
+        o.put("stripStrings", JSONArray(stripStrings))
+        o.put("recent", JSONArray(recentSearches))
         o.put("known", JSONArray().also { a -> knownPaths.forEach { a.put(it) } })
         val tmp = File(ctx.filesDir, "$FILE.tmp")
         tmp.writeText(o.toString())
@@ -144,6 +170,48 @@ object Store {
 
     fun setCoverStamp(ctx: Context, id: String, stamp: Long) {
         playlists = playlists.map { if (it.id == id) it.copy(coverStamp = stamp) else it }
+        save(ctx)
+    }
+
+    fun setAudio(ctx: Context, id: String, audio: Boolean) {
+        playlists = playlists.map { if (it.id == id) it.copy(audio = audio) else it }
+        save(ctx)
+    }
+
+    // ---------- Sperrliste ----------
+
+    fun isBlocked(t: Track): Boolean =
+        t.path in blockedTracks || t.folder in blockedFolders || (t.artist != UNKNOWN_ARTIST && t.artist in blockedArtists)
+
+    fun blockTracks(ctx: Context, paths: Collection<String>) { blockedTracks = blockedTracks + paths; save(ctx) }
+    fun unblockTracks(ctx: Context, paths: Collection<String>) { blockedTracks = blockedTracks - paths.toSet(); save(ctx) }
+    fun blockArtist(ctx: Context, name: String) { blockedArtists = blockedArtists + name; save(ctx) }
+    fun unblockArtist(ctx: Context, name: String) { blockedArtists = blockedArtists - name; save(ctx) }
+    fun blockFolder(ctx: Context, path: String) { blockedFolders = blockedFolders + path; save(ctx) }
+    fun unblockFolder(ctx: Context, path: String) { blockedFolders = blockedFolders - path; save(ctx) }
+
+    // ---------- Zähler, Filter, Suchverlauf ----------
+
+    fun incPlay(ctx: Context, path: String) {
+        playCounts = playCounts + (path to ((playCounts[path] ?: 0) + 1))
+        save(ctx)
+    }
+
+    fun setStripStrings(ctx: Context, list: List<String>) {
+        stripStrings = list.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        Names.extraStrip = stripStrings
+        save(ctx)
+    }
+
+    fun addRecentSearch(ctx: Context, q: String) {
+        val t = q.trim()
+        if (t.length < 2) return
+        recentSearches = (listOf(t) + recentSearches.filter { !it.equals(t, true) }).take(5)
+        save(ctx)
+    }
+
+    fun removeRecentSearch(ctx: Context, q: String) {
+        recentSearches = recentSearches.filter { it != q }
         save(ctx)
     }
 
@@ -209,6 +277,8 @@ object Store {
         playlists = playlists.map { p -> p.copy(trackPaths = p.trackPaths.map { map[it] ?: it }) }
         trackArtists = trackArtists.mapKeys { map[it.key] ?: it.key }
         knownPaths = knownPaths.map { map[it] ?: it }.toHashSet()
+        blockedTracks = blockedTracks.map { map[it] ?: it }.toHashSet()
+        playCounts = playCounts.mapKeys { map[it.key] ?: it.key }
         save(ctx)
     }
 
@@ -221,6 +291,11 @@ object Store {
 
     fun setTrackArtist(ctx: Context, path: String, artist: String?) {
         trackArtists = if (artist.isNullOrBlank()) trackArtists - path else trackArtists + (path to artist.trim())
+        save(ctx)
+    }
+
+    fun setTrackArtists(ctx: Context, paths: List<String>, artist: String?) {
+        trackArtists = if (artist.isNullOrBlank()) trackArtists - paths.toSet() else trackArtists + paths.associateWith { artist.trim() }
         save(ctx)
     }
 

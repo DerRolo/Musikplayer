@@ -52,10 +52,17 @@ object Library {
 
     // ---------- Laden ----------
 
+    /** Gesperrte Lieder (Sperrliste): tauchen nirgends in der App auf, bleiben aber auf dem Handy. */
+    @Volatile
+    var blocked: List<Track> = emptyList()
+        private set
+
     @Synchronized
     fun load(ctx: Context): List<Track> {
         Store.load(ctx)
-        tracks = scan(ctx)
+        val all = scan(ctx)
+        tracks = all.filter { !Store.isBlocked(it) }
+        blocked = all.filter { Store.isBlocked(it) }
         return tracks
     }
 
@@ -147,6 +154,7 @@ object Library {
             SortBy.Artist -> list.sortedWith(compareBy({ it.artistKey }, { it.sortKey }))
             SortBy.Added -> list.sortedByDescending { it.modified }
             SortBy.Duration -> list.sortedByDescending { it.durationMs }
+            SortBy.Plays -> list.sortedByDescending { Store.playCounts[it.path] ?: 0 }
         }
         return if (level == 1) asc.asReversed() else asc
     }

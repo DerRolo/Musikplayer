@@ -1,5 +1,13 @@
 package de.musikplayer.app
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -48,10 +56,37 @@ fun SearchTab(
     }
 
     Column(Modifier.fillMaxSize()) {
-        SearchField(query, { query = it }, "Titel, Interpreten, Playlists")
+        SearchField(query, { query = it }, "Titel, Interpreten, Playlists", onSubmit = { picked = query; vm.addRecentSearch(query) })
+        val suggestions = remember(vm.tracks, q) {
+            if (q.isEmpty()) emptyList()
+            else (vm.tracks.map { it.artist }.filter { it != UNKNOWN_ARTIST } + vm.tracks.map { it.title })
+                .distinct().filter { Names.fold(it).let { f -> f.startsWith(q) || f.contains(q) } && Names.fold(it) != q }
+                .sortedBy { if (Names.fold(it).startsWith(q)) 0 else 1 }.take(5)
+        }
+        var picked by rememberSaveable { mutableStateOf("") }
+        val showSug = query != picked
         if (q.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Suche nach Titeln, Interpreten oder Playlists", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val recent = vm.blockTick.let { Store.recentSearches }
+            if (recent.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Suche nach Titeln, Interpreten oder Playlists", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                Header("Zuletzt gesucht")
+                for (r in recent) {
+                    Row(Modifier.fillMaxWidth().clickable { query = r }.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.History, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(r, Modifier.weight(1f).padding(start = 16.dp), maxLines = 1)
+                        IconButton(onClick = { vm.removeRecentSearch(r) }) { Icon(Icons.Filled.Close, "Entfernen") }
+                    }
+                }
+            }
+        } else if (showSug && suggestions.isNotEmpty()) {
+            for (sg in suggestions) {
+                Row(Modifier.fillMaxWidth().clickable { query = sg; picked = sg; vm.addRecentSearch(sg) }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(sg, Modifier.padding(start = 16.dp), maxLines = 1)
+                }
             }
         } else if (artistHits.isEmpty() && playlistHits.isEmpty() && trackHits.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nichts gefunden") }
@@ -75,6 +110,7 @@ fun SearchTab(
                     item(key = "h_t") { Header("Titel") }
                     itemsIndexed(trackHits, key = { _, t -> "t_" + t.id }) { i, t ->
                         TrackRow(t, actions, playing = t.id == playingId, modifier = Modifier.fillMaxWidth()) {
+                            vm.addRecentSearch(query)
                             vm.play(trackHits, i, "s")
                         }
                     }

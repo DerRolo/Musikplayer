@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,6 +79,7 @@ fun NewSongsPage(vm: MusicViewModel, onBack: () -> Unit) {
                             TextButton(onClick = { assign = t }) { Icon(Icons.Filled.Person, null, Modifier.size(18.dp)); Text("  Interpret") }
                             TextButton(onClick = { rename = t }, colors = ButtonDefaults.textButtonColors(contentColor = ORANGE)) { Icon(Icons.Filled.Edit, null, Modifier.size(18.dp)); Text("  Umbenennen") }
                             if (!unknown) TextButton(onClick = { move = t }, colors = ButtonDefaults.textButtonColors(contentColor = ORANGE)) { Icon(Icons.Filled.DriveFileMove, null, Modifier.size(18.dp)); Text("  Einsortieren") }
+                            TextButton(onClick = { vm.blockTracks(listOf(t)) }) { Icon(Icons.Filled.Block, null, Modifier.size(18.dp)); Text("  Sperren") }
                             TextButton(onClick = { vm.markSeen(listOf(t)) }) { Icon(Icons.Filled.Check, null, Modifier.size(18.dp)); Text("  Gesehen") }
                         }
                     }

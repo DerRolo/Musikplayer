@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.LinearProgressIndicator
@@ -261,7 +262,8 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                             if (fav) Icons.Outlined.FavoriteBorder else Icons.Filled.Favorite
                         ) { menu = false; actions.onToggleFavorite(track) }
                         MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
-                        MenuItem("Datei umbenennen …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                        MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                        MenuItem("Sperren", Icons.Filled.Block) { menu = false; actions.onBlock(track) }
                         MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
                     }
                 }
@@ -325,6 +327,10 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                     Spacer(Modifier.size(24.dp))
                     IconButton(onClick = { onAddToPlaylist(track) }) {
                         Icon(Icons.Filled.Add, "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(30.dp))
+                    }
+                    Spacer(Modifier.size(64.dp))
+                    IconButton(onClick = { actions.onBlock(track) }) {
+                        Icon(Icons.Filled.Block, "Sperren", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(26.dp))
                     }
                 }
             }
