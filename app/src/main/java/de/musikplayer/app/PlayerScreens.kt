@@ -1,6 +1,10 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package de.musikplayer.app
 
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.layout.offset
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -216,23 +220,23 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier) 
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         val a = art
-        if (a == null) Vinyl(spinning, Modifier.fillMaxWidth(0.72f))
-        else Box(Modifier.fillMaxWidth(0.72f).aspectRatio(1f)) {
-            androidx.compose.foundation.Image(
-                a, null, Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-            )
-            Vinyl(spinning, Modifier.align(Alignment.BottomEnd).fillMaxWidth(0.3f).padding(4.dp))
+        // Cover/Platte nimmt nur den Platz, der übrig ist (Steuerung unten bleibt immer sichtbar)
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            val side = minOf(maxWidth * 0.72f, maxHeight)
+            if (a == null) Vinyl(spinning, Modifier.size(side))
+            else Box(Modifier.size(side)) {
+                androidx.compose.foundation.Image(
+                    a, null, Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+                Vinyl(spinning, Modifier.align(Alignment.BottomEnd).fillMaxWidth(0.3f).padding(4.dp))
+            }
         }
-        Spacer(Modifier.height(20.dp))
-        Text(
-            title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center,
-            minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth()
-        )
-        Text(
-            artist.ifBlank { " " }, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+        Spacer(Modifier.height(12.dp))
+        MarqueeText(title, MaterialTheme.typography.titleLarge, Modifier.fillMaxWidth())
+        MarqueeText(
+            artist.ifBlank { " " }, MaterialTheme.typography.titleMedium, Modifier.fillMaxWidth().padding(top = 2.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -326,9 +330,8 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
             Text(artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             QueueList(vm, Modifier.weight(1f))
         } else {
-            Spacer(Modifier.weight(1f))
             Box(
-                Modifier.fillMaxWidth()
+                Modifier.fillMaxWidth().weight(1f)
                     .onSizeChanged { pageW = it.width.toFloat().coerceAtLeast(1f) }
                     .pointerInput(Unit) {
                         detectHorizontalDragGestures(
@@ -359,12 +362,12 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                         )
                     }
             ) {
-                PlayerPage(item, vm.isPlaying, Modifier.fillMaxWidth().graphicsLayer { translationX = offset.value })
+                PlayerPage(item, vm.isPlaying, Modifier.fillMaxSize().graphicsLayer { translationX = offset.value })
                 if (offset.value > 0f) vm.prevItem?.let {
-                    PlayerPage(it, false, Modifier.fillMaxWidth().graphicsLayer { translationX = offset.value - pageW })
+                    PlayerPage(it, false, Modifier.fillMaxSize().graphicsLayer { translationX = offset.value - pageW })
                 }
                 if (offset.value < 0f) vm.nextItem?.let {
-                    PlayerPage(it, false, Modifier.fillMaxWidth().graphicsLayer { translationX = offset.value + pageW })
+                    PlayerPage(it, false, Modifier.fillMaxSize().graphicsLayer { translationX = offset.value + pageW })
                 }
             }
             if (track != null) {
@@ -389,12 +392,12 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                 val curBase = track.fileName.substringBeforeLast('.')
                 val propBase = Names.fileBaseName(track.title)
                 // feste Höhe: das Layout darf nie springen, egal ob ein Vorschlag da ist
-                Box(Modifier.fillMaxWidth().height(52.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().height(38.dp), contentAlignment = Alignment.Center) {
                     if (propBase != curBase) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(propBase, color = ORANGE, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(curBase, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                MarqueeText(propBase, MaterialTheme.typography.labelLarge, Modifier.fillMaxWidth(), color = ORANGE, align = TextAlign.Start)
+                                MarqueeText(curBase, MaterialTheme.typography.labelSmall, Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant, align = TextAlign.Start)
                             }
                             IconButton(onClick = { vm.quickRename(track, propBase) }) {
                                 Icon(Icons.Filled.Save, "Dateinamen übernehmen", tint = ORANGE)
@@ -403,11 +406,10 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                     }
                 }
             }
-            Spacer(Modifier.weight(1f))
             // Equalizer sitzt direkt auf der Abspielleiste und wächst von ihr nach oben
             EqBars(
                 vm.isPlaying, micOk,
-                Modifier.fillMaxWidth().height(56.dp).clickable(enabled = !micOk) { showEqInfo = true }
+                Modifier.fillMaxWidth().height(56.dp).offset(y = 14.dp).clickable(enabled = !micOk) { showEqInfo = true }
             )
         }
 
@@ -602,6 +604,7 @@ private fun EqBars(playing: Boolean, live: Boolean, modifier: Modifier) {
         val slot = size.width / n
         val barW = slot * 0.62f
         for (i in 0 until n) {
+            if (levels[i] <= 0.045f) continue // Ruhe: keine Striche, die Balken kommen nur bei Musik aus der Zeitleiste
             val h = (size.height * levels[i]).coerceAtLeast(3.dp.toPx())
             drawRoundRect(
                 color.copy(alpha = 0.85f),
@@ -610,6 +613,20 @@ private fun EqBars(playing: Boolean, live: Boolean, modifier: Modifier) {
                 cornerRadius = CornerRadius(barW / 2f)
             )
         }
+    }
+}
+
+/** Einzeilig; ist der Text zu lang, läuft er nach ein paar Sekunden einmal nach links durch. */
+@Composable
+private fun MarqueeText(
+    text: String, style: androidx.compose.ui.text.TextStyle, modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified, align: TextAlign = TextAlign.Center
+) {
+    androidx.compose.runtime.key(text) {
+        Text(
+            text, modifier.basicMarquee(iterations = 1, initialDelayMillis = 1500, velocity = 40.dp),
+            style = style, color = color, maxLines = 1, softWrap = false, textAlign = align
+        )
     }
 }
 

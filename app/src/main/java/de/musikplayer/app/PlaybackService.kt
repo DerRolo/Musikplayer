@@ -92,8 +92,9 @@ class PlaybackService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val p = session?.player
-        if (p == null || !p.playWhenReady || p.mediaItemCount == 0) stopSelf()
+        // App aus der Übersicht weggewischt = Programm beenden, auch die Wiedergabe
+        session?.player?.let { it.pause(); it.stop(); it.clearMediaItems() }
+        stopSelf()
     }
 
     override fun onDestroy() {
