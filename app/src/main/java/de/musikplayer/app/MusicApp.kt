@@ -53,6 +53,7 @@ fun MusicApp(vm: MusicViewModel) {
     var renameTrack by remember { mutableStateOf<Track?>(null) }
     var assignMany by remember { mutableStateOf<List<Track>?>(null) }
     var newAudioList by remember { mutableStateOf(false) }
+    var coverFor by remember { mutableStateOf<Track?>(null) }
 
     val snack = remember { SnackbarHostState() }
     val holder = rememberSaveableStateHolder()
@@ -85,7 +86,8 @@ fun MusicApp(vm: MusicViewModel) {
         onBlock = { vm.blockTracks(listOf(it)) },
         onShowFile = { vm.showInFolder(it) },
         onBlockMany = { vm.blockTracks(it) },
-        onAssignMany = { assignMany = it }
+        onAssignMany = { assignMany = it },
+        onCover = { coverFor = it }
     )
 
     Scaffold(
@@ -180,6 +182,15 @@ fun MusicApp(vm: MusicViewModel) {
             t, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
             onDismiss = { renameTrack = null },
             onConfirm = { n, a -> vm.editTrack(t, n, a); renameTrack = null }
+        )
+    }
+    coverFor?.let { t ->
+        CoverPickerDialog(
+            initialQuery = listOf(t.artist, t.title).filter { it.isNotBlank() }.joinToString(" "),
+            onDismiss = { coverFor = null },
+            onUri = { vm.setTrackCover(listOf(t), uri = it) },
+            onUrl = { vm.setTrackCover(listOf(t), url = it) },
+            onReset = if (vm.hasOwnCover(listOf(t))) ({ vm.setTrackCover(listOf(t)) }) else null
         )
     }
     assignMany?.let { list ->

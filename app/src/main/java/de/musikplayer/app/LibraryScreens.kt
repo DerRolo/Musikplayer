@@ -351,6 +351,16 @@ fun ArtistsTab(
         val ctx = "a:$artist"
         var menu by remember { mutableStateOf(false) }
         var editAlbumFor by remember { mutableStateOf<String?>(null) }
+        var albumCover by remember { mutableStateOf<Pair<String, List<Track>>?>(null) }
+        albumCover?.let { (an, tl) ->
+            CoverPickerDialog(
+                initialQuery = "$artist $an",
+                onDismiss = { albumCover = null },
+                onUri = { vm.setTrackCover(tl, uri = it) },
+                onUrl = { vm.setTrackCover(tl, url = it) },
+                onReset = if (vm.hasOwnCover(tl)) ({ vm.setTrackCover(tl) }) else null
+            )
+        }
         val isAlbum = v != "" && v != "*"
         LaunchedEffect(albums.keys, v) { if (isAlbum && !albums.containsKey(v)) view = "" }
         editAlbumFor?.let { an ->
@@ -359,7 +369,8 @@ fun ArtistsTab(
                 artist, an, tl,
                 onDismiss = { editAlbumFor = null },
                 onRenameAlbum = { n -> vm.renameAlbum(tl, n); if (view == an) view = n },
-                onRenameFiles = { vm.renameAlbum(tl, an); vm.renameFiles(it) }
+                onRenameFiles = { vm.renameAlbum(tl, an); vm.renameFiles(it) },
+                onCover = { albumCover = an to tl }
             )
         }
         Column(Modifier.fillMaxSize()) {

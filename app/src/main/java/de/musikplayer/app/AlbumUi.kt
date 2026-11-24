@@ -1,5 +1,7 @@
 package de.musikplayer.app
 
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,7 +54,8 @@ fun AlbumEditDialog(
     tracks: List<Track>,
     onDismiss: () -> Unit,
     onRenameAlbum: (String) -> Unit,
-    onRenameFiles: (List<Pair<Track, String>>) -> Unit
+    onRenameFiles: (List<Pair<Track, String>>) -> Unit,
+    onCover: () -> Unit = {}
 ) {
     var name by remember { mutableStateOf(album) }
     val bases = remember(tracks) { tracks.map { it.fileName.substringBeforeLast('.') } }
@@ -69,6 +72,7 @@ fun AlbumEditDialog(
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(name, { name = it }, label = { Text("Albumname (nur in der App)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 TextButton(onClick = { onRenameAlbum(name.trim()); onDismiss() }, enabled = name.isNotBlank() && name.trim() != album) { Text("Albumnamen speichern") }
+                TextButton(onClick = { onCover(); onDismiss() }) { Icon(androidx.compose.material.icons.Icons.Filled.Image, null, Modifier.size(18.dp)); Text("  Album-Cover ändern …") }
                 HorizontalDivider()
                 Text("Aus allen ${tracks.size} Dateinamen entfernen:", style = MaterialTheme.typography.labelLarge)
                 OutlinedTextField(strip, { strip = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), label = { Text("Text") })

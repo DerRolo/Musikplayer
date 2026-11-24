@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +35,25 @@ object Art {
     private val cache = object : LruCache<Long, Bitmap>(48 * 1024 * 1024) {
         override fun sizeOf(key: Long, value: Bitmap) = value.byteCount
     }
+    /** Zählt hoch, sobald sich ein Cover ändert; Bilder laden sich dann neu. */
+    var version by mutableIntStateOf(0)
+        private set
+
+    fun invalidate() {
+        cache.evictAll(); bigCache.evictAll(); missing.clear(); version++
+    }
+
+    private fun custom(ctx: Context, path: String, size: Int): Bitmap? {
+        val f = Store.trackCovers[path] ?: return null
+        val file = java.io.File(java.io.File(ctx.filesDir, "trackcovers"), f)
+        if (!file.exists()) return null
+        val b = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.path, b)
+        var sample = 1
+        while (b.outWidth / (sample * 2) >= size && b.outHeight / (sample * 2) >= size) sample *= 2
+        return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+    }
+
     private val missing: MutableSet<Long> = Collections.synchronizedSet(HashSet())
 
     suspend fun first(ctx: Context, tracks: List<Track>, size: Int): Bitmap? = withContext(Dispatchers.IO) {
@@ -49,7 +70,8 @@ object Art {
     /** Großes Cover für den Player (nur wenn im Lied wirklich ein Bild steckt). */
     suspend fun large(ctx: Context, t: Track): Bitmap? = withContext(Dispatchers.IO) {
         bigCache.get(t.id)?.let { return@withContext it }
-        var bmp: Bitmap? = null
+        var bmp: Bitmap? = custom(ctx, t.path, 900)
+        if (bmp != null) { bigCache.put(t.id, bmp); return@withContext bmp }
         if (Build.VERSION.SDK_INT >= 29) {
             bmp = try { ctx.contentResolver.loadThumbnail(t.uri(), Size(900, 900), null) } catch (e: Exception) { null }
         }
@@ -61,7 +83,8 @@ object Art {
     private fun load(ctx: Context, t: Track, size: Int): Bitmap? {
         cache.get(t.id)?.let { return it }
         if (t.id in missing) return null
-        var bmp: Bitmap? = null
+        var bmp: Bitmap? = custom(ctx, t.path, size)
+        if (bmp != null) { cache.put(t.id, bmp); return bmp }
         if (Build.VERSION.SDK_INT >= 29) {
             bmp = try {
                 ctx.contentResolver.loadThumbnail(t.uri(), Size(size, size), null)
@@ -100,7 +123,8 @@ fun placeholderColor(label: String): Color =
 fun Cover(tracks: List<Track>, label: String, modifier: Modifier = Modifier, sizePx: Int = 256) {
     val ctx = LocalContext.current
     val key = tracks.take(4).map { it.id }
-    val bmp by produceState<ImageBitmap?>(null, key) {
+    val ver = Art.version
+    val bmp by produceState<ImageBitmap?>(null, key, ver) {
         value = Art.first(ctx, tracks, sizePx)?.asImageBitmap()
     }
     Box(modifier.background(placeholderColor(label)), contentAlignment = Alignment.Center) {

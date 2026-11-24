@@ -37,6 +37,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -209,7 +210,7 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier) 
     val artist = item?.mediaMetadata?.artist?.toString().orEmpty()
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val t = remember(item?.mediaId) { trackOf(item) }
-    val art by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, item?.mediaId) {
+    val art by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, item?.mediaId, Art.version) {
         value = t?.let { Art.large(ctx, it)?.asImageBitmap() }
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -310,6 +311,7 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                         ) { menu = false; actions.onToggleFavorite(track) }
                         MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
                         MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                        MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }
                         MenuItem("Datei im Ordner zeigen", Icons.Filled.FolderOpen) { menu = false; actions.onShowFile(track) }
                         MenuItem("Sperren", Icons.Filled.Block, danger = true) { menu = false; actions.onBlock(track) }
                         MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }

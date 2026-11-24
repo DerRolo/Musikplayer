@@ -390,19 +390,36 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Eigenes Bild für eine Playlist: wird verkleinert, quadratisch zugeschnitten und in der App gespeichert. */
-    fun setCover(id: String, uri: android.net.Uri) {
+    private fun fetchBytes(uri: android.net.Uri?, url: String?): ByteArray? = try {
+        if (uri != null) app.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        else if (url != null) {
+            val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            c.connectTimeout = 10000; c.readTimeout = 15000
+            c.setRequestProperty("User-Agent", "Mozilla/5.0 (Android) Musikplayer")
+            try { c.inputStream.use { it.readBytes() } } finally { c.disconnect() }
+        } else null
+    } catch (e: Exception) { null }
+
+    /** Bild mittig quadratisch zuschneiden, auf höchstens 600 px verkleinern. */
+    private fun squareBitmap(bytes: ByteArray): android.graphics.Bitmap? = try {
+        val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
+        var sample = 1
+        while (o.outWidth / (sample * 2) >= 800 && o.outHeight / (sample * 2) >= 800) sample *= 2
+        val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+        if (bmp == null) null else {
+            val side = minOf(bmp.width, bmp.height)
+            val sq = android.graphics.Bitmap.createBitmap(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side)
+            android.graphics.Bitmap.createScaledBitmap(sq, minOf(side, 600), minOf(side, 600), true)
+        }
+    } catch (e: Exception) { null }
+
+    /** Playlist-Cover aus Galerie-Bild (uri) oder Web-Bild (url). */
+    fun setCover(id: String, uri: android.net.Uri? = null, url: String? = null) {
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) {
+                val out = fetchBytes(uri, url)?.let { squareBitmap(it) } ?: return@withContext false
                 try {
-                    val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@withContext false
-                    val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
-                    var sample = 1
-                    while (o.outWidth / (sample * 2) >= 800 && o.outHeight / (sample * 2) >= 800) sample *= 2
-                    val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }) ?: return@withContext false
-                    val side = minOf(bmp.width, bmp.height)
-                    val sq = android.graphics.Bitmap.createBitmap(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side)
-                    val out = android.graphics.Bitmap.createScaledBitmap(sq, minOf(side, 600), minOf(side, 600), true)
                     val dir = java.io.File(app.filesDir, "covers").also { it.mkdirs() }
                     java.io.File(dir, "$id.jpg").outputStream().use { out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
                     true
@@ -411,6 +428,35 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
             if (ok) { Store.setCoverStamp(app, id, System.currentTimeMillis()); syncPlaylists() } else message = "Bild konnte nicht geladen werden"
         }
     }
+
+    /** Eigenes Cover für Lieder (auch ganze Alben): Galerie-Bild, Web-Bild oder (beides null) zurücksetzen. */
+    fun setTrackCover(tracks: List<Track>, uri: android.net.Uri? = null, url: String? = null) {
+        val paths = tracks.map { it.path }
+        viewModelScope.launch {
+            if (uri == null && url == null) {
+                Store.setTrackCover(app, paths, null)
+                Art.invalidate()
+                message = "Cover zurückgesetzt"
+                return@launch
+            }
+            val name = withContext(Dispatchers.IO) {
+                val out = fetchBytes(uri, url)?.let { squareBitmap(it) } ?: return@withContext null
+                try {
+                    val dir = java.io.File(app.filesDir, "trackcovers").also { it.mkdirs() }
+                    val n = java.util.UUID.randomUUID().toString() + ".jpg"
+                    java.io.File(dir, n).outputStream().use { out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+                    n
+                } catch (e: Exception) { null }
+            }
+            if (name != null) {
+                Store.setTrackCover(app, paths, name)
+                Art.invalidate()
+                message = "Cover gesetzt"
+            } else message = "Bild konnte nicht geladen werden"
+        }
+    }
+
+    fun hasOwnCover(tracks: List<Track>) = tracks.any { it.path in Store.trackCovers }
 
     fun removeCover(id: String) {
         java.io.File(java.io.File(app.filesDir, "covers"), "$id.jpg").delete()

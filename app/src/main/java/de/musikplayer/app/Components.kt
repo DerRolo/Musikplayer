@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -79,7 +80,8 @@ data class TrackActions(
     val onBlock: (Track) -> Unit = {},
     val onShowFile: (Track) -> Unit = {},
     val onBlockMany: (List<Track>) -> Unit = {},
-    val onAssignMany: (List<Track>) -> Unit = {}
+    val onAssignMany: (List<Track>) -> Unit = {},
+    val onCover: (Track) -> Unit = {}
 )
 
 /** Orange = ändert Dateien auf dem Handy (Umbenennen, Verschieben); Rot ist nur für Löschen. */
@@ -192,6 +194,7 @@ fun TrackRow(
                         MenuItem("Aus Playlist entfernen", Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
                     }
                     MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                    MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }
                     MenuItem("Datei im Ordner zeigen", Icons.Filled.FolderOpen) { menu = false; actions.onShowFile(track) }
                     MenuItem("Sperren", Icons.Filled.Block, danger = true) { menu = false; actions.onBlock(track) }
                     MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }

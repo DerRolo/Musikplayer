@@ -53,6 +53,8 @@ object Store {
         private set
     /** Von dir vergebene Albumnamen (nur in der App), je Dateipfad. */
     var trackAlbums: Map<String, String> = emptyMap()
+    /** Eigene Lied-Cover: Dateipfad -> Dateiname in filesDir/trackcovers. */
+    var trackCovers: Map<String, String> = emptyMap()
         private set
     /** Dateien, deren Namen du selbst festgelegt hast: der Dateiname ist dann der Titel in der App. */
     var userNamed: Set<String> = emptySet()
@@ -102,6 +104,7 @@ object Store {
             skipSilence = o.optBoolean("skipSilence", true)
             userNamed = o.optJSONArray("userNamed").strings().toHashSet()
             trackAlbums = o.optJSONObject("trackAlbums").toMap()
+            trackCovers = o.optJSONObject("trackCovers").toMap()
             playlistPlays = o.optJSONObject("playlistPlays").toMap().mapValues { it.value.toIntOrNull() ?: 0 }
             knownPaths = o.optJSONArray("known").strings().toHashSet()
         } catch (e: Exception) {
@@ -155,6 +158,7 @@ object Store {
         o.put("skipSilence", skipSilence)
         o.put("userNamed", JSONArray(userNamed.toList()))
         o.put("trackAlbums", JSONObject(trackAlbums))
+        o.put("trackCovers", JSONObject(trackCovers))
         o.put("playlistPlays", JSONObject(playlistPlays.mapValues { it.value.toString() }))
         o.put("recent", JSONArray(recentSearches))
         o.put("known", JSONArray().also { a -> knownPaths.forEach { a.put(it) } })
@@ -227,6 +231,11 @@ object Store {
     fun unblockFolder(ctx: Context, path: String) { blockedFolders = blockedFolders - path; save(ctx) }
 
     // ---------- Zähler, Filter, Suchverlauf ----------
+
+    fun setTrackCover(ctx: Context, paths: List<String>, file: String?) {
+        trackCovers = if (file == null) trackCovers - paths.toSet() else trackCovers + paths.associateWith { file }
+        save(ctx)
+    }
 
     fun setAlbum(ctx: Context, paths: List<String>, album: String?) {
         trackAlbums = if (album.isNullOrBlank()) trackAlbums - paths.toSet() else trackAlbums + paths.associateWith { album.trim() }
@@ -322,6 +331,7 @@ object Store {
         knownPaths = knownPaths.map { map[it] ?: it }.toHashSet()
         blockedTracks = blockedTracks.map { map[it] ?: it }.toHashSet()
         trackAlbums = trackAlbums.mapKeys { map[it.key] ?: it.key }
+        trackCovers = trackCovers.mapKeys { map[it.key] ?: it.key }
         userNamed = userNamed.map { map[it] ?: it }.toHashSet() + map.values
         playCounts = playCounts.mapKeys { map[it.key] ?: it.key }
         save(ctx)

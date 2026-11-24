@@ -263,7 +263,7 @@ fun EditPlaylistDialog(vm: MusicViewModel, playlistId: String, onDismiss: () -> 
     val p = vm.playlists.firstOrNull { it.id == playlistId } ?: run { onDismiss(); return }
     var name by remember { mutableStateOf(p.name) }
     var desc by remember { mutableStateOf(p.description) }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) vm.setCover(p.id, uri) }
+    var webCover by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Playlist bearbeiten") },
@@ -273,7 +273,7 @@ fun EditPlaylistDialog(vm: MusicViewModel, playlistId: String, onDismiss: () -> 
                     PlaylistCover(p, vm.playlistTracks(p.id), Modifier.size(80.dp).clip(RoundedCornerShape(10.dp)), 200)
                     Column(Modifier.padding(start = 12.dp)) {
                         if (p.id != FAV_ID) {
-                            TextButton(onClick = { picker.launch("image/*") }) { Icon(Icons.Filled.Image, null, Modifier.size(18.dp)); Text("  Bild wählen") }
+                            TextButton(onClick = { webCover = true }) { Icon(Icons.Filled.Image, null, Modifier.size(18.dp)); Text("  Bild wählen / suchen") }
                             if (p.coverStamp > 0L) TextButton(onClick = { vm.removeCover(p.id) }) { Text("Bild entfernen") }
                         }
                     }
@@ -284,6 +284,12 @@ fun EditPlaylistDialog(vm: MusicViewModel, playlistId: String, onDismiss: () -> 
         },
         confirmButton = { TextButton(onClick = { vm.editPlaylist(p.id, name, desc); onDismiss() }, enabled = p.id == FAV_ID || name.isNotBlank()) { Text("Speichern") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
+    if (webCover) CoverPickerDialog(
+        initialQuery = p.name,
+        onDismiss = { webCover = false },
+        onUri = { vm.setCover(p.id, uri = it) },
+        onUrl = { vm.setCover(p.id, url = it) }
     )
 }
 
