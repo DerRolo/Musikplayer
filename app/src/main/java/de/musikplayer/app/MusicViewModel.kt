@@ -371,7 +371,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
             refreshFromLibrary()
             if (dupes != null) dupes = withContext(Dispatchers.Default) { Dupes.find(Library.tracks) }
             loading = false
-            message = "${r.renamed} Dateien umbenannt" + if (r.failed > 0) ", ${r.failed} fehlgeschlagen" else ""
+            message = (if (r.renamed == 1 && r.failed == 0) "Dateiname geändert" else "${r.renamed} Dateien umbenannt") + if (r.failed > 0) ", ${r.failed} fehlgeschlagen" else ""
         }
     }
 

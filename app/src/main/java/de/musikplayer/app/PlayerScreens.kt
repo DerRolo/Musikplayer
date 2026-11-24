@@ -246,7 +246,7 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
     val fadeLeft by SleepTimer.fadeRemainingMs.collectAsState()
     val volume by SleepTimer.volumePercent.collectAsState()
     val item = vm.current
-    val track = remember(item?.mediaId) { trackOf(item) }
+    val track = remember(item?.mediaId, vm.tracks) { trackOf(item) }
     val title = item?.mediaMetadata?.title?.toString() ?: "Nichts ausgewählt"
     val artist = item?.mediaMetadata?.artist?.toString().orEmpty()
     val fav = track != null && vm.isFavorite(track.path)
@@ -381,6 +381,25 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                     Spacer(Modifier.size(24.dp))
                     IconButton(onClick = { onAddToPlaylist(track) }) {
                         Icon(Icons.Filled.Add, "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(30.dp))
+                    }
+                }
+            }
+            if (track != null) {
+                val curBase = track.fileName.substringBeforeLast('.')
+                val propBase = Names.fileBaseName(track.title)
+                if (propBase != curBase) {
+                    Column(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                propBase, Modifier.weight(1f, fill = false), color = ORANGE,
+                                style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis
+                            )
+                            TextButton(onClick = { vm.renameFiles(listOf(track to propBase)) }) { Text("Übernehmen", color = ORANGE) }
+                        }
+                        Text(
+                            curBase, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
