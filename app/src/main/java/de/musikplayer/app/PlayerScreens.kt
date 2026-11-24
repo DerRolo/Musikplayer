@@ -37,6 +37,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Favorite
@@ -387,19 +388,18 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
             if (track != null) {
                 val curBase = track.fileName.substringBeforeLast('.')
                 val propBase = Names.fileBaseName(track.title)
-                if (propBase != curBase) {
-                    Column(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                // feste Höhe: das Layout darf nie springen, egal ob ein Vorschlag da ist
+                Box(Modifier.fillMaxWidth().height(52.dp), contentAlignment = Alignment.Center) {
+                    if (propBase != curBase) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                propBase, Modifier.weight(1f, fill = false), color = ORANGE,
-                                style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis
-                            )
-                            TextButton(onClick = { vm.renameFiles(listOf(track to propBase)) }) { Text("Übernehmen", color = ORANGE) }
+                            Column(Modifier.weight(1f)) {
+                                Text(propBase, color = ORANGE, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(curBase, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            IconButton(onClick = { vm.quickRename(track, propBase) }) {
+                                Icon(Icons.Filled.Save, "Dateinamen übernehmen", tint = ORANGE)
+                            }
                         }
-                        Text(
-                            curBase, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis
-                        )
                     }
                 }
             }

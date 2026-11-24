@@ -49,6 +49,14 @@ object Names {
         return if (s.isEmpty()) raw.trim() else s
     }
 
+    /** Leichte Bereinigung für selbst benannte Dateien: nur doppelte Endungen („x.mp3.mp3“) und Namen-Filter, Unterstriche bleiben. */
+    fun light(raw: String): String {
+        var s = tidy(raw).trim()
+        while (EXT.containsMatchIn(s)) s = s.replace(EXT, "").trim()
+        for (x in extraStrip) if (x.isNotBlank()) s = s.replace(x, " ", ignoreCase = true)
+        return s.replace(SPACES, " ").trim().ifEmpty { raw.trim() }
+    }
+
     /** Dateiendungen gehören nie in den Namen („Song.mp3“ → „Song“). */
     private val EXT = Regex("\\.(mp3|wav|flac|m4a|aac|ogg|oga|opus|wma|mp4|webm|mka|aiff?|amr|3gp)$", RegexOption.IGNORE_CASE)
 

@@ -360,6 +360,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun renameCandidates(): List<Track> = Library.renameCandidates()
 
     fun renameFiles(items: List<Pair<Track, String>>) {
+        undo = null
         if (items.isEmpty()) return
         loading = true
         viewModelScope.launch {
@@ -372,6 +373,26 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
             if (dupes != null) dupes = withContext(Dispatchers.Default) { Dupes.find(Library.tracks) }
             loading = false
             message = (if (r.renamed == 1 && r.failed == 0) "Dateiname geändert" else "${r.renamed} Dateien umbenannt") + if (r.failed > 0) ", ${r.failed} fehlgeschlagen" else ""
+        }
+    }
+
+    /** Schnell-Umbenennen aus dem Player: mit Meldung und „Rückgängig“. */
+    fun quickRename(t: Track, newBase: String) {
+        val oldBase = t.fileName.substringBeforeLast('.')
+        val ext = t.fileName.substringAfterLast('.', "")
+        val expected = java.io.File(java.io.File(t.path).parentFile, Names.fileBaseName(newBase) + if (ext.isEmpty()) "" else ".$ext").path
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.IO) {
+                val res = Library.renameFiles(app, listOf(t to newBase))
+                Library.load(app)
+                res
+            }
+            refreshFromLibrary()
+            if (dupes != null) dupes = withContext(Dispatchers.Default) { Dupes.find(Library.tracks) }
+            if (r.renamed == 0) { message = "Umbenennen fehlgeschlagen"; return@launch }
+            val nu = Library.tracks.firstOrNull { it.path == expected }
+            message = "Dateiname geändert"
+            if (nu != null) undo = { renameFiles(listOf(nu to oldBase)) }
         }
     }
 
