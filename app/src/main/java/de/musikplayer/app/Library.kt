@@ -120,7 +120,8 @@ object Library {
             val fromName = albumPattern(r.path, artist)
             val title = if (r.path in Store.userNamed) Names.tidy(File(r.path).nameWithoutExtension).trim().ifEmpty { r.title }
             else if (fromName != null) Names.clean(fromName.second, artistForCheck, false)
-            else Names.clean(r.title, artistForCheck, numbered[File(r.path).parent.orEmpty()] == true)
+            else Names.clean(File(r.path).nameWithoutExtension, artistForCheck, numbered[File(r.path).parent.orEmpty()] == true)
+                .ifBlank { Names.clean(r.title, artistForCheck, false) }
             val folder = File(r.path).parent.orEmpty()
             out += Track(
                 r.id, r.path, title, artist, r.tag ?: "", r.album,
