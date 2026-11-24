@@ -1,5 +1,6 @@
 package de.musikplayer.app
 
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Arrangement
