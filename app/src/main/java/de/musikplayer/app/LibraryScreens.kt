@@ -136,7 +136,9 @@ fun TrackListBody(
             )
         }
         val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
+        val swipeOk = rememberSwipeAllowed(listState)
         Box(Modifier.fillMaxSize()) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalSwipeAllowed provides swipeOk) {
         LazyColumn(Modifier.fillMaxSize(), state = listState) {
             if (header != null) item(key = "header") { header() }
             itemsIndexed(list, key = { _, t -> t.id }) { i, t ->
@@ -151,6 +153,7 @@ fun TrackListBody(
                     if (sel.active) sel.toggle(t.id) else vm.play(list, i, context)
                 }
             }
+        }
         }
         ListScrollbar(listState, Modifier.align(Alignment.CenterEnd))
         }
@@ -347,15 +350,16 @@ fun ArtistsTab(
         }
         val ctx = "a:$artist"
         var menu by remember { mutableStateOf(false) }
-        var editAlbum by remember { mutableStateOf(false) }
+        var editAlbumFor by remember { mutableStateOf<String?>(null) }
         val isAlbum = v != "" && v != "*"
         LaunchedEffect(albums.keys, v) { if (isAlbum && !albums.containsKey(v)) view = "" }
-        if (editAlbum && isAlbum) {
-            AlbumEditDialog(
-                artist, v, shown,
-                onDismiss = { editAlbum = false },
-                onRenameAlbum = { n -> vm.renameAlbum(shown, n); view = n },
-                onRenameFiles = { vm.renameAlbum(shown, v); vm.renameFiles(it) }
+        editAlbumFor?.let { an ->
+            val tl = albums[an].orEmpty()
+            if (tl.isNotEmpty()) AlbumEditDialog(
+                artist, an, tl,
+                onDismiss = { editAlbumFor = null },
+                onRenameAlbum = { n -> vm.renameAlbum(tl, n); if (view == an) view = n },
+                onRenameFiles = { vm.renameAlbum(tl, an); vm.renameFiles(it) }
             )
         }
         Column(Modifier.fillMaxSize()) {
@@ -371,7 +375,7 @@ fun ArtistsTab(
                     GroupMenu(
                         menu, { menu = false },
                         if (isAlbum) groupActions(vm, shown, ctx, actions) { vm.blockTracks(shown); view = "" }
-                            .copy(onEdit = { editAlbum = true }, onDelete = { actions.onDeleteMany(shown) })
+                            .copy(onEdit = { editAlbumFor = v }, onDelete = { actions.onDeleteMany(shown) })
                         else groupActions(vm, shown, ctx, actions) { vm.blockArtist(artist); open = null }
                     )
                 }
@@ -383,6 +387,8 @@ fun ArtistsTab(
             } else {
                 val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
                 Box(Modifier.fillMaxSize()) {
+                    val swipeOkOv = rememberSwipeAllowed(ovState)
+                    androidx.compose.runtime.CompositionLocalProvider(LocalSwipeAllowed provides swipeOkOv) {
                     LazyColumn(Modifier.fillMaxSize(), state = ovState) {
                         if (top.isNotEmpty()) {
                             item { SectionTitle("Meistgehört") }
@@ -394,7 +400,13 @@ fun ArtistsTab(
                             item { SectionTitle("Alben (${albums.size})") }
                             item {
                                 androidx.compose.foundation.lazy.LazyRow(state = albumRowState, contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    items(albums.entries.toList(), key = { it.key }) { (name, l) -> AlbumTile(name, l) { view = name } }
+                                    items(albums.entries.toList(), key = { it.key }) { (name, l) ->
+                                        AlbumTile(
+                                            name, l,
+                                            groupActions(vm, l, ctx, actions) { vm.blockTracks(l) }
+                                                .copy(onEdit = { editAlbumFor = name }, onDelete = { actions.onDeleteMany(l) })
+                                        ) { view = name }
+                                    }
                                 }
                             }
                         }
@@ -405,6 +417,7 @@ fun ArtistsTab(
                         if (fullList.size > 5) item {
                             TextButton(onClick = { view = "*" }, Modifier.padding(horizontal = 8.dp)) { Text("Alle ${fullList.size} Lieder anzeigen ›") }
                         }
+                    }
                     }
                     ListScrollbar(ovState, Modifier.align(Alignment.CenterEnd))
                 }
@@ -514,7 +527,9 @@ fun PlaylistsTab(
                 SortMenu("Sortierung: " + modes[mode], modes, mode) { mode = it }
             }
             ReorderEffects(rs)
+            val swipeOkPl = rememberSwipeAllowed(listState)
             Box(Modifier.fillMaxSize()) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalSwipeAllowed provides swipeOkPl) {
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 // Index in der gespeicherten Liste als Schlüssel: dasselbe Lied darf mehrfach vorkommen
                 itemsIndexed(shown, key = { _, e -> e.first }) { i, (idx, t) ->
@@ -543,6 +558,7 @@ fun PlaylistsTab(
                         TrackRow(t, rowActions, modifier = Modifier.fillMaxWidth()) { vm.play(list, i, ctx) }
                     }
                 }
+            }
             }
             ListScrollbar(listState, Modifier.align(Alignment.CenterEnd))
             }

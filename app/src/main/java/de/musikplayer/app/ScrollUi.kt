@@ -2,6 +2,7 @@ package de.musikplayer.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -142,8 +143,11 @@ fun SortMenu(label: String, options: List<String>, selected: Int, onPick: (Int) 
 
 /** Album-Kachel: Cover (falls Bilder in den Liedern stecken), Name und Anzahl. */
 @Composable
-fun AlbumTile(name: String, tracks: List<Track>, onClick: () -> Unit) {
-    Column(Modifier.width(132.dp).clickable(onClick = onClick).padding(4.dp)) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+fun AlbumTile(name: String, tracks: List<Track>, actions: GroupActions? = null, onClick: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    Column(Modifier.width(132.dp).combinedClickable(onClick = onClick, onLongClick = { if (actions != null) menu = true }).padding(4.dp)) {
+        if (actions != null) Box { GroupMenu(menu, { menu = false }, actions) }
         Cover(tracks, name, Modifier.size(124.dp).clip(RoundedCornerShape(10.dp)))
         Text(name, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         Text("${tracks.size} Lieder", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

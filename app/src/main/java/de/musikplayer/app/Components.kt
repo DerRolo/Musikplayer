@@ -2,8 +2,11 @@
 
 package de.musikplayer.app
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
@@ -73,6 +76,7 @@ data class TrackActions(
     val onRename: (Track) -> Unit = {},
     /** Sperrliste: bleibt auf dem Handy, wird aber von der App ignoriert. */
     val onBlock: (Track) -> Unit = {},
+    val onShowFile: (Track) -> Unit = {},
     val onBlockMany: (List<Track>) -> Unit = {},
     val onAssignMany: (List<Track>) -> Unit = {}
 )
@@ -121,8 +125,8 @@ fun TrackRow(
     SwipeToDismissBox(
         state = state,
         modifier = modifier,
-        enableDismissFromStartToEnd = !selectionMode && swipe,
-        enableDismissFromEndToStart = !selectionMode && swipe,
+        enableDismissFromStartToEnd = !selectionMode && swipe && LocalSwipeAllowed.current,
+        enableDismissFromEndToStart = !selectionMode && swipe && LocalSwipeAllowed.current,
         backgroundContent = {
             when (state.dismissDirection) {
                 SwipeToDismissBoxValue.StartToEnd -> Box(Modifier.fillMaxSize().background(HEART_PINK).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart) {
@@ -187,6 +191,7 @@ fun TrackRow(
                         MenuItem("Aus Playlist entfernen", Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
                     }
                     MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                    MenuItem("Datei im Ordner zeigen", Icons.Filled.FolderOpen) { menu = false; actions.onShowFile(track) }
                     MenuItem("Sperren", Icons.Filled.Block, danger = true) { menu = false; actions.onBlock(track) }
                     MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
                 }
@@ -323,19 +328,35 @@ fun ArtistField(value: String, onChange: (String) -> Unit, artists: List<String>
     }
 }
 
-/** „Datei bearbeiten“: Name der Datei und Interpret in einem Dialog. */
+/** „Datei bearbeiten“: zeigt aktuellen Namen, Vorschlag der App und Interpret – alles änderbar. Deine Eingabe gilt immer. */
 @Composable
 fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, onConfirm: (name: String, artist: String) -> Unit) {
-    var name by remember { mutableStateOf(track.fileName.substringBeforeLast('.')) }
-    var artist by remember { mutableStateOf(if (track.artist == UNKNOWN_ARTIST) "" else track.artist) }
+    val current = track.fileName.substringBeforeLast('.')
+    var name by remember(track.path) { mutableStateOf(current) }
+    var artist by remember(track.path) { mutableStateOf(if (track.artist == UNKNOWN_ARTIST) "" else track.artist) }
     val proposal = Library.proposedFileName(track).substringBeforeLast('.')
+    val guess = remember(track.path) { if (track.artist == UNKNOWN_ARTIST) Library.guessArtistFromName(track) else null }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Datei bearbeiten") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Dateiname (ohne Endung)") }, modifier = Modifier.fillMaxWidth())
-                if (proposal != name) TextButton(onClick = { name = proposal }) { Text(proposal, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Aktueller Dateiname", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(current, style = MaterialTheme.typography.bodySmall)
+                if (proposal != current) {
+                    Text("Vorschlag der App", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(proposal, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        TextButton(onClick = { name = proposal }) { Text("Übernehmen") }
+                    }
+                }
+                OutlinedTextField(name, { name = it }, label = { Text("Neuer Dateiname (ohne Endung)") }, modifier = Modifier.fillMaxWidth())
+                if (guess != null && guess != artist) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Interpret im Namen: $guess", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+                        TextButton(onClick = { artist = guess }) { Text("Übernehmen") }
+                    }
+                }
                 ArtistField(artist, { artist = it }, artists)
             }
         },
@@ -355,4 +376,17 @@ fun AssignArtistDialog(count: Int, artists: List<String>, onDismiss: () -> Unit,
         confirmButton = { TextButton(onClick = { onConfirm(artist.trim()) }, enabled = artist.isNotBlank()) { Text("Zuordnen") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
+}
+
+/** Beim Scrollen (und kurz danach) sind die Wisch-Aktionen der Zeilen gesperrt, damit nichts versehentlich ausgelöst wird. */
+val LocalSwipeAllowed = androidx.compose.runtime.compositionLocalOf { true }
+
+@Composable
+fun rememberSwipeAllowed(state: androidx.compose.foundation.lazy.LazyListState): Boolean {
+    var locked by remember { mutableStateOf(false) }
+    val scrolling = state.isScrollInProgress
+    LaunchedEffect(scrolling) {
+        if (scrolling) locked = true else { kotlinx.coroutines.delay(450); locked = false }
+    }
+    return !locked && !scrolling
 }

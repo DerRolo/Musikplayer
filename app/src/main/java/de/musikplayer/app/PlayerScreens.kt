@@ -37,6 +37,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.LinearProgressIndicator
@@ -117,11 +118,13 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Tr
     val item = vm.current ?: return
     val track = remember(item.mediaId) { trackOf(item) }
     // Nach rechts wischen = Datei bearbeiten, nach links wischen = Player wegwischen (Wiedergabe endet)
+    val trackNow by androidx.compose.runtime.rememberUpdatedState(track)
+    val onEditNow by androidx.compose.runtime.rememberUpdatedState(onEdit)
     val swipe = androidx.compose.material3.rememberSwipeToDismissBoxState(
         positionalThreshold = { total -> total * 0.45f },
         confirmValueChange = { v ->
             when (v) {
-                androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> track?.let(onEdit)
+                androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> trackNow?.let(onEditNow)
                 androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> vm.clearQueue()
                 else -> {}
             }
@@ -307,6 +310,7 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                         ) { menu = false; actions.onToggleFavorite(track) }
                         MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
                         MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                        MenuItem("Datei im Ordner zeigen", Icons.Filled.FolderOpen) { menu = false; actions.onShowFile(track) }
                         MenuItem("Sperren", Icons.Filled.Block, danger = true) { menu = false; actions.onBlock(track) }
                         MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
                     }
@@ -361,8 +365,11 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                 }
             }
             if (track != null) {
-                Box(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { actions.onBlock(track) }) {
+                        Icon(Icons.Filled.Block, "Sperren", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(26.dp))
+                    }
+                    Spacer(Modifier.size(24.dp))
                     IconButton(onClick = { vm.toggleFavorite(track.path) }) {
                         Icon(
                             if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Lieblingssong",
@@ -373,10 +380,6 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                     IconButton(onClick = { onAddToPlaylist(track) }) {
                         Icon(Icons.Filled.Add, "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(30.dp))
                     }
-                }
-                IconButton(onClick = { actions.onBlock(track) }, Modifier.align(Alignment.CenterEnd).padding(end = 12.dp)) {
-                    Icon(Icons.Filled.Block, "Sperren", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(24.dp))
-                }
                 }
             }
             Spacer(Modifier.height(4.dp))
@@ -601,9 +604,9 @@ private fun QueueList(vm: MusicViewModel, modifier: Modifier) {
         }
         for (i in start until vm.queue.size) {
             val m = vm.queue[i]
-            if (i == start + queued) item(key = "hn") {
+            if (queued > 0 && i == start + queued) item(key = "hn") {
                 Text(
-                    if (vm.shuffle) "Danach (zufällige Reihenfolge)" else "Danach", style = MaterialTheme.typography.titleSmall,
+                    "Wiedergabeliste", style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp)
                 )
             }

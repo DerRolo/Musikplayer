@@ -83,6 +83,7 @@ fun MusicApp(vm: MusicViewModel) {
         isFavorite = { vm.isFavorite(it.path) },
         onRename = { renameTrack = it },
         onBlock = { vm.blockTracks(listOf(it)) },
+        onShowFile = { vm.showInFolder(it) },
         onBlockMany = { vm.blockTracks(it) },
         onAssignMany = { assignMany = it }
     )

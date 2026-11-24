@@ -295,13 +295,17 @@ fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -
     var creatingAudio by remember { mutableStateOf(false) }
     var showAudio by remember { mutableStateOf(false) }
     val hasAudio = vm.playlists.any { it.audio }
-    val ordered = vm.orderedPlaylists().filter { !it.audio || showAudio }
+    val ordered = vm.orderedPlaylists().filter { it.audio == showAudio }
     val paths = remember(tracks) { tracks.map { it.path }.toHashSet() }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (tracks.size == 1) "Zu Playlist hinzufügen" else "${tracks.size} Lieder hinzufügen") },
         text = {
             Column {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LetterChip("Playlists", !showAudio, true) { showAudio = false }
+                    LetterChip("Hörbücher & Podcasts", showAudio, true) { showAudio = true }
+                }
                 Row {
                     TextButton(onClick = { creating = true }) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text("  Neue Playlist") }
                     TextButton(onClick = { creatingAudio = true }) { Icon(Icons.Filled.Headphones, null, Modifier.size(20.dp)); Text("  Neues Hörbuch") }
@@ -332,7 +336,6 @@ fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -
         },
         confirmButton = {
             Row {
-                if (hasAudio) TextButton(onClick = { showAudio = !showAudio }) { Text(if (showAudio) "Nur Playlists" else "Hörbuch-Listen") }
                 TextButton(onClick = { vm.addToPlaylists(checked.toList(), tracks); onDismiss() }, enabled = checked.isNotEmpty()) {
                     Text("Fertig" + if (checked.isNotEmpty()) " (${checked.size})" else "")
                 }
@@ -344,7 +347,7 @@ fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -
         TextInputDialog(
             title = "Neue Playlist", label = "Name", confirmText = "Erstellen",
             onDismiss = { creating = false },
-            onConfirm = { n -> vm.createPlaylist(n)?.let { checked.add(it) }; creating = false }
+            onConfirm = { n -> vm.createPlaylist(n, audio = showAudio)?.let { checked.add(it) }; creating = false }
         )
     }
     if (creatingAudio) {

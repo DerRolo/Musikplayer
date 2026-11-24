@@ -118,7 +118,8 @@ object Library {
             val (artist, manual) = effectiveArtist(r.path, r.tag)
             val artistForCheck = r.tag ?: artist.takeIf { it != UNKNOWN_ARTIST }
             val fromName = albumPattern(r.path, artist)
-            val title = if (fromName != null) Names.clean(fromName.second, artistForCheck, false)
+            val title = if (r.path in Store.userNamed) Names.tidy(File(r.path).nameWithoutExtension).trim().ifEmpty { r.title }
+            else if (fromName != null) Names.clean(fromName.second, artistForCheck, false)
             else Names.clean(r.title, artistForCheck, numbered[File(r.path).parent.orEmpty()] == true)
             val folder = File(r.path).parent.orEmpty()
             out += Track(

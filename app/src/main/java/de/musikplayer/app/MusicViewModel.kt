@@ -631,6 +631,29 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun addRecentSearch(q: String) { Store.addRecentSearch(app, q); blockTick++ }
     fun removeRecentSearch(q: String) { Store.removeRecentSearch(app, q); blockTick++ }
 
+    fun setSkipSilence(on: Boolean) { Store.setSkipSilence(app, on) }
+
+    /** Öffnet den Ordner der Datei im Dateimanager; wenn das nicht geht, wird der Pfad kopiert. */
+    fun showInFolder(t: Track) {
+        val path = t.folder
+        val (vol, rel) = when {
+            path.startsWith("/storage/emulated/0") -> "primary" to path.removePrefix("/storage/emulated/0").trim('/')
+            path.startsWith("/storage/") -> path.removePrefix("/storage/").let { it.substringBefore('/') to it.substringAfter('/', "") }
+            else -> "primary" to path.trim('/')
+        }
+        val uri = android.provider.DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "$vol:$rel")
+        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+            .setDataAndType(uri, android.provider.DocumentsContract.Document.MIME_TYPE_DIR)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        try {
+            app.startActivity(intent)
+        } catch (e: Exception) {
+            val cm = app.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("Pfad", path))
+            message = "Kein Dateimanager gefunden – Pfad kopiert: $path"
+        }
+    }
+
     /** Wie oft ein Lied gespielt wurde. */
     fun plays(path: String): Int = Store.playCounts[path] ?: 0
 
