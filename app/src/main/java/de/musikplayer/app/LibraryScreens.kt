@@ -530,7 +530,7 @@ fun PlaylistsTab(
             PlaylistHeader(
                 vm, open, list,
                 onBack = { openId = null },
-                onStart = { if (vm.shuffle) vm.playShuffled(list, ctx) else vm.play(list, 0, ctx) },
+                onStart = { vm.playContext(list, ctx) },
                 onEdit = { onRename(open) },
                 onDelete = { onDeleteList(open); openId = null }
             )

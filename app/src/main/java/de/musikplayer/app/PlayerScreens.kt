@@ -403,12 +403,12 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                     }
                 }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.weight(1f))
+            // Equalizer sitzt direkt auf der Abspielleiste und wächst von ihr nach oben
             EqBars(
                 vm.isPlaying, micOk,
-                Modifier.fillMaxWidth().height(40.dp).clickable(enabled = !micOk) { showEqInfo = true }
+                Modifier.fillMaxWidth().height(56.dp).clickable(enabled = !micOk) { showEqInfo = true }
             )
-            Spacer(Modifier.weight(1f))
         }
 
         Slider(
@@ -421,23 +421,23 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
             Text(formatDuration(shown.toLong()), style = MaterialTheme.typography.bodySmall)
             Text(formatDuration(vm.durationMs), style = MaterialTheme.typography.bodySmall)
         }
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { vm.toggleShuffle() }, Modifier.size(44.dp)) {
-                Icon(Icons.Filled.Shuffle, "Shuffle", tint = if (vm.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { vm.toggleShuffle() }, Modifier.size(56.dp)) {
+                Icon(Icons.Filled.Shuffle, "Shuffle", Modifier.size(30.dp), tint = if (vm.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(onClick = { vm.previous() }, Modifier.size(52.dp)) { Icon(Icons.Filled.SkipPrevious, "Zurück", Modifier.size(34.dp)) }
-            IconButton(onClick = { vm.togglePlay() }, Modifier.size(68.dp)) {
-                Icon(if (vm.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Abspielen/Pause", Modifier.size(48.dp))
+            IconButton(onClick = { vm.previous() }, Modifier.size(64.dp)) { Icon(Icons.Filled.SkipPrevious, "Zurück", Modifier.size(44.dp)) }
+            IconButton(onClick = { vm.togglePlay() }, Modifier.size(84.dp)) {
+                Icon(if (vm.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Abspielen/Pause", Modifier.size(64.dp))
             }
-            IconButton(onClick = { vm.next() }, Modifier.size(52.dp)) { Icon(Icons.Filled.SkipNext, "Weiter", Modifier.size(34.dp)) }
-            IconButton(onClick = { vm.cycleRepeat() }, Modifier.size(44.dp)) {
+            IconButton(onClick = { vm.next() }, Modifier.size(64.dp)) { Icon(Icons.Filled.SkipNext, "Weiter", Modifier.size(44.dp)) }
+            IconButton(onClick = { vm.cycleRepeat() }, Modifier.size(56.dp)) {
                 Icon(
-                    if (vm.repeat == RepeatMode.One) Icons.Filled.RepeatOne else Icons.Filled.Repeat, "Wiederholen",
+                    if (vm.repeat == RepeatMode.One) Icons.Filled.RepeatOne else Icons.Filled.Repeat, "Wiederholen", Modifier.size(30.dp),
                     tint = if (vm.repeat == RepeatMode.Off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
                 )
             }
-            IconButton(onClick = { showQueue = !showQueue }, Modifier.size(44.dp)) {
-                Icon(Icons.Filled.QueueMusic, "Warteschlange", tint = if (showQueue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            IconButton(onClick = { showQueue = !showQueue }, Modifier.size(56.dp)) {
+                Icon(Icons.Filled.QueueMusic, "Warteschlange", Modifier.size(30.dp), tint = if (showQueue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

@@ -62,6 +62,20 @@ object Store {
     /** Stille am Anfang/Ende eines Liedes überspringen. */
     var skipSilence: Boolean = true
         private set
+    /** Shuffle/Wiederholen pro Kontext: Schlüssel "all" (Bibliothek) oder "p:<Playlist-ID>", Wert "shuffle:repeat" (0/1 : 0/1/2). */
+    var modes: Map<String, String> = emptyMap()
+        private set
+    /** Stille-Überspringen-Feineinstellung. */
+    var silenceThr: Int = 250          // Amplitude (0–32767) unter der etwas als Stille gilt
+        private set
+    var silenceMinMs: Int = 1500       // erst Stille ab dieser Länge wird gekürzt
+        private set
+    var silenceKeepMs: Int = 500       // so viel Stille bleibt stehen (Hall)
+        private set
+    var silenceStartSec: Int = 3       // nur in den ersten Sekunden des Liedes
+        private set
+    var silenceEndSec: Int = 6         // nur in den letzten Sekunden des Liedes
+        private set
     var stripStrings: List<String> = emptyList()
         private set
     var recentSearches: List<String> = emptyList()
@@ -102,6 +116,12 @@ object Store {
             recentSearches = o.optJSONArray("recent").strings()
             Names.extraStrip = stripStrings
             skipSilence = o.optBoolean("skipSilence", true)
+            modes = o.optJSONObject("modes").toMap()
+            silenceThr = o.optInt("silenceThr", 250)
+            silenceMinMs = o.optInt("silenceMinMs", 1500)
+            silenceKeepMs = o.optInt("silenceKeepMs", 500)
+            silenceStartSec = o.optInt("silenceStartSec", 3)
+            silenceEndSec = o.optInt("silenceEndSec", 6)
             userNamed = o.optJSONArray("userNamed").strings().toHashSet()
             trackAlbums = o.optJSONObject("trackAlbums").toMap()
             trackCovers = o.optJSONObject("trackCovers").toMap()
@@ -156,6 +176,12 @@ object Store {
         o.put("playCounts", JSONObject(playCounts.mapValues { it.value.toString() }))
         o.put("stripStrings", JSONArray(stripStrings))
         o.put("skipSilence", skipSilence)
+        o.put("modes", JSONObject(modes))
+        o.put("silenceThr", silenceThr)
+        o.put("silenceMinMs", silenceMinMs)
+        o.put("silenceKeepMs", silenceKeepMs)
+        o.put("silenceStartSec", silenceStartSec)
+        o.put("silenceEndSec", silenceEndSec)
         o.put("userNamed", JSONArray(userNamed.toList()))
         o.put("trackAlbums", JSONObject(trackAlbums))
         o.put("trackCovers", JSONObject(trackCovers))
@@ -243,6 +269,22 @@ object Store {
     }
 
     fun setSkipSilence(ctx: Context, on: Boolean) { skipSilence = on; save(ctx) }
+
+    fun setSilence(ctx: Context, thr: Int, minMs: Int, keepMs: Int, startSec: Int, endSec: Int) {
+        silenceThr = thr; silenceMinMs = minMs; silenceKeepMs = keepMs; silenceStartSec = startSec; silenceEndSec = endSec
+        save(ctx)
+    }
+
+    /** Gespeicherter Modus eines Kontexts: (Shuffle, Wiederholen 0=aus 1=alle 2=eins). */
+    fun modeOf(key: String): Pair<Boolean, Int> {
+        val p = modes[key]?.split(":") ?: return false to 0
+        return (p.getOrNull(0) == "1") to (p.getOrNull(1)?.toIntOrNull() ?: 0)
+    }
+
+    fun setMode(ctx: Context, key: String, shuffle: Boolean, repeat: Int) {
+        modes = modes + (key to "${if (shuffle) 1 else 0}:$repeat")
+        save(ctx)
+    }
 
     fun incPlay(ctx: Context, path: String) {
         playCounts = playCounts + (path to ((playCounts[path] ?: 0) + 1))

@@ -234,8 +234,8 @@ fun PlaylistHeader(
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { vm.toggleShuffle() }, Modifier.size(44.dp)) {
-                Icon(Icons.Filled.Shuffle, "Shuffle", tint = if (vm.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            IconButton(onClick = { vm.toggleShuffle("p:${p.id}") }, Modifier.size(44.dp)) {
+                Icon(Icons.Filled.Shuffle, "Shuffle", tint = if (vm.shuffleFor("p:${p.id}")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = { vm.previous() }, Modifier.size(48.dp), enabled = thisPlaying) { Icon(Icons.Filled.SkipPrevious, "Zurück", Modifier.size(30.dp)) }
             Box(
@@ -247,10 +247,10 @@ fun PlaylistHeader(
                 else Icon(Icons.Filled.PlayArrow, "Abspielen", Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onPrimary)
             }
             IconButton(onClick = { vm.next() }, Modifier.size(48.dp), enabled = thisPlaying) { Icon(Icons.Filled.SkipNext, "Weiter", Modifier.size(30.dp)) }
-            IconButton(onClick = { vm.cycleRepeat() }, Modifier.size(44.dp)) {
+            IconButton(onClick = { vm.cycleRepeat("p:${p.id}") }, Modifier.size(44.dp)) {
                 Icon(
-                    if (vm.repeat == RepeatMode.One) Icons.Filled.RepeatOne else Icons.Filled.Repeat, "Wiederholen",
-                    tint = if (vm.repeat == RepeatMode.Off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+                    if (vm.repeatFor("p:${p.id}") == RepeatMode.One) Icons.Filled.RepeatOne else Icons.Filled.Repeat, "Wiederholen",
+                    tint = if (vm.repeatFor("p:${p.id}") == RepeatMode.Off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
                 )
             }
         }

@@ -59,6 +59,15 @@ fun MusicApp(vm: MusicViewModel) {
     val holder = rememberSaveableStateHolder()
     val resets = remember { mutableStateListOf(0, 0, 0, 0, 0) }
     LaunchedEffect(Unit) { vm.load() }
+    // Zurück in der App (z. B. nach einem Download): Bibliothek neu einlesen
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
     LaunchedEffect(vm.message) {
         vm.message?.let { m ->
             val u = vm.undo

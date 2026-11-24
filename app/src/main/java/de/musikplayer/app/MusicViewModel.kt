@@ -74,6 +74,9 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         private set
     var repeat by mutableStateOf(RepeatMode.Off)
         private set
+    /** Zählt hoch, wenn sich gespeicherte Shuffle-/Wiederholen-Modi ändern (damit Anzeigen neu lesen). */
+    var modeVersion by mutableStateOf(0)
+        private set
     var queue by mutableStateOf<List<MediaItem>>(emptyList())
         private set
     var currentIndex by mutableStateOf(0)
@@ -112,6 +115,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
             try {
                 controller = f.get().also { it.addListener(listener) }
                 syncFromPlayer()
+                applyMode(keyOf(playingContext))
             } catch (e: Exception) {
                 message = "Wiedergabe-Dienst nicht erreichbar"
             }
@@ -217,6 +221,27 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Ursprüngliche Reihenfolge der zuletzt gestarteten Liste (um „Zufall aus“ wiederherzustellen). */
     private var baseList: List<MediaItem> = emptyList()
 
+    private fun keyOf(context: String?) = if (context != null && context.startsWith("p:")) context else "all"
+
+    fun shuffleFor(key: String): Boolean { modeVersion; return Store.modeOf(key).first }
+    fun repeatFor(key: String): RepeatMode {
+        modeVersion
+        return when (Store.modeOf(key).second) { 1 -> RepeatMode.All; 2 -> RepeatMode.One; else -> RepeatMode.Off }
+    }
+
+    /** Gespeicherten Modus (Shuffle + Wiederholen) eines Kontexts auf den Player anwenden. */
+    private fun applyMode(key: String) {
+        val (s, r) = Store.modeOf(key)
+        shuffle = s
+        controller?.repeatMode = when (r) { 1 -> Player.REPEAT_MODE_ALL; 2 -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF }
+    }
+
+    /** Liste starten mit dem gespeicherten Modus ihres Kontexts (Bibliothek bzw. Playlist). */
+    fun playContext(list: List<Track>, context: String) {
+        applyMode(keyOf(context))
+        if (shuffle) playShuffled(list, context) else play(list, 0, context)
+    }
+
     private fun isQueued(m: MediaItem) = m.mediaMetadata.extras?.getBoolean("queued", false) == true
 
     private fun asQueued(m: MediaItem): MediaItem {
@@ -230,6 +255,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
      */
     fun play(list: List<Track>, index: Int, context: String) {
         if (list.isEmpty()) return
+        applyMode(keyOf(context))
         startItems(list.map { Library.mediaItem(it, context) }, index.coerceIn(0, list.lastIndex))
     }
 
@@ -251,6 +277,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         val c = controller ?: return
         if (list.isEmpty()) return
         shuffle = true
+        Store.setMode(app, keyOf(context), true, Store.modeOf(keyOf(context)).second); modeVersion++
         c.shuffleModeEnabled = false
         val items = list.map { Library.mediaItem(it, context) }
         baseList = items
@@ -278,16 +305,27 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         positionMs = ms
     }
 
-    fun toggleShuffle() {
+    private fun isLive(key: String): Boolean {
+        val c = controller
+        return c == null || c.mediaItemCount == 0 || keyOf(playingContext) == key
+    }
+
+    /** Shuffle umschalten. [key] = Kontext einer Playlist-Seite; ohne Angabe gilt das, was gerade läuft. */
+    fun toggleShuffle(key: String? = null) {
         val c = controller ?: return
-        shuffle = !shuffle
+        val k = key ?: keyOf(playingContext)
+        val on = !Store.modeOf(k).first
+        Store.setMode(app, k, on, Store.modeOf(k).second)
+        modeVersion++
+        message = if (on) "Shuffle an" else "Shuffle aus"
+        if (!isLive(k)) return
+        shuffle = on
         c.shuffleModeEnabled = false
-        message = if (shuffle) "Zufall an" else "Zufall aus"
         val from = c.currentMediaItemIndex + 1 + queuedCount
         val count = c.mediaItemCount
         if (from >= count) return
         val tail = (from until count).map { c.getMediaItemAt(it) }
-        val newTail = if (shuffle) tail.shuffled() else {
+        val newTail = if (on) tail.shuffled() else {
             val curId = c.currentMediaItem?.mediaId
             val pos = baseList.indexOfFirst { it.mediaId == curId }
             if (pos >= 0) baseList.drop(pos + 1).filter { b -> tail.any { it.mediaId == b.mediaId } } else tail
@@ -295,14 +333,18 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         if (newTail.size == tail.size) c.replaceMediaItems(from, count, newTail)
     }
 
-    fun cycleRepeat() {
+    fun cycleRepeat(key: String? = null) {
         val c = controller ?: return
-        c.repeatMode = when (c.repeatMode) {
-            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
-        }
+        val k = key ?: keyOf(playingContext)
+        val (s, r) = Store.modeOf(k)
+        val next = (r + 1) % 3
+        Store.setMode(app, k, s, next)
+        modeVersion++
+        if (isLive(k)) c.repeatMode = when (next) { 1 -> Player.REPEAT_MODE_ALL; 2 -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF }
     }
+
+    /** Bibliothek neu einlesen (z. B. wenn die App wieder in den Vordergrund kommt oder man nach unten zieht). */
+    fun refresh() { if (!loading) reindex() }
 
     // ---------- Warteschlange ----------
 
@@ -514,7 +556,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun playPlaylist(p: Playlist) {
         val list = playlistTracks(p.id)
         if (list.isEmpty()) { message = "Die Playlist ist leer"; return }
-        if (shuffle) playShuffled(list, "p:${p.id}") else play(list, 0, "p:${p.id}")
+        playContext(list, "p:${p.id}")
     }
 
     /** Spielt die Playlist, oder Pause/Weiter, wenn sie gerade läuft. */

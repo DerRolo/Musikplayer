@@ -40,7 +40,9 @@ class PlaybackService : MediaLibraryService() {
             ): androidx.media3.exoplayer.audio.AudioSink? {
                 val chain = androidx.media3.exoplayer.audio.DefaultAudioSink.DefaultAudioProcessorChain(
                     arrayOf<androidx.media3.common.audio.AudioProcessor>(),
-                    androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor(400_000L, 120_000L, 600.toShort()),
+                    androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor(
+                        Store.silenceMinMs * 1000L, Store.silenceKeepMs * 1000L, Store.silenceThr.coerceIn(10, 3000).toShort()
+                    ),
                     androidx.media3.common.audio.SonicAudioProcessor()
                 )
                 return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
@@ -62,12 +64,12 @@ class PlaybackService : MediaLibraryService() {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
-        // Stille nur in den ersten und letzten 25 Sekunden überspringen (Pausen mitten im Lied bleiben)
+        // Stille nur in den ersten/letzten Sekunden überspringen (Pausen mitten im Lied bleiben unberührt)
         val tick = object : Runnable {
             override fun run() {
                 val d = player.duration
                 val p = player.currentPosition
-                val edge = Store.skipSilence && d != C.TIME_UNSET && d > 0 && (p < 25_000 || d - p < 25_000)
+                val edge = Store.skipSilence && d != C.TIME_UNSET && d > 0 && (p < Store.silenceStartSec * 1000L || d - p < Store.silenceEndSec * 1000L)
                 if (player.skipSilenceEnabled != edge) player.skipSilenceEnabled = edge
                 handler.postDelayed(this, 400)
             }

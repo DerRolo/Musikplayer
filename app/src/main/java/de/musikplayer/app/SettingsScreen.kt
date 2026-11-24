@@ -2,6 +2,7 @@ package de.musikplayer.app
 
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Folder
@@ -72,12 +73,15 @@ fun SettingsTab(vm: MusicViewModel, reset: Int) {
             MenuEntry(Icons.Filled.FilterAlt, "Namen-Filter", "Texte, die aus Titeln entfernt werden (z. B. „Official Video“)") { page = Page.Strip }
             MenuEntry(Icons.Filled.Block, "Gesperrt", "Gesperrte Lieder, Interpreten und Ordner ansehen und entsperren") { page = Page.Blocked }
             var silence by remember { mutableStateOf(Store.skipSilence) }
+            var showSilence by remember { mutableStateOf(false) }
+            if (showSilence) SilenceDialog { showSilence = false }
             Row(Modifier.fillMaxWidth().clickable { silence = !silence; vm.setSkipSilence(silence) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.GraphicEq, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 16.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Stille überspringen", style = MaterialTheme.typography.titleMedium)
                     Text("Stille am Anfang und Ende eines Liedes wird übersprungen, Hall bleibt erhalten", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                androidx.compose.material3.IconButton(onClick = { showSilence = true }) { Icon(Icons.Filled.Tune, "Feineinstellung") }
                 androidx.compose.material3.Switch(checked = silence, onCheckedChange = { silence = it; vm.setSkipSilence(it) })
             }
             Text(
@@ -452,4 +456,52 @@ private fun NamesPage(vm: MusicViewModel, onBack: () -> Unit) {
             onConfirm = { vm.renameFiles(listOf(t to it)); manual = null }
         )
     }
+}
+
+/** Feineinstellung „Stille überspringen“: Schwelle, Mindestlänge, Rest (Hall) und Bereich am Anfang/Ende. */
+@Composable
+fun SilenceDialog(onDismiss: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    fun toDb(thr: Int) = (20.0 * Math.log10(thr.coerceAtLeast(1) / 32768.0)).toFloat()
+    fun fromDb(db: Float) = (32768.0 * Math.pow(10.0, db / 20.0)).toInt().coerceIn(10, 3000)
+    var db by remember { mutableStateOf(toDb(Store.silenceThr)) }
+    var minMs by remember { mutableStateOf(Store.silenceMinMs.toFloat()) }
+    var keepMs by remember { mutableStateOf(Store.silenceKeepMs.toFloat()) }
+    var startS by remember { mutableStateOf(Store.silenceStartSec.toFloat()) }
+    var endS by remember { mutableStateOf(Store.silenceEndSec.toFloat()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Stille überspringen") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("Nur am Anfang und Ende eines Liedes. Pausen mitten im Lied werden nie angefasst.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Als Stille zählt alles leiser als ${db.toInt()} dB", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelLarge)
+                androidx.compose.material3.Slider(db, { db = it }, valueRange = -70f..-30f)
+                Text("Nur Stille ab ${"%.1f".format(minMs / 1000f)} s Länge kürzen", style = MaterialTheme.typography.labelLarge)
+                androidx.compose.material3.Slider(minMs, { minMs = it }, valueRange = 300f..4000f)
+                Text("Davon ${keepMs.toInt()} ms stehen lassen (Hall)", style = MaterialTheme.typography.labelLarge)
+                androidx.compose.material3.Slider(keepMs, { keepMs = it }, valueRange = 0f..1500f)
+                Text("Anfang: nur in den ersten ${startS.toInt()} s", style = MaterialTheme.typography.labelLarge)
+                androidx.compose.material3.Slider(startS, { startS = it }, valueRange = 1f..15f)
+                Text("Ende: nur in den letzten ${endS.toInt()} s", style = MaterialTheme.typography.labelLarge)
+                androidx.compose.material3.Slider(endS, { endS = it }, valueRange = 1f..20f)
+                Text(
+                    "Anfang/Ende-Bereich gilt sofort. Schwelle, Mindestlänge und Hall gelten ab dem nächsten Start des Players " +
+                        "(App schließen, wenn nichts läuft).",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                Store.setSilence(ctx, fromDb(db), minMs.toInt(), keepMs.toInt(), startS.toInt(), endS.toInt()); onDismiss()
+            }) { Text("Speichern") }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = { db = toDb(250); minMs = 1500f; keepMs = 500f; startS = 3f; endS = 6f }) { Text("Standard") }
+                TextButton(onClick = onDismiss) { Text("Abbrechen") }
+            }
+        }
+    )
 }
