@@ -159,6 +159,8 @@ fun TrackRow(
             }
             if (!selectionMode && !compact) {
                 val fav = actions.isFavorite(track)
+                val plays = Store.playCounts[track.path] ?: 0
+                if (plays > 0) Text("$plays×", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(40.dp)) {
                     Icon(
                         if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,

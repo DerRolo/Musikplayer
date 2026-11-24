@@ -235,7 +235,7 @@ fun PlaylistHeader(
         }
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { vm.toggleShuffle() }, Modifier.size(44.dp)) {
-                Icon(Icons.Filled.Shuffle, "Zufall", tint = if (vm.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Filled.Shuffle, "Shuffle", tint = if (vm.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = { vm.previous() }, Modifier.size(48.dp), enabled = thisPlaying) { Icon(Icons.Filled.SkipPrevious, "Zurück", Modifier.size(30.dp)) }
             Box(

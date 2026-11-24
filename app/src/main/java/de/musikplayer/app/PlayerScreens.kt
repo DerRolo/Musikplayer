@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -110,13 +111,38 @@ private val HEART = Color(0xFFE5486B)
 private fun trackOf(item: MediaItem?): Track? =
     item?.mediaId?.substringAfterLast(':')?.toLongOrNull()?.let { id -> Library.tracks.firstOrNull { it.id == id } }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onOpen: () -> Unit) {
+fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Track) -> Unit, onOpen: () -> Unit) {
     val item = vm.current ?: return
     val track = remember(item.mediaId) { trackOf(item) }
+    // Nach rechts wischen = Datei bearbeiten, nach links wischen = Player wegwischen (Wiedergabe endet)
+    val swipe = androidx.compose.material3.rememberSwipeToDismissBoxState(
+        positionalThreshold = { total -> total * 0.45f },
+        confirmValueChange = { v ->
+            when (v) {
+                androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> track?.let(onEdit)
+                androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> vm.clearQueue()
+                else -> {}
+            }
+            false
+        }
+    )
     val fav = track != null && vm.isFavorite(track.path)
     val title = item.mediaMetadata.title?.toString().orEmpty()
     val frac = if (vm.durationMs > 0) (vm.positionMs.toFloat() / vm.durationMs).coerceIn(0f, 1f) else 0f
+    androidx.compose.material3.SwipeToDismissBox(
+        state = swipe,
+        backgroundContent = {
+            val right = swipe.dismissDirection == androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd
+            Box(
+                Modifier.fillMaxWidth().height(96.dp).background(if (right) ORANGE else MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 20.dp),
+                contentAlignment = if (right) Alignment.CenterStart else Alignment.CenterEnd
+            ) {
+                Icon(if (right) Icons.Filled.Edit else Icons.Filled.Close, null, tint = if (right) Color.Black else LocalContentColor.current)
+            }
+        }
+    ) {
     Surface(
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -137,6 +163,9 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onOpen: () 
                     )
                 }
                 if (track != null) {
+                    IconButton(onClick = { vm.blockTracks(listOf(track)) }, Modifier.size(36.dp)) {
+                        Icon(Icons.Filled.Block, "Sperren", Modifier.size(22.dp), tint = MaterialTheme.colorScheme.error)
+                    }
                     IconButton(onClick = { vm.toggleFavorite(track.path) }, Modifier.size(36.dp)) {
                         Icon(if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Lieblingssong", tint = if (fav) HEART else LocalContentColor.current)
                     }
@@ -145,7 +174,7 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onOpen: () 
             }
             Row(Modifier.fillMaxWidth().padding(bottom = 2.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { vm.toggleShuffle() }, Modifier.size(40.dp)) {
-                    Icon(Icons.Filled.Shuffle, "Zufall", tint = if (vm.shuffle) MaterialTheme.colorScheme.primary else LocalContentColor.current.copy(alpha = 0.6f))
+                    Icon(Icons.Filled.Shuffle, "Shuffle", tint = if (vm.shuffle) MaterialTheme.colorScheme.primary else LocalContentColor.current.copy(alpha = 0.6f))
                 }
                 IconButton(onClick = { vm.previous() }, Modifier.size(44.dp)) { Icon(Icons.Filled.SkipPrevious, "Zurück", Modifier.size(30.dp)) }
                 IconButton(onClick = { vm.togglePlay() }, Modifier.size(48.dp)) {
@@ -166,6 +195,7 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onOpen: () 
                 trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f)
             )
         }
+    }
     }
 }
 
@@ -369,7 +399,7 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
         }
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { vm.toggleShuffle() }, Modifier.size(44.dp)) {
-                Icon(Icons.Filled.Shuffle, "Zufall", tint = if (vm.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Filled.Shuffle, "Shuffle", tint = if (vm.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = { vm.previous() }, Modifier.size(52.dp)) { Icon(Icons.Filled.SkipPrevious, "Zurück", Modifier.size(34.dp)) }
             IconButton(onClick = { vm.togglePlay() }, Modifier.size(68.dp)) {

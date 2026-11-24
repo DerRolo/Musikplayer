@@ -244,9 +244,14 @@ fun ArtistsTab(
     val gridState = rememberLazyGridState()
     val artistsListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val ovState = rememberLazyListState()
+    val albumRowState = rememberLazyListState()
+    var lastOpen by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(open) {
+        if (open != lastOpen) { lastOpen = open; ovState.scrollToItem(0); albumRowState.scrollToItem(0) }
+    }
     OnReset(reset) {
-        if (view != "") view = ""
-        else if (open != null) open = null
+        if (view != "" || open != null) { view = ""; open = null }
         else scope.launch { if (vm.artistGrid) gridState.animateScrollToItem(0) else artistsListState.animateScrollToItem(0) }
     }
     var query by rememberSaveable { mutableStateOf("") }
@@ -376,7 +381,6 @@ fun ArtistsTab(
             } else if (v != "") {
                 TrackListBody(vm, shown, ctx, actions, sel)
             } else {
-                val ovState = rememberLazyListState()
                 val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
                 Box(Modifier.fillMaxSize()) {
                     LazyColumn(Modifier.fillMaxSize(), state = ovState) {
@@ -389,7 +393,7 @@ fun ArtistsTab(
                         if (albums.isNotEmpty()) {
                             item { SectionTitle("Alben (${albums.size})") }
                             item {
-                                androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                androidx.compose.foundation.lazy.LazyRow(state = albumRowState, contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     items(albums.entries.toList(), key = { it.key }) { (name, l) -> AlbumTile(name, l) { view = name } }
                                 }
                             }

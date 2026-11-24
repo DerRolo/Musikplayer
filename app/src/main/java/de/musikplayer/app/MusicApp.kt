@@ -91,7 +91,7 @@ fun MusicApp(vm: MusicViewModel) {
         snackbarHost = { SnackbarHost(snack) },
         bottomBar = {
             Column {
-                if (!showPlayer) MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }) { showPlayer = true }
+                if (!showPlayer) MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }, onEdit = { renameTrack = it }) { showPlayer = true }
                 NavigationBar {
                     val icons = listOf(Icons.Filled.LibraryMusic, Icons.Filled.Search, Icons.Filled.PlaylistPlay, Icons.Filled.Headphones, Icons.Filled.Settings)
                     TAB_TITLES.forEachIndexed { i, title ->
