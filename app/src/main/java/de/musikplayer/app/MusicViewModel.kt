@@ -166,6 +166,29 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         folders = Library.folders()
         sortBy = Store.sortBy
         sortLevel = Store.sortLevel
+        syncPlayerMetadata()
+    }
+
+    /** Geänderte Titel/Interpreten (z. B. nach Umbenennen) in die laufende Warteschlange übernehmen; Wiedergabe läuft weiter. */
+    private fun syncPlayerMetadata() {
+        val c = controller ?: return
+        val byId = Library.tracks.associateBy { it.id }
+        val cur = c.currentMediaItemIndex
+        val pos = c.currentPosition
+        var replacedCurrent = false
+        for (i in 0 until c.mediaItemCount) {
+            val item = c.getMediaItemAt(i)
+            val t = item.mediaId.substringAfterLast(':').toLongOrNull()?.let { byId[it] } ?: continue
+            val md = item.mediaMetadata
+            if (md.title?.toString() == t.title && md.artist?.toString() == t.artist) continue
+            val nu = item.buildUpon()
+                .setMediaMetadata(md.buildUpon().setTitle(t.title).setArtist(t.artist).build())
+                .build()
+            c.replaceMediaItem(i, nu)
+            if (i == cur) replacedCurrent = true
+        }
+        if (replacedCurrent && c.currentMediaItemIndex == cur && c.currentPosition < pos - 2000) c.seekTo(pos)
+        syncFromPlayer()
     }
 
     val sortedTracks: List<Track> get() = Library.sorted(tracks, sortBy, sortLevel)
