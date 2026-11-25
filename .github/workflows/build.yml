@@ -27,7 +27,7 @@ jobs:
         run: gradle assembleRelease --no-daemon
       
       - name: APK umbenennen
-        run: 
+        run: |
           VERSION="1.0.${{ github.run_number }}"
           cp app/build/outputs/apk/release/app-release.apk "Musikplayer-v${VERSION}.apk"
       
