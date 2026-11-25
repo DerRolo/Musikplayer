@@ -32,7 +32,7 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk "Musikplayer-v${VERSION}.apk"
       
       - name: APK als Artifact speichern
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Musikplayer-v${{ github.run_number }}
           path: Musikplayer-v1.0.${{ github.run_number }}.apk
