@@ -48,6 +48,7 @@ fun SearchTab(
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var picked by rememberSaveable { mutableStateOf("") }
+    val ssel = remember { Selection() }
     OnReset(reset) { query = ""; picked = ""; ssel.clear() }
     val q = Names.fold(query.trim())
 
@@ -73,7 +74,6 @@ fun SearchTab(
         if (q.isEmpty()) emptyList() else Library.sorted(filterTracks(vm.searchableTracks, query), SortBy.Title).take(150)
     }
 
-    val ssel = remember { Selection() }
     LaunchedEffect(vm.blockTick) { ssel.clear() }
     Column(Modifier.fillMaxSize(), verticalArrangement = if (q.isEmpty()) Arrangement.Center else Arrangement.Top) {
         SearchField(query, { query = it }, "Titel, Interpreten, Playlists", onSubmit = { picked = query; vm.addRecentSearch(query) })

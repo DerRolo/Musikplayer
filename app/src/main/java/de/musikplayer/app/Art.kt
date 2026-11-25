@@ -35,7 +35,7 @@ object Art {
     private fun cacheKey(t: Track): String = t.path + "\u0000" + (Store.trackCovers[t.path] ?: "embedded")
 
     private val cache = object : LruCache<String, Bitmap>(48 * 1024 * 1024) {
-        override fun sizeOf(key: Long, value: Bitmap) = value.byteCount
+        override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
     /** Zählt hoch, sobald sich ein Cover ändert; Bilder laden sich dann neu. */
     var version by mutableIntStateOf(0)
@@ -69,7 +69,7 @@ object Art {
     }
 
     private val bigCache = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
-        override fun sizeOf(key: Long, value: Bitmap) = value.byteCount
+        override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
     /** Großes Cover für den Player (nur wenn im Lied wirklich ein Bild steckt). */
