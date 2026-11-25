@@ -238,7 +238,7 @@ object Library {
                     .setTitle(t.title)
                     .setArtist(t.artist)
                     .setAlbumTitle(t.album)
-                    .setArtworkUri(Uri.parse("content://media/external/audio/albumart/${t.albumId}"))
+                    .setArtworkUri(Uri.parse("content://de.musikplayer.app.art/${t.id}?c=" + (Store.trackCovers[t.path] ?: "0")))
                     .setIsPlayable(true)
                     .setIsBrowsable(false)
                     .build()

@@ -97,7 +97,7 @@ fun NewSongsPage(vm: MusicViewModel, actions: TrackActions, onBack: () -> Unit) 
                 Text("${fresh.size} neu", Modifier.weight(1f).padding(start = 4.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                 SortMenu("Sortierung: " + NEW_SORTS[sortIdx], NEW_SORTS, sortIdx) { sortIdx = it }
             }
-            if (sel.active && view != 0) {
+            if (sel.active && view == 2) {
                 SelectionBar(
                     count = sel.ids.size,
                     onClose = { sel.clear() },

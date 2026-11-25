@@ -188,6 +188,7 @@ fun SelectionBar(
             TextButton(onClick = onSelectAll) { Text("Alle") }
             IconButton(onClick = onPlaylist, enabled = count > 0) { Icon(Icons.Filled.PlaylistAdd, "Zu Playlist") }
             IconButton(onClick = onQueue, enabled = count > 0) { Icon(Icons.Filled.QueueMusic, "Zur Warteschlange") }
+            IconButton(onClick = onDelete, enabled = count > 0) { Icon(Icons.Filled.Delete, "Löschen", tint = MaterialTheme.colorScheme.error) }
             Box {
                 IconButton(onClick = { more = true }, enabled = count > 0) { Icon(Icons.Filled.MoreVert, "Mehr") }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {

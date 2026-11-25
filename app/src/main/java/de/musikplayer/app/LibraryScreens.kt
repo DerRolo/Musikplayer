@@ -110,6 +110,23 @@ fun groupActions(vm: MusicViewModel, list: List<Track>, context: String, actions
         onBlock = onBlock
     )
 
+/** Auswahl-Leiste für eine Liste von Liedern (überall gleich). */
+@Composable
+fun TrackSelectionBar(vm: MusicViewModel, list: List<Track>, actions: TrackActions, sel: Selection) {
+    val chosen = { vm.tracks.filter { it.id in sel.ids } }
+    SelectionBar(
+        count = sel.ids.size,
+        onClose = { sel.clear() },
+        onSelectAll = { sel.setAll(list.map { it.id }) },
+        onPlaylist = { actions.onAddManyToPlaylist(chosen()); sel.clear() },
+        onQueue = { vm.addToQueue(chosen()); sel.clear() },
+        onPlayNext = { vm.playNext(chosen()); sel.clear() },
+        onDelete = { actions.onDeleteMany(chosen()); sel.clear() },
+        onBlock = { actions.onBlockMany(chosen()); sel.clear() },
+        onAssign = { actions.onAssignMany(chosen()); sel.clear() }
+    )
+}
+
 /** Liste von Liedern mit Auswahlmodus. Tippen spielt ab, Gedrückt-halten wählt aus. */
 @Composable
 fun TrackListBody(
@@ -124,20 +141,7 @@ fun TrackListBody(
 ) {
     BackHandler(enabled = sel.active) { sel.clear() }
     Column(modifier) {
-        if (sel.active) {
-            val chosen = { vm.tracks.filter { it.id in sel.ids } }
-            SelectionBar(
-                count = sel.ids.size,
-                onClose = { sel.clear() },
-                onSelectAll = { sel.setAll(list.map { it.id }) },
-                onPlaylist = { actions.onAddManyToPlaylist(chosen()); sel.clear() },
-                onQueue = { vm.addToQueue(chosen()); sel.clear() },
-                onPlayNext = { vm.playNext(chosen()); sel.clear() },
-                onDelete = { actions.onDeleteMany(chosen()); sel.clear() },
-                onBlock = { actions.onBlockMany(chosen()); sel.clear() },
-                onAssign = { actions.onAssignMany(chosen()); sel.clear() }
-            )
-        }
+        if (sel.active) TrackSelectionBar(vm, list, actions, sel)
         val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
         val swipeOk = rememberSwipeAllowed(listState)
         Box(Modifier.fillMaxSize()) {
@@ -376,7 +380,9 @@ fun ArtistsTab(
                 onCover = { albumCover = an to tl }
             )
         }
+        if (v == "") BackHandler(enabled = sel.active) { sel.clear() }
         Column(Modifier.fillMaxSize()) {
+            if (v == "" && sel.active) TrackSelectionBar(vm, fullList, actions, sel)
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { if (v != "") view = "" else open = null }) { Text("‹ Zurück") }
                 Text(
@@ -426,7 +432,10 @@ fun ArtistsTab(
                         }
                         item { SectionTitle("Lieder (${fullList.size})") }
                         itemsIndexed(fullList.take(5), key = { _, t -> "all" + t.id }) { i, t ->
-                            TrackRow(t, actions, playing = t.id == playingId, modifier = Modifier.fillMaxWidth()) { vm.play(fullList, i, ctx) }
+                            TrackRow(
+                                t, actions, playing = t.id == playingId, modifier = Modifier.fillMaxWidth(),
+                                selectionMode = sel.active, selected = t.id in sel.ids, onLongClick = { sel.toggle(t.id) }
+                            ) { if (sel.active) sel.toggle(t.id) else vm.play(fullList, i, ctx) }
                         }
                         if (fullList.size > 5) item {
                             TextButton(onClick = { view = "*" }, Modifier.padding(horizontal = 8.dp)) { Text("Alle ${fullList.size} Lieder anzeigen ›") }
@@ -576,6 +585,8 @@ fun PlaylistsTab(
                 SortMenu("Sortierung: " + modes[mode], modes, mode) { mode = it }
             }
             ReorderEffects(rs)
+            val psel = remember(open.id) { Selection() }
+            if (mode != 0 && psel.active) TrackSelectionBar(vm, list, actions, psel)
             val swipeOkPl = rememberSwipeAllowed(listState)
             Box(Modifier.fillMaxSize()) {
             androidx.compose.runtime.CompositionLocalProvider(LocalSwipeAllowed provides swipeOkPl) {
@@ -604,7 +615,10 @@ fun PlaylistsTab(
                             TrackRow(t, rowActions, modifier = Modifier.fillMaxWidth(), compact = true, swipe = false) { vm.play(list, i, ctx) }
                         }
                     } else {
-                        TrackRow(t, rowActions, modifier = Modifier.fillMaxWidth()) { vm.play(list, i, ctx) }
+                        TrackRow(
+                            t, rowActions, modifier = Modifier.fillMaxWidth(),
+                            selectionMode = psel.active, selected = t.id in psel.ids, onLongClick = { psel.toggle(t.id) }
+                        ) { if (psel.active) psel.toggle(t.id) else vm.play(list, i, ctx) }
                     }
                 }
             }

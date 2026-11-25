@@ -69,7 +69,9 @@ fun SearchTab(
         if (q.isEmpty()) emptyList() else Library.sorted(filterTracks(vm.tracks, query), SortBy.Title).take(150)
     }
 
+    val ssel = remember { Selection() }
     Column(Modifier.fillMaxSize(), verticalArrangement = if (q.isEmpty()) Arrangement.Center else Arrangement.Top) {
+        if (ssel.active) TrackSelectionBar(vm, trackHits, actions, ssel)
         SearchField(query, { query = it }, "Titel, Interpreten, Playlists", onSubmit = { picked = query; vm.addRecentSearch(query) })
         val sugs = remember(vm.tracks, albumHits, q) {
             if (q.isEmpty()) emptyList()
@@ -139,9 +141,14 @@ fun SearchTab(
                 if (trackHits.isNotEmpty()) {
                     item(key = "h_t") { Header("Titel") }
                     itemsIndexed(trackHits, key = { _, t -> "t_" + t.id }) { i, t ->
-                        TrackRow(t, actions, playing = t.id == playingId, modifier = Modifier.fillMaxWidth()) {
-                            vm.addRecentSearch(query)
-                            vm.play(trackHits, i, "s")
+                        TrackRow(
+                            t, actions, playing = t.id == playingId, modifier = Modifier.fillMaxWidth(),
+                            selectionMode = ssel.active, selected = t.id in ssel.ids, onLongClick = { ssel.toggle(t.id) }
+                        ) {
+                            if (ssel.active) ssel.toggle(t.id) else {
+                                vm.addRecentSearch(query)
+                                vm.play(trackHits, i, "s")
+                            }
                         }
                     }
                 }
