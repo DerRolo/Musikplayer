@@ -339,7 +339,7 @@ fun ArtistField(value: String, onChange: (String) -> Unit, artists: List<String>
 
 /** „Datei bearbeiten“: zeigt aktuellen Namen, Vorschlag der App und Interpret – alles änderbar. Deine Eingabe gilt immer. */
 @Composable
-fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, onConfirm: (name: String, artist: String, move: Boolean) -> Unit) {
+fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, onConfirm: (name: String, artist: String, move: Boolean) -> Unit, onCover: (() -> Unit)? = null) {
     val current = track.fileName.substringBeforeLast('.')
     var name by remember(track.path) { mutableStateOf(current) }
     var artist by remember(track.path) { mutableStateOf(if (track.artist == UNKNOWN_ARTIST) "" else track.artist) }
@@ -349,7 +349,16 @@ fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, 
     val guess = remember(track.path) { if (track.artist == UNKNOWN_ARTIST) Library.guessArtistFromName(track) else null }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Datei bearbeiten") },
+        title = {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Datei bearbeiten", Modifier.weight(1f))
+                if (onCover != null) {
+                    IconButton(onClick = onCover) {
+                        Icon(Icons.Filled.Image, contentDescription = "Cover ändern")
+                    }
+                }
+            }
+        },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Aktueller Dateiname", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

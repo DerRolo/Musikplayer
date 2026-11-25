@@ -415,7 +415,7 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                     .clickable(enabled = !micOk) { showEqInfo = true }
                     .pointerInput(vm.current?.mediaId) {
                         var drag = 0f
-                        androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+                        detectHorizontalDragGestures(
                             onDragStart = { drag = 0f },
                             onHorizontalDrag = { change, amount -> change.consume(); drag += amount },
                             onDragEnd = { if (drag < -60.dp.toPx() && vm.nextItem != null) vm.next() else if (drag > 60.dp.toPx() && vm.prevItem != null) vm.previous() }

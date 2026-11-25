@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package de.musikplayer.app
 
 import androidx.compose.foundation.basicMarquee
