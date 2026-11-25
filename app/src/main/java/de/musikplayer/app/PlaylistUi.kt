@@ -171,7 +171,8 @@ fun PlaylistRow(vm: MusicViewModel, p: Playlist, onOpen: () -> Unit, onEdit: () 
             }
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(
-                    p.name, Modifier.basicMarquee(iterations = 1, initialDelayMillis = 1000, velocity = 38.dp), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    p.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee(iterations = 1, initialDelayMillis = 1000, velocity = 40.dp),
                     color = if (thisPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )
                 Text(subtitle(p), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -196,7 +197,7 @@ fun PlaylistTile(vm: MusicViewModel, p: Playlist, onOpen: () -> Unit, onEdit: ()
                 if (p.pinned) Icon(Icons.Filled.PushPin, "Fixiert", Modifier.align(Alignment.TopStart).padding(8.dp).size(18.dp), tint = Color.White)
             }
             Text(
-                p.name, Modifier.padding(top = 6.dp).basicMarquee(iterations = 1, initialDelayMillis = 1000, velocity = 38.dp), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                p.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp).basicMarquee(iterations = 1, initialDelayMillis = 1000, velocity = 40.dp),
                 color = if (thisPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
             )
             Text("${p.trackPaths.size} Lieder", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

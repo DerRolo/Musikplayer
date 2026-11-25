@@ -16,11 +16,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.size
@@ -53,17 +48,17 @@ fun SearchTab(
     OnReset(reset) { query = "" }
     val q = Names.fold(query.trim())
 
-    val artistHits = remember(vm.searchableTracks, q) {
+    val artistHits = remember(vm.tracks, q) {
         if (q.isEmpty()) emptyList()
-        else vm.searchableTracks.groupBy { it.artist }
+        else vm.tracks.groupBy { it.artist }
             .filterKeys { q in Names.fold(it) }
             .toSortedMap(String.CASE_INSENSITIVE_ORDER)
             .map { (name, list) -> name to list.sortedBy { it.sortKey } }
             .take(20)
     }
-    val albumHits = remember(vm.searchableTracks, q) {
+    val albumHits = remember(vm.tracks, q) {
         if (q.isEmpty()) emptyList()
-        else vm.searchableTracks.filter { it.albumName.isNotBlank() && q in Names.fold(it.albumName) }
+        else vm.tracks.filter { it.albumName.isNotBlank() && q in Names.fold(it.albumName) }
             .groupBy { it.artist to it.albumName }
             .map { (k, l) -> Triple(k.first, k.second, l.sortedBy { it.sortKey }) }
             .sortedBy { Names.fold(it.second) }.take(20)
@@ -71,33 +66,21 @@ fun SearchTab(
     val playlistHits = remember(vm.playlists, q) {
         if (q.isEmpty()) emptyList() else vm.playlists.filter { q in Names.fold(it.name) }
     }
-    val trackHits = remember(vm.searchableTracks, query) {
-        if (q.isEmpty()) emptyList() else Library.sorted(filterTracks(vm.searchableTracks, query), SortBy.Title).take(150)
+    val trackHits = remember(vm.tracks, query) {
+        if (q.isEmpty()) emptyList() else Library.sorted(filterTracks(vm.tracks, query), SortBy.Title).take(150)
     }
 
     val ssel = remember { Selection() }
-    val searchListState = rememberLazyListState()
-    val pullConnection = remember(searchListState, ssel) {
-        object : NestedScrollConnection {
-            var distance = 0f
-            override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: NestedScrollSource): androidx.compose.ui.geometry.Offset {
-                if (searchListState.firstVisibleItemIndex == 0 && searchListState.firstVisibleItemScrollOffset == 0 && available.y > 0f) {
-                    distance += available.y
-                    if (distance > 160f) { distance = 0f; ssel.clear(); vm.refresh() }
-                } else if (available.y < 0f) distance = 0f
-                return androidx.compose.ui.geometry.Offset.Zero
-            }
-        }
-    }
     Column(Modifier.fillMaxSize(), verticalArrangement = if (q.isEmpty()) Arrangement.Center else Arrangement.Top) {
+        if (ssel.active) TrackSelectionBar(vm, trackHits, actions, ssel)
         SearchField(query, { query = it }, "Titel, Interpreten, Playlists", onSubmit = { picked = query; vm.addRecentSearch(query) })
-        val sugs = remember(vm.searchableTracks, albumHits, q) {
+        val sugs = remember(vm.tracks, albumHits, q) {
             if (q.isEmpty()) emptyList()
             else {
                 val out = ArrayList<Sug>()
-                for ((n, l) in vm.searchableTracks.groupBy { it.artist }) if (n != UNKNOWN_ARTIST && q in Names.fold(n)) out += Sug(0, n, "", l.sortedBy { it.sortKey }.take(4))
+                for ((n, l) in vm.tracks.groupBy { it.artist }) if (n != UNKNOWN_ARTIST && q in Names.fold(n)) out += Sug(0, n, "", l.sortedBy { it.sortKey }.take(4))
                 for ((ar, al, l) in albumHits) out += Sug(1, al, ar, l)
-                for (t in vm.searchableTracks) if (q in t.sortKey) out += Sug(2, t.title, t.artist, listOf(t))
+                for (t in vm.tracks) if (q in t.sortKey) out += Sug(2, t.title, t.artist, listOf(t))
                 out.sortedWith(compareBy({ if (Names.fold(it.name).startsWith(q)) 0 else 1 }, { it.kind })).take(5)
             }
         }
@@ -123,8 +106,7 @@ fun SearchTab(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nichts gefunden") }
         } else {
             val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
-            LazyColumn(Modifier.fillMaxSize().nestedScroll(pullConnection), state = searchListState) {
-                if (vm.loading) item(key = "search_refresh") { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            LazyColumn(Modifier.fillMaxSize()) {
                 if (showSug && sugs.isNotEmpty()) {
                     item(key = "h_s") { Header("Vorschläge") }
                     items(sugs, key = { "s_" + it.kind + "_" + it.name + "_" + it.artist }) { sg ->
@@ -158,7 +140,7 @@ fun SearchTab(
                     }
                 }
                 if (trackHits.isNotEmpty()) {
-                    item(key = "h_t") { Header("Titel"); if (ssel.active) TrackSelectionBar(vm, trackHits, actions, ssel) }
+                    item(key = "h_t") { Header("Titel") }
                     itemsIndexed(trackHits, key = { _, t -> "t_" + t.id }) { i, t ->
                         TrackRow(
                             t, actions, playing = t.id == playingId, modifier = Modifier.fillMaxWidth(),
@@ -192,7 +174,7 @@ private fun SuggestRow(s: Sug, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Cover(s.tracks, s.name, Modifier.size(48.dp).clip(RoundedCornerShape(if (s.kind == 0) 24.dp else 8.dp)), 128)
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(s.name, Modifier.basicMarquee(iterations = 1, initialDelayMillis = 1000, velocity = 38.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(s.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.basicMarquee(iterations = 1, initialDelayMillis = 1000, velocity = 40.dp))
             Text(
                 when (s.kind) { 0 -> "Interpret"; 1 -> "Album · " + s.artist; else -> "Song · " + s.artist },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis
