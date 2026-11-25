@@ -73,6 +73,7 @@ data class TrackActions(
     val onDeleteMany: (List<Track>) -> Unit,
     /** Nur in Playlists: Titel aus der Playlist entfernen (Datei bleibt). */
     val onRemoveFromPlaylist: ((Track) -> Unit)? = null,
+    val removeLabel: String = "Aus Playlist entfernen",
     /** Herz (Lieblingssongs) und Datei umbenennen. */
     val onToggleFavorite: (Track) -> Unit = {},
     val isFavorite: (Track) -> Boolean = { false },
@@ -192,7 +193,7 @@ fun TrackRow(
                     ) { menu = false; actions.onToggleFavorite(track) }
                     MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
                     actions.onRemoveFromPlaylist?.let { rm ->
-                        MenuItem("Aus Playlist entfernen", Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
+                        MenuItem(actions.removeLabel, Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
                     }
                     MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
                     MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }

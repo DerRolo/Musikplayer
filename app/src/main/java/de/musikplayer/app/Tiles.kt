@@ -84,7 +84,7 @@ fun GroupMenu(expanded: Boolean, onDismiss: () -> Unit, a: GroupActions) {
         }
         a.onEdit?.let { e -> MenuItem("Album bearbeiten …", Icons.Filled.Edit, warn = true) { onDismiss(); e() } }
         a.onBlock?.let { b -> MenuItem("Sperren", Icons.Filled.Block, danger = true) { onDismiss(); b() } }
-        a.onDelete?.let { d -> MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { onDismiss(); d() } }
+        a.onDelete?.let { d -> MenuItem(if (removeLabel != null) "Datei löschen …" else "Löschen …", Icons.Filled.Delete, danger = true) { onDismiss(); d() } }
     }
 }
 
@@ -178,7 +178,9 @@ fun SelectionBar(
     onPlayNext: () -> Unit,
     onDelete: () -> Unit,
     onBlock: () -> Unit = {},
-    onAssign: () -> Unit = {}
+    onAssign: () -> Unit = {},
+    removeLabel: String? = null,
+    onRemove: () -> Unit = {}
 ) {
     var more by remember { mutableStateOf(false) }
     Surface(tonalElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
@@ -188,7 +190,8 @@ fun SelectionBar(
             TextButton(onClick = onSelectAll) { Text("Alle") }
             IconButton(onClick = onPlaylist, enabled = count > 0) { Icon(Icons.Filled.PlaylistAdd, "Zu Playlist") }
             IconButton(onClick = onQueue, enabled = count > 0) { Icon(Icons.Filled.QueueMusic, "Zur Warteschlange") }
-            IconButton(onClick = onDelete, enabled = count > 0) { Icon(Icons.Filled.Delete, "Löschen", tint = MaterialTheme.colorScheme.error) }
+            if (removeLabel != null) IconButton(onClick = onRemove, enabled = count > 0) { Icon(Icons.Filled.RemoveCircleOutline, removeLabel) }
+            else IconButton(onClick = onDelete, enabled = count > 0) { Icon(Icons.Filled.Delete, "Löschen", tint = MaterialTheme.colorScheme.error) }
             Box {
                 IconButton(onClick = { more = true }, enabled = count > 0) { Icon(Icons.Filled.MoreVert, "Mehr") }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {

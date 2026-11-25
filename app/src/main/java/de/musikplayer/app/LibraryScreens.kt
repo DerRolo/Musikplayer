@@ -112,18 +112,21 @@ fun groupActions(vm: MusicViewModel, list: List<Track>, context: String, actions
 
 /** Auswahl-Leiste für eine Liste von Liedern (überall gleich). */
 @Composable
-fun TrackSelectionBar(vm: MusicViewModel, list: List<Track>, actions: TrackActions, sel: Selection) {
+fun TrackSelectionBar(vm: MusicViewModel, list: List<Track>, actions: TrackActions, sel: Selection, removeLabel: String? = null, onRemove: () -> Unit = {}, onDone: () -> Unit = {}) {
+    val done = { sel.clear(); onDone() }
     val chosen = { vm.tracks.filter { it.id in sel.ids } }
     SelectionBar(
         count = sel.ids.size,
-        onClose = { sel.clear() },
+        onClose = { done() },
         onSelectAll = { sel.setAll(list.map { it.id }) },
-        onPlaylist = { actions.onAddManyToPlaylist(chosen()); sel.clear() },
-        onQueue = { vm.addToQueue(chosen()); sel.clear() },
-        onPlayNext = { vm.playNext(chosen()); sel.clear() },
-        onDelete = { actions.onDeleteMany(chosen()); sel.clear() },
-        onBlock = { actions.onBlockMany(chosen()); sel.clear() },
-        onAssign = { actions.onAssignMany(chosen()); sel.clear() }
+        onPlaylist = { actions.onAddManyToPlaylist(chosen()); done() },
+        onQueue = { vm.addToQueue(chosen()); done() },
+        onPlayNext = { vm.playNext(chosen()); done() },
+        onDelete = { actions.onDeleteMany(chosen()); done() },
+        onBlock = { actions.onBlockMany(chosen()); done() },
+        onAssign = { actions.onAssignMany(chosen()); done() },
+        removeLabel = removeLabel,
+        onRemove = { onRemove(); done() }
     )
 }
 
@@ -581,20 +584,28 @@ fun PlaylistsTab(
                 onEdit = { onRename(open) },
                 onDelete = { onDeleteList(open); openId = null }
             )
-            Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+            val psel = remember(open.id) { Selection() }
+            var pick by remember(open.id) { mutableStateOf(false) }
+            val selecting = pick || psel.active
+            val rmLabel = if (open.audio) "Aus Hörbuch entfernen" else "Aus Playlist entfernen"
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 SortMenu("Sortierung: " + modes[mode], modes, mode) { mode = it }
+                Spacer(Modifier.weight(1f))
+                if (!selecting) TextButton(onClick = { pick = true }) { Text("Auswählen") }
             }
             ReorderEffects(rs)
-            val psel = remember(open.id) { Selection() }
-            if (mode != 0 && psel.active) TrackSelectionBar(vm, list, actions, psel)
+            BackHandler(enabled = selecting) { psel.clear(); pick = false }
+            if (selecting) TrackSelectionBar(vm, list, actions, psel, rmLabel, onRemove = {
+                shown.filter { it.second.id in psel.ids }.map { it.first }.sortedDescending().forEach { vm.removeFromPlaylistAt(open.id, it) }
+            }, onDone = { pick = false })
             val swipeOkPl = rememberSwipeAllowed(listState)
             Box(Modifier.fillMaxSize()) {
             androidx.compose.runtime.CompositionLocalProvider(LocalSwipeAllowed provides swipeOkPl) {
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 // Index in der gespeicherten Liste als Schlüssel: dasselbe Lied darf mehrfach vorkommen
                 itemsIndexed(shown, key = { _, e -> e.first }) { i, (idx, t) ->
-                    val rowActions = actions.copy(onRemoveFromPlaylist = { vm.removeFromPlaylistAt(open.id, idx) })
-                    if (mode == 0) {
+                    val rowActions = actions.copy(onRemoveFromPlaylist = { vm.removeFromPlaylistAt(open.id, idx) }, removeLabel = rmLabel)
+                    if (mode == 0 && !selecting) {
                         val pos by rememberUpdatedState(i)
                         val isDrag = rs.dragging == i
                         Box(
@@ -612,13 +623,13 @@ fun PlaylistsTab(
                                     )
                                 }
                         ) {
-                            TrackRow(t, rowActions, modifier = Modifier.fillMaxWidth(), compact = true, swipe = false) { vm.play(list, i, ctx) }
+                            TrackRow(t, rowActions, modifier = Modifier.fillMaxWidth(), compact = true) { vm.play(list, i, ctx) }
                         }
                     } else {
                         TrackRow(
                             t, rowActions, modifier = Modifier.fillMaxWidth(),
-                            selectionMode = psel.active, selected = t.id in psel.ids, onLongClick = { psel.toggle(t.id) }
-                        ) { if (psel.active) psel.toggle(t.id) else vm.play(list, i, ctx) }
+                            selectionMode = selecting, selected = t.id in psel.ids, onLongClick = { psel.toggle(t.id) }
+                        ) { if (selecting) psel.toggle(t.id) else vm.play(list, i, ctx) }
                     }
                 }
             }
