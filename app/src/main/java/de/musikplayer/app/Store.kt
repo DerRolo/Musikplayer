@@ -72,6 +72,11 @@ object Store {
         private set
     var silenceKeepMs: Int = 500       // so viel Stille bleibt stehen (Hall)
         private set
+    var silenceTailMs: Int = 1000      // so viel Stille bleibt nach dem letzten Ton
+        private set
+    /** Ergebnis der Ton-Suche je Lied: "Größe:Schwelle:ersterTonMs:letzterTonMs". */
+    var trims: Map<String, String> = emptyMap()
+        private set
     var silenceStartSec: Int = 3       // nur in den ersten Sekunden des Liedes
         private set
     var silenceEndSec: Int = 6         // nur in den letzten Sekunden des Liedes
@@ -117,9 +122,11 @@ object Store {
             Names.extraStrip = stripStrings
             skipSilence = o.optBoolean("skipSilence", true)
             modes = o.optJSONObject("modes").toMap()
-            silenceThr = o.optInt("silenceThr", 250)
+            silenceThr = o.optInt("silenceThr", 200)
             silenceMinMs = o.optInt("silenceMinMs", 1500)
-            silenceKeepMs = o.optInt("silenceKeepMs", 500)
+            silenceKeepMs = o.optInt("silenceKeepMs", 300)
+            silenceTailMs = o.optInt("silenceTailMs", 1000)
+            trims = o.optJSONObject("trims").toMap()
             silenceStartSec = o.optInt("silenceStartSec", 3)
             silenceEndSec = o.optInt("silenceEndSec", 6)
             userNamed = o.optJSONArray("userNamed").strings().toHashSet()
@@ -178,6 +185,8 @@ object Store {
         o.put("skipSilence", skipSilence)
         o.put("modes", JSONObject(modes))
         o.put("silenceThr", silenceThr)
+        o.put("silenceTailMs", silenceTailMs)
+        o.put("trims", JSONObject(trims))
         o.put("silenceMinMs", silenceMinMs)
         o.put("silenceKeepMs", silenceKeepMs)
         o.put("silenceStartSec", silenceStartSec)
@@ -270,8 +279,13 @@ object Store {
 
     fun setSkipSilence(ctx: Context, on: Boolean) { skipSilence = on; save(ctx) }
 
-    fun setSilence(ctx: Context, thr: Int, minMs: Int, keepMs: Int, startSec: Int, endSec: Int) {
-        silenceThr = thr; silenceMinMs = minMs; silenceKeepMs = keepMs; silenceStartSec = startSec; silenceEndSec = endSec
+    fun setSilence(ctx: Context, thr: Int, leadMs: Int, tailMs: Int) {
+        silenceThr = thr; silenceKeepMs = leadMs; silenceTailMs = tailMs
+        save(ctx)
+    }
+
+    fun setTrim(ctx: Context, path: String, value: String) {
+        trims = trims + (path to value)
         save(ctx)
     }
 
@@ -374,6 +388,7 @@ object Store {
         blockedTracks = blockedTracks.map { map[it] ?: it }.toHashSet()
         trackAlbums = trackAlbums.mapKeys { map[it.key] ?: it.key }
         trackCovers = trackCovers.mapKeys { map[it.key] ?: it.key }
+        trims = trims.mapKeys { map[it.key] ?: it.key }
         userNamed = userNamed.map { map[it] ?: it }.toHashSet() + map.values
         playCounts = playCounts.mapKeys { map[it.key] ?: it.key }
         save(ctx)

@@ -91,7 +91,12 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) = syncFromPlayer()
+        override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            prefetchNext()
+        }
+
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            prefetchNext()
             // Hörzähler: jedes gestartete Lied zählt einmal
             val id = mediaItem?.mediaId?.substringAfterLast(':')?.toLongOrNull() ?: return
             if (id == lastCounted && reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) return
@@ -260,6 +265,45 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     private fun startItems(items: List<MediaItem>, index: Int) {
+        val t = Library.trackOf(items[index])
+        if (Store.skipSilence && t != null && !Trim.known(t)) {
+            // Erst Anfang/Ende des Liedes ausmessen (dauert Sekundenbruchteile), dann abspielen
+            viewModelScope.launch {
+                withContext(Dispatchers.IO) { Trim.ensure(app, t) }
+                val fixed = items.toMutableList()
+                fixed[index] = Library.reclip(items[index])
+                doStart(fixed, index)
+            }
+        } else doStart(items, index)
+    }
+
+    /** Das nächste Lied in der Warteschlange vorab ausmessen und mit Schnitt versehen. */
+    private fun prefetchNext() {
+        val c = controller ?: return
+        if (!Store.skipSilence) return
+        val i = c.nextMediaItemIndex
+        if (i == C.INDEX_UNSET || i >= c.mediaItemCount) return
+        val item = c.getMediaItemAt(i)
+        val t = Library.trackOf(item) ?: return
+        val want = Trim.clip(t)
+        val have = item.clippingConfiguration
+        val same = if (want == null) have.startPositionMs == 0L && have.endPositionMs == C.TIME_END_OF_SOURCE
+                   else have.startPositionMs == want.first && have.endPositionMs == want.second
+        if (Trim.known(t)) {
+            if (!same) c.replaceMediaItem(i, Library.reclip(item))
+            return
+        }
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { Trim.ensure(app, t) }
+            val cc = controller ?: return@launch
+            val j = cc.nextMediaItemIndex
+            if (j != C.INDEX_UNSET && j < cc.mediaItemCount && cc.getMediaItemAt(j).mediaId == item.mediaId) {
+                cc.replaceMediaItem(j, Library.reclip(cc.getMediaItemAt(j)))
+            }
+        }
+    }
+
+    private fun doStart(items: List<MediaItem>, index: Int) {
         val c = controller ?: return
         baseList = items
         c.shuffleModeEnabled = false
@@ -281,9 +325,18 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         c.shuffleModeEnabled = false
         val items = list.map { Library.mediaItem(it, context) }
         baseList = items
-        c.setMediaItems(items.shuffled(), 0, 0L)
-        c.prepare()
-        c.play()
+        val sh = items.shuffled()
+        val t0 = Library.trackOf(sh[0])
+        if (Store.skipSilence && t0 != null && !Trim.known(t0)) {
+            viewModelScope.launch {
+                withContext(Dispatchers.IO) { Trim.ensure(app, t0) }
+                val fixed = sh.toMutableList()
+                fixed[0] = Library.reclip(sh[0])
+                c.setMediaItems(fixed, 0, 0L); c.prepare(); c.play()
+            }
+        } else {
+            c.setMediaItems(sh, 0, 0L); c.prepare(); c.play()
+        }
     }
 
     /** Aktuelle Abspielposition, direkt vom Player (für ruckelfreie Anzeige, jedes Bild neu abgefragt). */

@@ -229,20 +229,37 @@ object Library {
 
     // ---------- MediaItems (App und Android Auto) ----------
 
-    fun mediaItem(t: Track, ctx: String): MediaItem = MediaItem.Builder()
-        .setMediaId("t:$ctx:${t.id}")
-        .setUri(t.uri())
-        .setMediaMetadata(
-            MediaMetadata.Builder()
-                .setTitle(t.title)
-                .setArtist(t.artist)
-                .setAlbumTitle(t.album)
-                .setArtworkUri(Uri.parse("content://media/external/audio/albumart/${t.albumId}"))
-                .setIsPlayable(true)
-                .setIsBrowsable(false)
-                .build()
-        )
-        .build()
+    fun mediaItem(t: Track, ctx: String): MediaItem {
+        val b = MediaItem.Builder()
+            .setMediaId("t:$ctx:${t.id}")
+            .setUri(t.uri())
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(t.title)
+                    .setArtist(t.artist)
+                    .setAlbumTitle(t.album)
+                    .setArtworkUri(Uri.parse("content://media/external/audio/albumart/${t.albumId}"))
+                    .setIsPlayable(true)
+                    .setIsBrowsable(false)
+                    .build()
+            )
+        clipConfig(t)?.let { b.setClippingConfiguration(it) }
+        return b.build()
+    }
+
+    private fun clipConfig(t: Track): MediaItem.ClippingConfiguration? =
+        Trim.clip(t)?.let { (s, e) -> MediaItem.ClippingConfiguration.Builder().setStartPositionMs(s).setEndPositionMs(e).build() }
+
+    fun trackOf(item: MediaItem): Track? {
+        val id = item.mediaId.substringAfterLast(':').toLongOrNull() ?: return null
+        return tracks.firstOrNull { it.id == id }
+    }
+
+    /** Gleiches Lied, aber mit dem aktuellen Schnitt (Anfang/Ende ohne Stille). */
+    fun reclip(item: MediaItem): MediaItem {
+        val t = trackOf(item) ?: return item
+        return item.buildUpon().setUri(t.uri()).setClippingConfiguration(clipConfig(t) ?: MediaItem.ClippingConfiguration.UNSET).build()
+    }
 
     /** Liste für einen Kontext: "all", "a:<Interpret>", "p:<Playlist-ID>". */
     fun tracksFor(context: String): List<Track> = when {

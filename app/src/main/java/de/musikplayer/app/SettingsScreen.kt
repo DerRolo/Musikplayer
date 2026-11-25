@@ -378,48 +378,42 @@ private fun NamesPage(vm: MusicViewModel, onBack: () -> Unit) {
     }
 }
 
-/** Feineinstellung „Stille überspringen“: Schwelle, Mindestlänge, Rest (Hall) und Bereich am Anfang/Ende. */
+/** Feineinstellung „Stille überspringen“: ab welcher Lautstärke etwas Stille ist, und wie viel Stille vor dem ersten / nach dem letzten Ton bleibt. */
 @Composable
 fun SilenceDialog(onDismiss: () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     fun toDb(thr: Int) = (20.0 * Math.log10(thr.coerceAtLeast(1) / 32768.0)).toFloat()
     fun fromDb(db: Float) = (32768.0 * Math.pow(10.0, db / 20.0)).toInt().coerceIn(10, 3000)
     var db by remember { mutableStateOf(toDb(Store.silenceThr)) }
-    var minMs by remember { mutableStateOf(Store.silenceMinMs.toFloat()) }
-    var keepMs by remember { mutableStateOf(Store.silenceKeepMs.toFloat()) }
-    var startS by remember { mutableStateOf(Store.silenceStartSec.toFloat()) }
-    var endS by remember { mutableStateOf(Store.silenceEndSec.toFloat()) }
+    var lead by remember { mutableStateOf(Store.silenceKeepMs.toFloat()) }
+    var tail by remember { mutableStateOf(Store.silenceTailMs.toFloat()) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Stille überspringen") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text("Nur am Anfang und Ende eines Liedes. Pausen mitten im Lied werden nie angefasst.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Als Stille zählt alles leiser als ${db.toInt()} dB", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelLarge)
-                androidx.compose.material3.Slider(db, { db = it }, valueRange = -70f..-30f)
-                Text("Nur Stille ab ${"%.1f".format(minMs / 1000f)} s Länge kürzen", style = MaterialTheme.typography.labelLarge)
-                androidx.compose.material3.Slider(minMs, { minMs = it }, valueRange = 300f..4000f)
-                Text("Davon ${keepMs.toInt()} ms stehen lassen (Hall)", style = MaterialTheme.typography.labelLarge)
-                androidx.compose.material3.Slider(keepMs, { keepMs = it }, valueRange = 0f..1500f)
-                Text("Anfang: nur in den ersten ${startS.toInt()} s", style = MaterialTheme.typography.labelLarge)
-                androidx.compose.material3.Slider(startS, { startS = it }, valueRange = 1f..15f)
-                Text("Ende: nur in den letzten ${endS.toInt()} s", style = MaterialTheme.typography.labelLarge)
-                androidx.compose.material3.Slider(endS, { endS = it }, valueRange = 1f..20f)
                 Text(
-                    "Anfang/Ende-Bereich gilt sofort. Schwelle, Mindestlänge und Hall gelten ab dem nächsten Start des Players " +
-                        "(App schließen, wenn nichts läuft).",
+                    "Die App schneidet intern: Alles vor dem ersten Ton und nach dem letzten Ton fällt weg. Pausen mitten im Lied bleiben. Deine Dateien werden nicht verändert.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text("Als Stille gilt alles leiser als ${db.toInt()} dB", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelLarge)
+                androidx.compose.material3.Slider(db, { db = it }, valueRange = -70f..-30f)
+                Text("Vor dem ersten Ton bleiben ${lead.toInt()} ms Stille", style = MaterialTheme.typography.labelLarge)
+                androidx.compose.material3.Slider(lead, { lead = it }, valueRange = 0f..2000f)
+                Text("Nach dem letzten Ton bleiben ${tail.toInt()} ms (Hall)", style = MaterialTheme.typography.labelLarge)
+                androidx.compose.material3.Slider(tail, { tail = it }, valueRange = 0f..4000f)
+                Text(
+                    "Gilt für Lieder, die ab jetzt gestartet werden. Wird die dB-Schwelle geändert, misst die App jedes Lied beim nächsten Abspielen neu.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                Store.setSilence(ctx, fromDb(db), minMs.toInt(), keepMs.toInt(), startS.toInt(), endS.toInt()); onDismiss()
-            }) { Text("Speichern") }
+            TextButton(onClick = { Store.setSilence(ctx, fromDb(db), lead.toInt(), tail.toInt()); onDismiss() }) { Text("Speichern") }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = { db = toDb(250); minMs = 1500f; keepMs = 500f; startS = 3f; endS = 6f }) { Text("Standard") }
+                TextButton(onClick = { db = toDb(200); lead = 300f; tail = 1000f }) { Text("Standard") }
                 TextButton(onClick = onDismiss) { Text("Abbrechen") }
             }
         }

@@ -69,7 +69,7 @@ class PlaybackService : MediaLibraryService() {
             override fun run() {
                 val d = player.duration
                 val p = player.currentPosition
-                val edge = Store.skipSilence && d != C.TIME_UNSET && d > 0 && (p < Store.silenceStartSec * 1000L || d - p < Store.silenceEndSec * 1000L)
+                val edge = false // Schnitt passiert jetzt über Trim (Clipping), nicht mehr im Player
                 if (player.skipSilenceEnabled != edge) player.skipSilenceEnabled = edge
                 handler.postDelayed(this, 400)
             }
