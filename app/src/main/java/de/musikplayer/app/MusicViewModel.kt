@@ -167,6 +167,28 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
             Store.initKnown(app, Library.tracks.map { it.path })
             refreshFromLibrary()
             loading = false
+            startTrimSync()
+        }
+    }
+
+    private var trimSyncRunning = false
+
+    /** Misst im Hintergrund alle noch nicht untersuchten Lieder aus, damit der Schnitt beim Abspielen sofort greift. */
+    fun startTrimSync() {
+        if (trimSyncRunning || !Store.skipSilence) return
+        trimSyncRunning = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                var n = 0
+                for (t in Library.tracks.toList()) {
+                    if (!Store.skipSilence) break
+                    if (Trim.known(t)) continue
+                    Trim.ensure(app, t, lazy = true)
+                    if (++n % 25 == 0) Store.flushTrims(app)
+                    kotlinx.coroutines.yield()
+                }
+                if (n > 0) Store.flushTrims(app)
+            } finally { trimSyncRunning = false }
         }
     }
 
@@ -850,7 +872,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun addRecentSearch(q: String) { Store.addRecentSearch(app, q); blockTick++ }
     fun removeRecentSearch(q: String) { Store.removeRecentSearch(app, q); blockTick++ }
 
-    fun setSkipSilence(on: Boolean) { Store.setSkipSilence(app, on) }
+    fun setSkipSilence(on: Boolean) { Store.setSkipSilence(app, on); if (on) startTrimSync() }
 
     /** Öffnet den Ordner der Datei im Dateimanager (mehrere Wege nacheinander); zuletzt Ordnerauswahl am Ordner, sonst Pfad kopieren. */
     fun showInFolder(t: Track) {

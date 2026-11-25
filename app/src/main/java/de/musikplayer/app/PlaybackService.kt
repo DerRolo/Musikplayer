@@ -128,8 +128,9 @@ class PlaybackService : MediaLibraryService() {
             params: LibraryParams?
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> =
             exec.submit(Callable<LibraryResult<ImmutableList<MediaItem>>> {
+                val items: List<MediaItem> = try {
                 Library.ensureLoaded(applicationContext)
-                val items: List<MediaItem> = when {
+                when {
                     parentId == "root" -> listOf(
                         folderItem("songs", "Alle Titel"),
                         folderItem("artists", "Interpreten"),
@@ -142,6 +143,7 @@ class PlaybackService : MediaLibraryService() {
                         Library.tracksFor(parentId).map { Library.mediaItem(it, parentId) }
                     else -> emptyList()
                 }
+                } catch (e: Exception) { emptyList() }
                 val from = (page.toLong() * pageSize).coerceAtMost(items.size.toLong()).toInt()
                 LibraryResult.ofItemList(ImmutableList.copyOf(items.drop(from).take(pageSize)), params)
             })

@@ -37,10 +37,10 @@ object Trim {
     }
 
     /** Lied untersuchen (blockiert, im Hintergrund-Thread aufrufen). */
-    fun ensure(ctx: Context, t: Track, startOnly: Boolean = false) {
+    fun ensure(ctx: Context, t: Track, startOnly: Boolean = false, lazy: Boolean = false) {
         if (known(t) || (startOnly && tones(t) != null)) return
         val (a, b) = analyze(t.path, Store.silenceThr, t.durationMs, startOnly)
-        Store.setTrim(ctx, t.path, "${key(t)}:$a:$b")
+        if (lazy) Store.setTrimLazy(t.path, "${key(t)}:$a:$b") else Store.setTrim(ctx, t.path, "${key(t)}:$a:$b")
     }
 
     private fun analyze(path: String, thr: Int, durMs: Long, startOnly: Boolean): Pair<Long, Long> {

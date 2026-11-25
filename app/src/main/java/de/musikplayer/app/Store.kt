@@ -288,6 +288,10 @@ object Store {
         save(ctx)
     }
 
+    /** Ohne sofortiges Speichern (für den Hintergrund-Abgleich); danach [flushTrims] aufrufen. */
+    fun setTrimLazy(path: String, value: String) { trims = trims + (path to value) }
+    fun flushTrims(ctx: Context) = save(ctx)
+
     fun setTrim(ctx: Context, path: String, value: String) {
         trims = trims + (path to value)
         save(ctx)
