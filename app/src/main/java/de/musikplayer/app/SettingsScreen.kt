@@ -58,7 +58,7 @@ import androidx.compose.ui.unit.dp
 private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked }
 
 @Composable
-fun SettingsTab(vm: MusicViewModel, reset: Int) {
+fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset: Int) {
     var page by rememberSaveable { mutableStateOf(Page.Menu) }
     OnReset(reset) { page = Page.Menu }
     BackHandler(enabled = page != Page.Menu) { page = Page.Menu }
@@ -69,7 +69,7 @@ fun SettingsTab(vm: MusicViewModel, reset: Int) {
             MenuEntry(Icons.Filled.DriveFileMove, "Nach Interpret einsortieren", "Zugeordnete Lieder in Musik/<Interpret> verschieben") { page = Page.Sort }
             MenuEntry(Icons.Filled.Edit, "Dateinamen übernehmen", "Dateien so benennen, wie sie in der App angezeigt werden") { page = Page.Names }
             MenuEntry(Icons.Filled.ContentCopy, "Duplikate", "Ähnliche Lieder finden und aufräumen") { page = Page.Dupes }
-            MenuEntry(Icons.Filled.Build, "Aufräumen (erweitert)", "Duplikate und Dateinamen zusammen: pro Version behalten, säubern oder löschen") { page = Page.Cleanup }
+            MenuEntry(Icons.Filled.Build, "Aufräumen", "Duplikate und Dateinamen zusammen: pro Version behalten, säubern oder löschen") { page = Page.Cleanup }
             MenuEntry(Icons.Filled.FilterAlt, "Namen-Filter", "Texte, die aus Titeln entfernt werden (z. B. „Official Video“)") { page = Page.Strip }
             MenuEntry(Icons.Filled.Block, "Gesperrt", "Gesperrte Lieder, Interpreten und Ordner ansehen und entsperren") { page = Page.Blocked }
             var silence by remember { mutableStateOf(Store.skipSilence) }
@@ -90,9 +90,9 @@ fun SettingsTab(vm: MusicViewModel, reset: Int) {
                 modifier = Modifier.padding(16.dp)
             )
         }
-        Page.Folders -> FoldersPage(vm) { page = Page.Menu }
+        Page.Folders -> FoldersPage(vm, actions) { page = Page.Menu }
         Page.Sort -> SortPage(vm) { page = Page.Menu }
-        Page.New -> NewSongsPage(vm) { page = Page.Menu }
+        Page.New -> NewSongsPage(vm, actions) { page = Page.Menu }
         Page.Names -> NamesPage(vm) { page = Page.Menu }
         Page.Dupes -> DupesPage(vm) { page = Page.Menu }
         Page.Cleanup -> CleanupPage(vm) { page = Page.Menu }
@@ -113,91 +113,11 @@ private fun MenuEntry(icon: ImageVector, title: String, sub: String, onClick: ()
 }
 
 @Composable
-internal fun PageHeader(title: String, onBack: () -> Unit) {
+internal fun PageHeader(title: String, onBack: () -> Unit, trailing: @Composable () -> Unit = {}) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         TextButton(onClick = onBack) { Text("‹ Zurück") }
-        Text(title, style = MaterialTheme.typography.titleMedium)
-    }
-}
-
-// ---------- Interpreten & Ordner ----------
-
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-private fun FoldersPage(vm: MusicViewModel, onBack: () -> Unit) {
-    var input by remember { mutableStateOf<FolderInfo?>(null) }
-    val folders = vm.folders
-    val artists = remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } }
-    Column(Modifier.fillMaxSize()) {
-        PageHeader("Interpreten & Ordner", onBack)
-        if (folders.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Alle Lieder haben einen Interpreten") }
-        } else {
-            val pager = androidx.compose.foundation.pager.rememberPagerState { folders.size }
-            Text(
-                "Ordner ${(pager.currentPage + 1).coerceAtMost(folders.size)} von ${folders.size}  ·  nach links/rechts wischen zum Blättern",
-                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-            )
-            androidx.compose.foundation.pager.HorizontalPager(pager, Modifier.fillMaxSize(), key = { folders[it].path }) { page ->
-                val f = folders[page]
-                val inFolder = remember(vm.tracks, f.path) { vm.tracks.filter { it.folder == f.path } }
-                Column(
-                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Folder, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp))
-                        Column(Modifier.padding(start = 12.dp)) {
-                            Text(f.name.ifBlank { f.path }, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                f.path.removePrefix("/storage/emulated/0/"),
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Text("${f.count} Lieder, davon ${f.unknownCount} ohne Interpret", style = MaterialTheme.typography.bodyMedium)
-                    if (f.assigned != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                            Text("  Interpret für diesen Ordner: ${f.assigned}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                        }
-                    } else {
-                        Text("Noch kein Interpret zugeordnet", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
-                        Text(
-                            "Lieder in diesem Ordner ohne Interpret bekommen den Namen, den du hier wählst. Deine Dateien werden dabei nicht verändert.",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (f.assigned == null && f.suggestion != null) {
-                        Button(onClick = { vm.assignFolder(f.path, f.suggestion) }, Modifier.fillMaxWidth()) {
-                            Icon(Icons.Filled.Check, null, Modifier.size(20.dp)); Text("  Als „${f.suggestion}“ übernehmen")
-                        }
-                    }
-                    OutlinedButton(onClick = { input = f }, Modifier.fillMaxWidth()) {
-                        Icon(Icons.Filled.Person, null, Modifier.size(20.dp)); Text(if (f.assigned == null) "  Anderen Interpreten eingeben …" else "  Interpret ändern …")
-                    }
-                    OutlinedButton(onClick = { vm.play(inFolder, 0, "q") }, Modifier.fillMaxWidth(), enabled = inFolder.isNotEmpty()) {
-                        Icon(Icons.Filled.PlayArrow, null, Modifier.size(20.dp)); Text("  Ordner anhören")
-                    }
-                    if (f.assigned != null) OutlinedButton(
-                        onClick = { vm.assignFolder(f.path, null) }, Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ORANGE)
-                    ) { Icon(Icons.Filled.Close, null, Modifier.size(20.dp)); Text("  Zuordnung entfernen") }
-                    OutlinedButton(
-                        onClick = { vm.blockFolder(f.path) }, Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) { Icon(Icons.Filled.Block, null, Modifier.size(20.dp)); Text("  Ordner sperren (keine Musik)") }
-                }
-            }
-        }
-    }
-    input?.let { f ->
-        AssignArtistDialog(
-            f.count, artists,
-            onDismiss = { input = null },
-            onConfirm = { vm.assignFolder(f.path, it); input = null }
-        )
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        trailing()
     }
 }
 

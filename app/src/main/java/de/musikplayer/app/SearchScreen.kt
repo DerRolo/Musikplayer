@@ -16,6 +16,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,11 +71,15 @@ fun SearchTab(
 
     Column(Modifier.fillMaxSize(), verticalArrangement = if (q.isEmpty()) Arrangement.Center else Arrangement.Top) {
         SearchField(query, { query = it }, "Titel, Interpreten, Playlists", onSubmit = { picked = query; vm.addRecentSearch(query) })
-        val suggestions = remember(vm.tracks, q) {
+        val sugs = remember(vm.tracks, albumHits, q) {
             if (q.isEmpty()) emptyList()
-            else (vm.tracks.map { it.artist }.filter { it != UNKNOWN_ARTIST } + vm.tracks.map { it.title })
-                .distinct().filter { Names.fold(it).let { f -> f.startsWith(q) || f.contains(q) } && Names.fold(it) != q }
-                .sortedBy { if (Names.fold(it).startsWith(q)) 0 else 1 }.take(5)
+            else {
+                val out = ArrayList<Sug>()
+                for ((n, l) in vm.tracks.groupBy { it.artist }) if (n != UNKNOWN_ARTIST && q in Names.fold(n)) out += Sug(0, n, "", l.sortedBy { it.sortKey }.take(4))
+                for ((ar, al, l) in albumHits) out += Sug(1, al, ar, l)
+                for (t in vm.tracks) if (q in t.sortKey) out += Sug(2, t.title, t.artist, listOf(t))
+                out.sortedWith(compareBy({ if (Names.fold(it.name).startsWith(q)) 0 else 1 }, { it.kind })).take(5)
+            }
         }
         val showSug = query != picked
         if (q.isEmpty()) {
@@ -90,18 +99,24 @@ fun SearchTab(
                     }
                 }
             }
-        } else if (showSug && suggestions.isNotEmpty()) {
-            for (sg in suggestions) {
-                Row(Modifier.fillMaxWidth().clickable { query = sg; picked = sg; vm.addRecentSearch(sg) }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(sg, Modifier.padding(start = 16.dp), maxLines = 1)
-                }
-            }
-        } else if (artistHits.isEmpty() && albumHits.isEmpty() && playlistHits.isEmpty() && trackHits.isEmpty()) {
+        } else if (artistHits.isEmpty() && albumHits.isEmpty() && playlistHits.isEmpty() && trackHits.isEmpty() && sugs.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nichts gefunden") }
         } else {
             val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
             LazyColumn(Modifier.fillMaxSize()) {
+                if (showSug && sugs.isNotEmpty()) {
+                    item(key = "h_s") { Header("Vorschläge") }
+                    items(sugs, key = { "s_" + it.kind + "_" + it.name + "_" + it.artist }) { sg ->
+                        SuggestRow(sg) {
+                            vm.addRecentSearch(sg.name)
+                            when (sg.kind) {
+                                0 -> onOpenArtist(sg.name)
+                                1 -> onOpenArtist(sg.artist)
+                                else -> vm.play(sg.tracks, 0, "s")
+                            }
+                        }
+                    }
+                }
                 if (artistHits.isNotEmpty()) {
                     item(key = "h_a") { Header("Interpreten") }
                     itemsIndexed(artistHits, key = { _, h -> "a_" + h.first }) { _, (name, list) ->
@@ -141,4 +156,21 @@ private fun Header(text: String) {
         text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 12.dp, bottom = 4.dp)
     )
+}
+
+/** Vorschlag: kind 0 = Interpret, 1 = Album, 2 = Song. */
+private data class Sug(val kind: Int, val name: String, val artist: String, val tracks: List<Track>)
+
+@Composable
+private fun SuggestRow(s: Sug, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Cover(s.tracks, s.name, Modifier.size(48.dp).clip(RoundedCornerShape(if (s.kind == 0) 24.dp else 8.dp)), 128)
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(s.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                when (s.kind) { 0 -> "Interpret"; 1 -> "Album · " + s.artist; else -> "Song · " + s.artist },
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
 }

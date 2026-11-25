@@ -70,18 +70,9 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
     val allDeleted = groups.orEmpty().count { g -> g.tracks.all { choice[it.path] == DELETE } }
 
     Column(Modifier.fillMaxSize()) {
-        PageHeader("Aufräumen (erweitert)", onBack)
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Button(
-                onClick = { confirm = true },
-                enabled = (toDelete.isNotEmpty() || toRename.isNotEmpty()) && allDeleted == 0 && !vm.loading
-            ) { Text("Ausführen (${toDelete.size}× löschen, ${toRename.size}× umbenennen)", style = MaterialTheme.typography.labelMedium) }
-            if (vm.dupBusy || vm.loading) CircularProgressIndicator(Modifier.size(24.dp))
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = { single = !single }) {
-                Icon(if (single) Icons.Filled.ViewList else Icons.Filled.ViewCarousel, null, Modifier.size(18.dp))
-                Text(if (single) "  Liste" else "  Einzeln")
-            }
+        PageHeader("Aufräumen", onBack) {
+            if (vm.dupBusy || vm.loading) CircularProgressIndicator(Modifier.size(22.dp).padding(end = 4.dp))
+            ViewToggle(listOf(VIEW_SINGLE, VIEW_LIST), if (single) 0 else 1) { single = it == 0 }
         }
         if (allDeleted > 0) {
             Text(
@@ -90,6 +81,7 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
+        Column(Modifier.weight(1f).fillMaxWidth()) {
         if (groups != null && groups.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Keine Duplikate gefunden") }
         } else if (groups != null && single) {
@@ -110,11 +102,6 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
             LazyColumn(Modifier.fillMaxSize()) {
                 item {
                     Column {
-                        Text(
-                            "Zu jeder Gruppe ähnlicher Lieder siehst du alle Versionen mit Ordner, Interpret und Album. Tippen = anhören, " +
-                                "gedrückt halten = Name und Interpret bearbeiten. Wähle je Version: Behalten, Behalten + Name säubern oder Löschen. Nichts ist vorausgewählt.",
-                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                        )
                         if (vm.dupes?.any { it.albumVariant } == true) {
                             Row(Modifier.clickable { vm.dupAlbums = !vm.dupAlbums }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = vm.dupAlbums, onCheckedChange = { vm.dupAlbums = it })
@@ -134,6 +121,14 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
                     items(g.tracks.size, key = { "c${gi}_${g.tracks[it].path}" }) { idx -> VersionCard(vm, g.tracks[idx], choice) { edit = it } }
                 }
             }
+        }
+        }
+        // „Ausführen“ erscheint unten über die ganze Breite, sobald etwas gewählt ist
+        if ((toDelete.isNotEmpty() || toRename.isNotEmpty()) && allDeleted == 0) {
+            Button(
+                onClick = { confirm = true }, enabled = !vm.loading,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+            ) { Text("Ausführen (${toDelete.size}× löschen, ${toRename.size}× umbenennen)") }
         }
     }
 

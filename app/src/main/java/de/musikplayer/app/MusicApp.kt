@@ -122,7 +122,8 @@ fun MusicApp(vm: MusicViewModel) {
             }
         }
     ) { pad ->
-        Column(Modifier.padding(pad)) {
+        PullRefresh(onRefresh = { vm.refresh() }, modifier = Modifier.padding(pad)) {
+        Column(Modifier.fillMaxSize()) {
             if (showPlayer) {
                 NowPlayingScreen(vm, actions, onAddToPlaylist = { addToPlaylist = listOf(it) }) { showPlayer = false }
             } else holder.SaveableStateProvider(tab) { when (tab) {
@@ -151,8 +152,9 @@ fun MusicApp(vm: MusicViewModel) {
                     reset = resets[3],
                     audio = true
                 )
-                else -> SettingsTab(vm, resets[4])
+                else -> SettingsTab(vm, actions, sel, resets[4])
             } }
+        }
         }
     }
 

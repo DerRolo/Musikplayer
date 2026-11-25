@@ -61,6 +61,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -471,16 +474,51 @@ fun PlaylistsTab(
     BackHandler(enabled = openId != null) { openId = null }
     val open = vm.playlists.firstOrNull { it.id == openId }
     if (open == null) {
-        val ordered = vm.playlistsByUse().filter { it.audio == audio }
+        val base = vm.playlistsByUse().filter { it.audio == audio }
+        var searchOn by rememberSaveable { mutableStateOf(false) }
+        var query by rememberSaveable { mutableStateOf("") }
+        var letter by rememberSaveable { mutableStateOf("") }
+        var sortIdx by rememberSaveable { mutableIntStateOf(0) }
+        val sorts = listOf("Meistgehört", "Name A–Z", "Name Z–A", "Zuletzt hinzugefügt", "Anzahl Lieder")
+        val letters = remember(base) { base.map { Names.letterOf(it.name) }.distinct().sorted() }
+        val fq = Names.fold(query.trim())
+        val ordered = remember(base, query, letter, sortIdx) {
+            var l = base
+            if (fq.isNotEmpty()) l = l.filter { fq in Names.fold(it.name) }
+            if (letter.isNotEmpty()) l = l.filter { Names.letterOf(it.name) == letter }
+            when (sortIdx) {
+                1 -> l.sortedBy { Names.fold(it.name) }
+                2 -> l.sortedByDescending { Names.fold(it.name) }
+                3 -> l.sortedByDescending { it.lastAdded }
+                4 -> l.sortedByDescending { it.trackPaths.size }
+                else -> l
+            }
+        }
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onNew) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text(if (audio) "  Neue Liste" else "  Neue Playlist") }
                 Spacer(Modifier.weight(1f))
+                IconButton(onClick = { searchOn = !searchOn; if (!searchOn) query = "" }) {
+                    Icon(if (searchOn) Icons.Filled.Close else Icons.Filled.Search, "Suchen", tint = if (searchOn) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+                }
                 IconButton(onClick = { vm.showPlaylistsAsGrid(!vm.playlistGrid) }) {
                     Icon(if (vm.playlistGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.playlistGrid) "Listenansicht" else "Kachelansicht")
                 }
             }
-            if (ordered.isEmpty()) {
+            if (searchOn) SearchField(query, { query = it }, if (audio) "Hörbücher & Podcasts suchen" else "Playlists suchen")
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                SortMenu("Sortierung: " + sorts[sortIdx], sorts, sortIdx) { sortIdx = it }
+            }
+            if (letters.size > 1) Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                LetterChip("Alle", letter.isEmpty(), true) { letter = "" }
+                for (c in letters) LetterChip(c, letter == c, true) { letter = if (letter == c) "" else c }
+            }
+            if (ordered.isEmpty() && (fq.isNotEmpty() || letter.isNotEmpty())) {
+                Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) { Text("Nichts gefunden") }
+            } else if (ordered.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                     Text(
                         "Noch keine Hörbuch- oder Podcast-Listen. Lege eine Liste an und füge Folgen oder Kapitel über „Zu Playlist hinzufügen“ hinzu (dort „Hörbuch-Listen anzeigen“).",
