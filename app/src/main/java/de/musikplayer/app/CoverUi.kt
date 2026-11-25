@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -101,6 +102,24 @@ private fun WebThumb(url: String, modifier: Modifier) {
     }
     Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
         bmp?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+    }
+}
+
+
+@Composable
+fun EditCoverPreview(track: Track, uri: android.net.Uri? = null, url: String? = null, resetPending: Boolean = false, modifier: Modifier = Modifier) {
+    if (resetPending) {
+        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) { Text("♪", style = MaterialTheme.typography.titleLarge) }
+    } else if (url != null) {
+        WebThumb(url, modifier)
+    } else if (uri != null) {
+        val ctx = LocalContext.current
+        val bmp by produceState<ImageBitmap?>(null, uri) {
+            value = withContext(Dispatchers.IO) { try { ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() } } catch (_: Exception) { null } }
+        }
+        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) { bmp?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) } }
+    } else {
+        Cover(listOf(track), track.title, modifier)
     }
 }
 

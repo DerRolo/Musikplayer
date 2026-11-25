@@ -429,7 +429,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Bibliothek neu einlesen (z. B. wenn die App wieder in den Vordergrund kommt oder man nach unten zieht). */
-    fun refresh() { if (!loading) reindex() }
+    fun refresh() { if (!loading) { blockTick++; reindex() } }
 
     // ---------- Warteschlange ----------
 
@@ -756,12 +756,12 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     // ---------- Datei bearbeiten ----------
 
     /** Name (Datei), Interpret und Verschieben in den Interpreten-Ordner in einem Schritt. */
-    fun editTrack(t: Track, newBaseName: String, artist: String?, move: Boolean = false) {
+    fun editTrack(t: Track, newBaseName: String, artist: String?, move: Boolean = false, coverUri: android.net.Uri? = null, coverUrl: String? = null, coverSelected: Boolean = false, coverReset: Boolean = false) {
         val art = artist?.takeIf { it.isNotBlank() }
         val nameChanged = newBaseName.isNotBlank() && newBaseName != t.fileName.substringBeforeLast('.')
         val artistChanged = (art ?: "") != (if (t.artist == UNKNOWN_ARTIST) "" else t.artist)
         val moveWanted = move && art != null
-        if (!nameChanged && !artistChanged && !moveWanted) return
+        if (!nameChanged && !artistChanged && !moveWanted && !coverSelected) return
         loading = true
         viewModelScope.launch {
             var failed = 0
@@ -776,7 +776,26 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
                 if (nameChanged) failed += Library.renameFiles(app, listOf(cur to newBaseName)).failed
                 Library.load(app)
+                val coverTarget = Library.allTracks.firstOrNull { candidate ->
+                    candidate.title == t.title && candidate.artist == (art ?: t.artist) &&
+                        (candidate.fileName.substringBeforeLast('.') == newBaseName || candidate.folder == cur.folder)
+                }?.path ?: cur.path
+                if (coverSelected) {
+                    if (coverReset) Store.setTrackCover(app, listOf(coverTarget), null)
+                    else {
+                        val savedName = fetchBytes(coverUri, coverUrl)?.let { squareBitmap(it) }?.let { bitmap ->
+                            try {
+                                val dir = java.io.File(app.filesDir, "trackcovers").also { it.mkdirs() }
+                                val n = java.util.UUID.randomUUID().toString() + ".jpg"
+                                java.io.File(dir, n).outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+                                n
+                            } catch (_: Exception) { null }
+                        }
+                        if (savedName != null) Store.setTrackCover(app, listOf(coverTarget), savedName) else failed++
+                    }
+                }
             }
+            if (coverSelected) Art.invalidate()
             refreshFromLibrary()
             if (dupes != null) dupes = withContext(Dispatchers.Default) { Dupes.find(Library.tracks) }
             loading = false

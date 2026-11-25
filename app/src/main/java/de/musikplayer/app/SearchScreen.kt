@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,20 +48,20 @@ fun SearchTab(
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var picked by rememberSaveable { mutableStateOf("") }
-    OnReset(reset) { query = "" }
+    OnReset(reset) { query = ""; picked = ""; ssel.clear() }
     val q = Names.fold(query.trim())
 
-    val artistHits = remember(vm.tracks, q) {
+    val artistHits = remember(vm.searchableTracks, vm.blockTick, q) {
         if (q.isEmpty()) emptyList()
-        else vm.tracks.groupBy { it.artist }
+        else vm.searchableTracks.groupBy { it.artist }
             .filterKeys { q in Names.fold(it) }
             .toSortedMap(String.CASE_INSENSITIVE_ORDER)
             .map { (name, list) -> name to list.sortedBy { it.sortKey } }
             .take(20)
     }
-    val albumHits = remember(vm.tracks, q) {
+    val albumHits = remember(vm.searchableTracks, vm.blockTick, q) {
         if (q.isEmpty()) emptyList()
-        else vm.tracks.filter { it.albumName.isNotBlank() && q in Names.fold(it.albumName) }
+        else vm.searchableTracks.filter { it.albumName.isNotBlank() && q in Names.fold(it.albumName) }
             .groupBy { it.artist to it.albumName }
             .map { (k, l) -> Triple(k.first, k.second, l.sortedBy { it.sortKey }) }
             .sortedBy { Names.fold(it.second) }.take(20)
@@ -68,21 +69,21 @@ fun SearchTab(
     val playlistHits = remember(vm.playlists, q) {
         if (q.isEmpty()) emptyList() else vm.playlists.filter { q in Names.fold(it.name) }
     }
-    val trackHits = remember(vm.tracks, query) {
-        if (q.isEmpty()) emptyList() else Library.sorted(filterTracks(vm.tracks, query), SortBy.Title).take(150)
+    val trackHits = remember(vm.searchableTracks, vm.blockTick, query) {
+        if (q.isEmpty()) emptyList() else Library.sorted(filterTracks(vm.searchableTracks, query), SortBy.Title).take(150)
     }
 
     val ssel = remember { Selection() }
+    LaunchedEffect(vm.blockTick) { ssel.clear() }
     Column(Modifier.fillMaxSize(), verticalArrangement = if (q.isEmpty()) Arrangement.Center else Arrangement.Top) {
-        if (ssel.active) TrackSelectionBar(vm, trackHits, actions, ssel)
         SearchField(query, { query = it }, "Titel, Interpreten, Playlists", onSubmit = { picked = query; vm.addRecentSearch(query) })
-        val sugs = remember(vm.tracks, albumHits, q) {
+        val sugs = remember(vm.searchableTracks, vm.blockTick, albumHits, q) {
             if (q.isEmpty()) emptyList()
             else {
                 val out = ArrayList<Sug>()
-                for ((n, l) in vm.tracks.groupBy { it.artist }) if (n != UNKNOWN_ARTIST && q in Names.fold(n)) out += Sug(0, n, "", l.sortedBy { it.sortKey }.take(4))
+                for ((n, l) in vm.searchableTracks.groupBy { it.artist }) if (n != UNKNOWN_ARTIST && q in Names.fold(n)) out += Sug(0, n, "", l.sortedBy { it.sortKey }.take(4))
                 for ((ar, al, l) in albumHits) out += Sug(1, al, ar, l)
-                for (t in vm.tracks) if (q in t.sortKey) out += Sug(2, t.title, t.artist, listOf(t))
+                for (t in vm.searchableTracks) if (q in t.sortKey) out += Sug(2, t.title, t.artist, listOf(t))
                 out.sortedWith(compareBy({ if (Names.fold(it.name).startsWith(q)) 0 else 1 }, { it.kind })).take(5)
             }
         }
@@ -142,6 +143,7 @@ fun SearchTab(
                     }
                 }
                 if (trackHits.isNotEmpty()) {
+                    if (ssel.active) item(key = "selection_t") { TrackSelectionBar(vm, trackHits, actions, ssel) }
                     item(key = "h_t") { Header("Titel") }
                     itemsIndexed(trackHits, key = { _, t -> "t_" + t.id }) { i, t ->
                         TrackRow(

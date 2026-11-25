@@ -114,7 +114,7 @@ fun groupActions(vm: MusicViewModel, list: List<Track>, context: String, actions
 @Composable
 fun TrackSelectionBar(vm: MusicViewModel, list: List<Track>, actions: TrackActions, sel: Selection, removeLabel: String? = null, onRemove: () -> Unit = {}, onDone: () -> Unit = {}) {
     val done = { sel.clear(); onDone() }
-    val chosen = { vm.tracks.filter { it.id in sel.ids } }
+    val chosen = { list.filter { it.id in sel.ids } }
     SelectionBar(
         count = sel.ids.size,
         onClose = { done() },

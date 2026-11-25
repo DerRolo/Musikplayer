@@ -92,6 +92,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.key
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -243,6 +244,39 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier) 
     }
 }
 
+
+@Composable
+private fun PlayerFullPage(
+    item: MediaItem?, track: Track?, favorite: Boolean, vm: MusicViewModel, actions: TrackActions,
+    onAddToPlaylist: (Track) -> Unit, modifier: Modifier
+) {
+    val base = track?.fileName?.substringBeforeLast('.')
+    val proposed = track?.let { Names.fileBaseName(it.title) }
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        key(item?.mediaId) { PlayerPage(item, vm.isPlaying, Modifier.weight(1f).fillMaxWidth()) }
+        if (track != null) {
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { actions.onBlock(track) }) { Icon(Icons.Filled.Block, "Sperren", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(26.dp)) }
+                Spacer(Modifier.size(24.dp))
+                IconButton(onClick = { vm.toggleFavorite(track.path) }) { Icon(if (favorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Lieblingssong", tint = if (favorite) HEART else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp)) }
+                Spacer(Modifier.size(24.dp))
+                IconButton(onClick = { onAddToPlaylist(track) }) { Icon(Icons.Filled.Add, "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(30.dp)) }
+            }
+            Box(Modifier.fillMaxWidth().height(38.dp), contentAlignment = Alignment.Center) {
+                if (proposed != null && base != null && proposed != base) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            MarqueeText(proposed, MaterialTheme.typography.labelLarge, Modifier.fillMaxWidth(), color = ORANGE, align = TextAlign.Start)
+                            MarqueeText(base, MaterialTheme.typography.labelSmall, Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant, align = TextAlign.Start)
+                        }
+                        IconButton(onClick = { vm.quickRename(track, proposed) }) { Icon(Icons.Filled.Save, "Dateinamen übernehmen", tint = ORANGE) }
+                    }
+                }
+            }
+        } else Spacer(Modifier.height(42.dp))
+    }
+}
+
 @Composable
 fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist: (Track) -> Unit, onClose: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
@@ -347,7 +381,6 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                                         val before = vm.currentIndex to vm.current?.mediaId
                                         offset.animateTo(if (goNext) -w else w, tween(160))
                                         if (goNext) vm.next() else vm.previous()
-                                        // warten, bis der Player wirklich weiter ist, dann nahtlos auf Mitte springen
                                         withTimeoutOrNull(700) { snapshotFlow { vm.currentIndex to vm.current?.mediaId }.first { it != before } }
                                         offset.snapTo(0f)
                                     } else offset.animateTo(0f, tween(180))
@@ -357,57 +390,21 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                             onHorizontalDrag = { change, dx ->
                                 change.consume()
                                 val o = offset.value
-                                // am Ende der Liste (kein Nachbar) nur zäh mitziehen
                                 val blocked = (dx + o < 0 && vm.nextItem == null) || (dx + o > 0 && vm.prevItem == null)
                                 scope.launch { offset.snapTo(o + if (blocked) dx * 0.3f else dx) }
                             }
                         )
                     }
             ) {
-                PlayerPage(item, vm.isPlaying, Modifier.fillMaxSize().graphicsLayer { translationX = offset.value })
-                if (offset.value > 0f) vm.prevItem?.let {
-                    PlayerPage(it, false, Modifier.fillMaxSize().graphicsLayer { translationX = offset.value - pageW })
+                PlayerFullPage(item, track, fav, vm, actions, onAddToPlaylist, Modifier.fillMaxSize().graphicsLayer { translationX = offset.value })
+                if (offset.value > 0f) vm.prevItem?.let { adjacent ->
+                    PlayerFullPage(adjacent, trackOf(adjacent), trackOf(adjacent)?.let { vm.isFavorite(it.path) } ?: false, vm, actions, onAddToPlaylist, Modifier.fillMaxSize().graphicsLayer { translationX = offset.value - pageW })
                 }
-                if (offset.value < 0f) vm.nextItem?.let {
-                    PlayerPage(it, false, Modifier.fillMaxSize().graphicsLayer { translationX = offset.value + pageW })
-                }
-            }
-            if (track != null) {
-                Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { actions.onBlock(track) }) {
-                        Icon(Icons.Filled.Block, "Sperren", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(26.dp))
-                    }
-                    Spacer(Modifier.size(24.dp))
-                    IconButton(onClick = { vm.toggleFavorite(track.path) }) {
-                        Icon(
-                            if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Lieblingssong",
-                            tint = if (fav) HEART else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp)
-                        )
-                    }
-                    Spacer(Modifier.size(24.dp))
-                    IconButton(onClick = { onAddToPlaylist(track) }) {
-                        Icon(Icons.Filled.Add, "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(30.dp))
-                    }
+                if (offset.value < 0f) vm.nextItem?.let { adjacent ->
+                    PlayerFullPage(adjacent, trackOf(adjacent), trackOf(adjacent)?.let { vm.isFavorite(it.path) } ?: false, vm, actions, onAddToPlaylist, Modifier.fillMaxSize().graphicsLayer { translationX = offset.value + pageW })
                 }
             }
-            if (track != null) {
-                val curBase = track.fileName.substringBeforeLast('.')
-                val propBase = Names.fileBaseName(track.title)
-                // feste Höhe: das Layout darf nie springen, egal ob ein Vorschlag da ist
-                Box(Modifier.fillMaxWidth().height(38.dp), contentAlignment = Alignment.Center) {
-                    if (propBase != curBase) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                MarqueeText(propBase, MaterialTheme.typography.labelLarge, Modifier.fillMaxWidth(), color = ORANGE, align = TextAlign.Start)
-                                MarqueeText(curBase, MaterialTheme.typography.labelSmall, Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant, align = TextAlign.Start)
-                            }
-                            IconButton(onClick = { vm.quickRename(track, propBase) }) {
-                                Icon(Icons.Filled.Save, "Dateinamen übernehmen", tint = ORANGE)
-                            }
-                        }
-                    }
-                }
-            }
+        }
             // Equalizer sitzt direkt auf der Abspielleiste und wächst von ihr nach oben
             EqBars(
                 vm.isPlaying, micOk,
@@ -422,7 +419,6 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                         )
                     }
             )
-        }
 
         Slider(
             value = shown,

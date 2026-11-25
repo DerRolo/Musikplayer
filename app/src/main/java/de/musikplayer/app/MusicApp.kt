@@ -57,6 +57,9 @@ fun MusicApp(vm: MusicViewModel) {
     var assignMany by remember { mutableStateOf<List<Track>?>(null) }
     var newAudioList by remember { mutableStateOf(false) }
     var coverFor by remember { mutableStateOf<Track?>(null) }
+    var stagedCoverUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var stagedCoverUrl by remember { mutableStateOf<String?>(null) }
+    var stagedCoverReset by remember { mutableStateOf(false) }
 
     val snack = remember { SnackbarHostState() }
     val holder = rememberSaveableStateHolder()
@@ -94,7 +97,7 @@ fun MusicApp(vm: MusicViewModel) {
         onDeleteMany = { delete = it },
         onToggleFavorite = { vm.toggleFavorite(it.path) },
         isFavorite = { vm.isFavorite(it.path) },
-        onRename = { renameTrack = it },
+        onRename = { stagedCoverUri = null; stagedCoverUrl = null; stagedCoverReset = false; renameTrack = it },
         onBlock = { vm.blockTracks(listOf(it)) },
         onShowFile = { vm.showInFolder(it) },
         onBlockMany = { vm.blockTracks(it) },
@@ -112,7 +115,7 @@ fun MusicApp(vm: MusicViewModel) {
         },
         bottomBar = {
             Column {
-                if (!showPlayer) MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }, onEdit = { renameTrack = it }) { showPlayer = true }
+                if (!showPlayer) MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }, onEdit = { stagedCoverUri = null; stagedCoverUrl = null; stagedCoverReset = false; renameTrack = it }) { showPlayer = true }
                 NavigationBar {
                     val icons = listOf(Icons.Filled.LibraryMusic, Icons.Filled.Search, Icons.Filled.PlaylistPlay, Icons.Filled.Headphones, Icons.Filled.Settings)
                     TAB_TITLES.forEachIndexed { i, title ->
@@ -200,18 +203,21 @@ fun MusicApp(vm: MusicViewModel) {
     renameTrack?.let { t ->
         EditTrackDialog(
             t, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
-            onDismiss = { renameTrack = null },
-            onConfirm = { n, a, mv -> vm.editTrack(t, n, a, mv); renameTrack = null },
-            onCover = { coverFor = t }
+            onDismiss = { renameTrack = null; stagedCoverUri = null; stagedCoverUrl = null; stagedCoverReset = false },
+            onConfirm = { n, a, mv ->
+                vm.editTrack(t, n, a, mv, stagedCoverUri, stagedCoverUrl, coverSelected = stagedCoverReset || stagedCoverUri != null || stagedCoverUrl != null, coverReset = stagedCoverReset)
+                renameTrack = null; stagedCoverUri = null; stagedCoverUrl = null; stagedCoverReset = false
+            },
+            onCover = { coverFor = t }, coverUri = stagedCoverUri, coverUrl = stagedCoverUrl, coverResetPending = stagedCoverReset
         )
     }
     coverFor?.let { t ->
         CoverPickerDialog(
             initialQuery = listOf(t.artist, t.title).filter { it.isNotBlank() }.joinToString(" "),
             onDismiss = { coverFor = null },
-            onUri = { vm.setTrackCover(listOf(t), uri = it) },
-            onUrl = { vm.setTrackCover(listOf(t), url = it) },
-            onReset = if (vm.hasOwnCover(listOf(t))) ({ vm.setTrackCover(listOf(t)) }) else null
+            onUri = { if (renameTrack != null) { stagedCoverUri = it; stagedCoverUrl = null; stagedCoverReset = false } else vm.setTrackCover(listOf(t), uri = it) },
+            onUrl = { if (renameTrack != null) { stagedCoverUrl = it; stagedCoverUri = null; stagedCoverReset = false } else vm.setTrackCover(listOf(t), url = it) },
+            onReset = if (vm.hasOwnCover(listOf(t)) || stagedCoverUri != null || stagedCoverUrl != null) ({ if (renameTrack != null) { stagedCoverUri = null; stagedCoverUrl = null; stagedCoverReset = true } else vm.setTrackCover(listOf(t)) }) else null
         )
     }
     assignMany?.let { list ->

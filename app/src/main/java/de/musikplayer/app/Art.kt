@@ -32,9 +32,9 @@ import java.util.Collections
 
 /** Lädt eingebettete Albumcover (klein, zwischengespeichert). Ohne Cover bleibt es beim Farb-Platzhalter. */
 object Art {
-    private fun cacheKey(t: Track): Long = t.id * 31L + (Store.trackCovers[t.path]?.hashCode()?.toLong() ?: 0L)
+    private fun cacheKey(t: Track): String = t.path + "\u0000" + (Store.trackCovers[t.path] ?: "embedded")
 
-    private val cache = object : LruCache<Long, Bitmap>(48 * 1024 * 1024) {
+    private val cache = object : LruCache<String, Bitmap>(48 * 1024 * 1024) {
         override fun sizeOf(key: Long, value: Bitmap) = value.byteCount
     }
     /** Zählt hoch, sobald sich ein Cover ändert; Bilder laden sich dann neu. */
@@ -59,7 +59,7 @@ object Art {
         return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
     }
 
-    private val missing: MutableSet<Long> = Collections.synchronizedSet(HashSet())
+    private val missing: MutableSet<String> = Collections.synchronizedSet(HashSet())
 
     suspend fun first(ctx: Context, tracks: List<Track>, size: Int): Bitmap? = withContext(Dispatchers.IO) {
         for (t in tracks.take(4)) {
@@ -68,7 +68,7 @@ object Art {
         null
     }
 
-    private val bigCache = object : LruCache<Long, Bitmap>(24 * 1024 * 1024) {
+    private val bigCache = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
         override fun sizeOf(key: Long, value: Bitmap) = value.byteCount
     }
 
@@ -88,7 +88,7 @@ object Art {
 
     private fun load(ctx: Context, t: Track, size: Int): Bitmap? {
         cache.get(cacheKey(t))?.let { return it }
-        if (t.id in missing) return null
+        if (cacheKey(t) in missing) return null
         val g = gen
         var bmp: Bitmap? = custom(ctx, t.path, size)
         if (bmp != null) { if (g == gen) cache.put(cacheKey(t), bmp); return bmp }
@@ -100,7 +100,7 @@ object Art {
             }
         }
         if (bmp == null) bmp = embedded(t.path, size)
-        if (g == gen) { if (bmp == null) missing.add(t.id) else cache.put(cacheKey(t), bmp) }
+        if (g == gen) { if (bmp == null) missing.add(cacheKey(t)) else cache.put(cacheKey(t), bmp) }
         return bmp
     }
 

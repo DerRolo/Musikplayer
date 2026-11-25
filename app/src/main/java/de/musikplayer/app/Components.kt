@@ -6,6 +6,7 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.FolderOpen
@@ -339,7 +340,7 @@ fun ArtistField(value: String, onChange: (String) -> Unit, artists: List<String>
 
 /** „Datei bearbeiten“: zeigt aktuellen Namen, Vorschlag der App und Interpret – alles änderbar. Deine Eingabe gilt immer. */
 @Composable
-fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, onConfirm: (name: String, artist: String, move: Boolean) -> Unit, onCover: (() -> Unit)? = null) {
+fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, onConfirm: (name: String, artist: String, move: Boolean) -> Unit, onCover: (() -> Unit)? = null, coverUri: android.net.Uri? = null, coverUrl: String? = null, coverResetPending: Boolean = false) {
     val current = track.fileName.substringBeforeLast('.')
     var name by remember(track.path) { mutableStateOf(current) }
     var artist by remember(track.path) { mutableStateOf(if (track.artist == UNKNOWN_ARTIST) "" else track.artist) }
@@ -352,6 +353,7 @@ fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, 
         title = {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Datei bearbeiten", Modifier.weight(1f))
+                EditCoverPreview(track, coverUri, coverUrl, coverResetPending, Modifier.size(44.dp).clip(RoundedCornerShape(6.dp)))
                 if (onCover != null) {
                     IconButton(onClick = onCover) {
                         Icon(Icons.Filled.Image, contentDescription = "Cover ändern")
