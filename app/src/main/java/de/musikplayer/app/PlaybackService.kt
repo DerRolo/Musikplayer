@@ -31,32 +31,10 @@ class PlaybackService : MediaLibraryService() {
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private var silenceTick: Runnable? = null
 
-    /** Spielt mit einem Audio-Filter, der Stille überspringen kann (nur am Anfang/Ende eines Liedes genutzt, siehe silenceTick). */
-    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-    private fun renderersFactory(): androidx.media3.exoplayer.DefaultRenderersFactory =
-        object : androidx.media3.exoplayer.DefaultRenderersFactory(this) {
-            override fun buildAudioSink(
-                context: android.content.Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean
-            ): androidx.media3.exoplayer.audio.AudioSink? {
-                val chain = androidx.media3.exoplayer.audio.DefaultAudioSink.DefaultAudioProcessorChain(
-                    arrayOf<androidx.media3.common.audio.AudioProcessor>(),
-                    androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor(
-                        Store.silenceMinMs * 1000L, Store.silenceKeepMs * 1000L, Store.silenceThr.coerceIn(10, 3000).toShort()
-                    ),
-                    androidx.media3.common.audio.SonicAudioProcessor()
-                )
-                return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
-                    .setEnableFloatOutput(enableFloatOutput)
-                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                    .setAudioProcessorChain(chain)
-                    .build()
-            }
-        }
-
     override fun onCreate() {
         super.onCreate()
         Store.load(this)
-        val player = ExoPlayer.Builder(this, renderersFactory())
+        val player = ExoPlayer.Builder(this)
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
                 true
@@ -64,18 +42,6 @@ class PlaybackService : MediaLibraryService() {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
-        // Stille nur in den ersten/letzten Sekunden überspringen (Pausen mitten im Lied bleiben unberührt)
-        val tick = object : Runnable {
-            override fun run() {
-                val d = player.duration
-                val p = player.currentPosition
-                val edge = false // Schnitt passiert jetzt über Trim (Clipping), nicht mehr im Player
-                if (player.skipSilenceEnabled != edge) player.skipSilenceEnabled = edge
-                handler.postDelayed(this, 400)
-            }
-        }
-        silenceTick = tick
-        handler.post(tick)
         SleepTimer.player = player
         Spectrum.sessionIdProvider = { player.audioSessionId }
         // Tippen auf die Benachrichtigung / Mediensteuerung öffnet die App
