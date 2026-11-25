@@ -186,14 +186,14 @@ fun MusicApp(vm: MusicViewModel) {
         AssignArtistDialog(
             1, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
             onDismiss = { assign = null },
-            onConfirm = { vm.assignTrack(t.path, it); assign = null }
+            onConfirm = { a, mv -> vm.assignTrack(t.path, a, mv); assign = null }
         )
     }
     renameTrack?.let { t ->
         EditTrackDialog(
             t, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
             onDismiss = { renameTrack = null },
-            onConfirm = { n, a -> vm.editTrack(t, n, a); renameTrack = null }
+            onConfirm = { n, a, mv -> vm.editTrack(t, n, a, mv); renameTrack = null }
         )
     }
     coverFor?.let { t ->
@@ -209,7 +209,7 @@ fun MusicApp(vm: MusicViewModel) {
         AssignArtistDialog(
             list.size, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
             onDismiss = { assignMany = null },
-            onConfirm = { vm.assignTracks(list, it); assignMany = null }
+            onConfirm = { a, mv -> vm.assignTracks(list, a, mv); assignMany = null }
         )
     }
     if (newAudioList) {

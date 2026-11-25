@@ -70,6 +70,7 @@ object Store {
         private set
     var silenceMinMs: Int = 1500       // erst Stille ab dieser Länge wird gekürzt
         private set
+    var moveOnAssign: Boolean = true
     var silenceKeepMs: Int = 500       // so viel Stille bleibt stehen (Hall)
         private set
     var silenceTailMs: Int = 1000      // so viel Stille bleibt nach dem letzten Ton
@@ -124,6 +125,7 @@ object Store {
             modes = o.optJSONObject("modes").toMap()
             silenceThr = o.optInt("silenceThr", 200)
             silenceMinMs = o.optInt("silenceMinMs", 1500)
+            moveOnAssign = o.optBoolean("moveOnAssign", true)
             silenceKeepMs = o.optInt("silenceKeepMs", 300)
             silenceTailMs = o.optInt("silenceTailMs", 1000)
             trims = o.optJSONObject("trims").toMap()
@@ -188,6 +190,7 @@ object Store {
         o.put("silenceTailMs", silenceTailMs)
         o.put("trims", JSONObject(trims))
         o.put("silenceMinMs", silenceMinMs)
+        o.put("moveOnAssign", moveOnAssign)
         o.put("silenceKeepMs", silenceKeepMs)
         o.put("silenceStartSec", silenceStartSec)
         o.put("silenceEndSec", silenceEndSec)
@@ -277,6 +280,7 @@ object Store {
         save(ctx)
     }
 
+    fun setMoveOnAssign(ctx: Context, on: Boolean) { moveOnAssign = on; save(ctx) }
     fun setSkipSilence(ctx: Context, on: Boolean) { skipSilence = on; save(ctx) }
 
     fun setSilence(ctx: Context, thr: Int, leadMs: Int, tailMs: Int) {

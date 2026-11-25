@@ -3,6 +3,8 @@
 package de.musikplayer.app
 
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -81,6 +83,12 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
+        if (vm.dupes?.any { it.albumVariant } == true) {
+            Row(Modifier.clickable { vm.dupAlbums = !vm.dupAlbums }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = vm.dupAlbums, onCheckedChange = { vm.dupAlbums = it })
+                Text("Auch gleiche Lieder auf verschiedenen Alben zeigen (${vm.dupes?.count { it.albumVariant }})", style = MaterialTheme.typography.bodySmall)
+            }
+        }
         Column(Modifier.weight(1f).fillMaxWidth()) {
         if (groups != null && groups.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Keine Duplikate gefunden") }
@@ -93,23 +101,18 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
             )
             HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
                 val g = groups[page]
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                    if (g.reason.isNotEmpty()) Text(g.reason, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-                    for (t in g.tracks) VersionCard(vm, t, choice) { edit = it }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(
+                        Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (g.reason.isNotEmpty()) Text(g.reason, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center)
+                        for (t in g.tracks) VersionCard(vm, t, choice, centered = true) { edit = it }
+                    }
                 }
             }
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
-                item {
-                    Column {
-                        if (vm.dupes?.any { it.albumVariant } == true) {
-                            Row(Modifier.clickable { vm.dupAlbums = !vm.dupAlbums }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(checked = vm.dupAlbums, onCheckedChange = { vm.dupAlbums = it })
-                                Text("Auch gleiche Lieder auf verschiedenen Alben zeigen (${vm.dupes?.count { it.albumVariant }})", style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
                 groups?.forEachIndexed { gi, g ->
                     item(key = "h$gi") {
                         Text(
@@ -118,7 +121,7 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
                             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 2.dp)
                         )
                     }
-                    items(g.tracks.size, key = { "c${gi}_${g.tracks[it].path}" }) { idx -> VersionCard(vm, g.tracks[idx], choice) { edit = it } }
+                    items(g.tracks.size, key = { "c${gi}_${g.tracks[it].path}" }) { idx -> VersionCard(vm, g.tracks[idx], choice, centered = false) { edit = it } }
                 }
             }
         }
@@ -136,7 +139,7 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
         EditTrackDialog(
             t, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
             onDismiss = { edit = null },
-            onConfirm = { n, a -> vm.editTrack(t, n, a); edit = null; choice.remove(t.path) }
+            onConfirm = { n, a, mv -> vm.editTrack(t, n, a, mv); edit = null; choice.remove(t.path) }
         )
     }
     if (confirm) {
@@ -167,39 +170,43 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
 }
 
 
-/** Eine Version eines Liedes mit Ordner, Interpret, Album und den drei Entscheidungen. */
+/** Eine Version eines Liedes. Ohne Markierung bleibt sie unverändert; markiert wird nur eine Aktion (Löschen oder Name übernehmen). */
 @Composable
-private fun VersionCard(vm: MusicViewModel, t: Track, choice: MutableMap<String, Int>, onEdit: (Track) -> Unit) {
+private fun VersionCard(vm: MusicViewModel, t: Track, choice: MutableMap<String, Int>, centered: Boolean, onEdit: (Track) -> Unit) {
     val proposed = Library.proposedFileName(t)
+    val hasProposal = proposed != t.fileName
     val c = choice[t.path]
     val guess = remember(t.path, t.artist) { if (t.artist == UNKNOWN_ARTIST) Library.guessArtistFromName(t) else null }
+    val align = if (centered) TextAlign.Center else TextAlign.Start
+    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    val base = if (centered) {
+        Modifier.widthIn(max = 520.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+    } else Modifier.fillMaxWidth()
     Column(
-        Modifier.fillMaxWidth()
-            .combinedClickable(onClick = { vm.play(listOf(t), 0, "q") }, onLongClick = { onEdit(t) })
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+        base.combinedClickable(onClick = { vm.play(listOf(t), 0, "q") }, onLongClick = { onEdit(t) })
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start
     ) {
-        Text(t.fileName, style = MaterialTheme.typography.bodyMedium)
-        Text(formatSize(t.size) + " · " + formatDuration(t.durationMs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(t.fileName, style = MaterialTheme.typography.bodyMedium, textAlign = align)
+        Text(formatSize(t.size) + " · " + formatDuration(t.durationMs), style = MaterialTheme.typography.bodySmall, color = dim, textAlign = align)
         Text(
             "Ordner: " + t.folder.removePrefix("/storage/emulated/0/").removePrefix("/sdcard/"),
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.bodySmall, color = dim, textAlign = align
         )
         if (t.artist == UNKNOWN_ARTIST) {
-            Text("Interpret: unbekannt", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Text("Interpret: unbekannt", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, textAlign = align)
             if (guess != null) Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Vorschlag aus dem Namen: $guess", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+                Text("Aus dem Namen: $guess", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
                 TextButton(onClick = { vm.assignTrack(t.path, guess) }) { Text("Übernehmen") }
             }
         } else {
-            Text("Interpret: ${t.artist}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Interpret: ${t.artist}", style = MaterialTheme.typography.bodySmall, color = dim, textAlign = align)
         }
-        if (t.albumName.isNotBlank()) Text("Album: ${t.albumName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (proposed != t.fileName) Text("In der App: $proposed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-        Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Choice("Behalten", c == KEEP, MaterialTheme.colorScheme.primary) { if (c == KEEP) choice.remove(t.path) else choice[t.path] = KEEP }
-            if (proposed != t.fileName) {
-                Choice("Behalten + Name säubern", c == KEEP_RENAME, ORANGE) { if (c == KEEP_RENAME) choice.remove(t.path) else choice[t.path] = KEEP_RENAME }
-            }
+        if (t.albumName.isNotBlank()) Text("Album: ${t.albumName}", style = MaterialTheme.typography.bodySmall, color = dim, textAlign = align)
+        if (hasProposal) Text("Name in der App: $proposed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, textAlign = align)
+        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Behalten", c == null || c == KEEP, MaterialTheme.colorScheme.primary) { choice.remove(t.path) }
+            if (hasProposal) Choice("Name übernehmen", c == KEEP_RENAME, ORANGE) { if (c == KEEP_RENAME) choice.remove(t.path) else choice[t.path] = KEEP_RENAME }
             Choice("Löschen", c == DELETE, MaterialTheme.colorScheme.error) { if (c == DELETE) choice.remove(t.path) else choice[t.path] = DELETE }
         }
     }

@@ -22,7 +22,7 @@ object Trim {
     }
 
     /** true, wenn dieses Lied schon untersucht wurde (mit der aktuellen Schwelle). */
-    fun known(t: Track): Boolean = tones(t) != null
+    fun known(t: Track): Boolean = tones(t).let { it != null && it.second != -2L }
 
     /** Start und Ende in ms (Ende = C.TIME_END_OF_SOURCE, wenn hinten nichts zu schneiden ist); null = nicht schneiden. */
     fun clip(t: Track): Pair<Long, Long>? {
@@ -37,13 +37,13 @@ object Trim {
     }
 
     /** Lied untersuchen (blockiert, im Hintergrund-Thread aufrufen). */
-    fun ensure(ctx: Context, t: Track) {
-        if (known(t)) return
-        val (a, b) = analyze(t.path, Store.silenceThr, t.durationMs)
+    fun ensure(ctx: Context, t: Track, startOnly: Boolean = false) {
+        if (known(t) || (startOnly && tones(t) != null)) return
+        val (a, b) = analyze(t.path, Store.silenceThr, t.durationMs, startOnly)
         Store.setTrim(ctx, t.path, "${key(t)}:$a:$b")
     }
 
-    private fun analyze(path: String, thr: Int, durMs: Long): Pair<Long, Long> {
+    private fun analyze(path: String, thr: Int, durMs: Long, startOnly: Boolean): Pair<Long, Long> {
         val ex = MediaExtractor()
         var codec: MediaCodec? = null
         try {
@@ -63,7 +63,8 @@ object Trim {
             c.start()
             val first = scan(ex, c, fmt, 0L, thr, true).first
             if (first < 0) return -1L to -1L
-            var win = 15_000L
+            if (startOnly) return first / 1000 to -2L   // Ende folgt später im Hintergrund
+            var win = 8_000L
             var last = -1L
             while (true) {
                 val from = (dur - win).coerceAtLeast(0L)

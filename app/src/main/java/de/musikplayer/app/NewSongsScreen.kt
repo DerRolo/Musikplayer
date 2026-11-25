@@ -30,7 +30,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
@@ -84,7 +83,6 @@ fun NewSongsPage(vm: MusicViewModel, actions: TrackActions, onBack: () -> Unit) 
         }
     }
     var edit by remember { mutableStateOf<Track?>(null) }
-    var move by remember { mutableStateOf<Track?>(null) }
     BackHandler(enabled = sel.active) { sel.clear() }
     val chosen = { fresh.filter { it.id in sel.ids } }
 
@@ -114,7 +112,7 @@ fun NewSongsPage(vm: MusicViewModel, actions: TrackActions, onBack: () -> Unit) 
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (view) {
-                    0 -> SinglePager(vm, actions, fresh, existing, onEdit = { edit = it }, onMove = { move = it })
+                    0 -> SinglePager(vm, actions, fresh, existing, onEdit = { edit = it })
                     1 -> TrackListBody(vm, fresh, "q", actions, sel)
                     else -> {
                         val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
@@ -145,16 +143,7 @@ fun NewSongsPage(vm: MusicViewModel, actions: TrackActions, onBack: () -> Unit) 
         EditTrackDialog(
             t, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
             onDismiss = { edit = null },
-            onConfirm = { n, a -> vm.editTrack(t, n, a); edit = null }
-        )
-    }
-    move?.let { t ->
-        ConfirmDialog(
-            title = "Einsortieren?",
-            text = "„${t.fileName}“ wird in den Ordner von „${t.artist}“ verschoben.",
-            confirmText = "Verschieben",
-            onDismiss = { move = null },
-            onConfirm = { vm.sortIntoFolders(listOf(t)); move = null }
+            onConfirm = { n, a, mv -> vm.editTrack(t, n, a, mv); edit = null }
         )
     }
 }
@@ -193,7 +182,7 @@ private fun Modifier.androidxBg(c: Color): Modifier = this.then(Modifier.backgro
 @Composable
 private fun SinglePager(
     vm: MusicViewModel, actions: TrackActions, fresh: List<Track>, existing: Set<String>,
-    onEdit: (Track) -> Unit, onMove: (Track) -> Unit
+    onEdit: (Track) -> Unit
 ) {
     val pager = rememberPagerState { fresh.size }
     Column(Modifier.fillMaxSize()) {
@@ -240,9 +229,12 @@ private fun SinglePager(
                 if (quick.isNotEmpty()) {
                     Text("Interpret schnell zuordnen:", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for (q in quick) LetterChip(q, q == t.artist, true) { vm.assignTrack(t.path, q) }
+                        for (q in quick) LetterChip(q, q == t.artist, true) { vm.assignTrack(t.path, q, Store.moveOnAssign) }
                     }
                 }
+                var mv by remember { mutableStateOf(Store.moveOnAssign) }
+                val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+                if (quick.isNotEmpty()) MoveCheckRow(mv) { mv = it; Store.setMoveOnAssign(appCtx, it) }
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = { vm.markSeen(listOf(t)) }, Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.Check, null, Modifier.size(20.dp)); Text("  Passt so")
@@ -257,9 +249,6 @@ private fun SinglePager(
                 }
                 OutlinedButton(onClick = { onEdit(t) }, Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = ORANGE)) {
                     Icon(Icons.Filled.Edit, null, Modifier.size(20.dp)); Text("  Bearbeiten (Name, Interpret)")
-                }
-                if (!unknown) OutlinedButton(onClick = { onMove(t) }, Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = ORANGE)) {
-                    Icon(Icons.Filled.DriveFileMove, null, Modifier.size(20.dp)); Text("  In Interpreten-Ordner verschieben")
                 }
                 OutlinedButton(onClick = { vm.blockTracks(listOf(t)) }, Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                     Icon(Icons.Filled.Block, null, Modifier.size(20.dp)); Text("  Sperren (kein Lied)")

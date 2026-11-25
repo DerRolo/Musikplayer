@@ -41,6 +41,7 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -334,11 +335,13 @@ fun ArtistField(value: String, onChange: (String) -> Unit, artists: List<String>
 
 /** „Datei bearbeiten“: zeigt aktuellen Namen, Vorschlag der App und Interpret – alles änderbar. Deine Eingabe gilt immer. */
 @Composable
-fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, onConfirm: (name: String, artist: String) -> Unit) {
+fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, onConfirm: (name: String, artist: String, move: Boolean) -> Unit) {
     val current = track.fileName.substringBeforeLast('.')
     var name by remember(track.path) { mutableStateOf(current) }
     var artist by remember(track.path) { mutableStateOf(if (track.artist == UNKNOWN_ARTIST) "" else track.artist) }
     val proposal = Library.proposedFileName(track).substringBeforeLast('.')
+    var move by remember { mutableStateOf(Store.moveOnAssign) }
+    val appCtx = LocalContext.current.applicationContext
     val guess = remember(track.path) { if (track.artist == UNKNOWN_ARTIST) Library.guessArtistFromName(track) else null }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -362,22 +365,45 @@ fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, 
                     }
                 }
                 ArtistField(artist, { artist = it }, artists)
+                MoveCheckRow(move) { move = it }
             }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(name.trim(), artist.trim()) }, enabled = name.isNotBlank()) { Text("Speichern", color = ORANGE) } },
+        confirmButton = { TextButton(onClick = { Store.setMoveOnAssign(appCtx, move); onConfirm(name.trim(), artist.trim(), move) }, enabled = name.isNotBlank()) { Text("Speichern", color = ORANGE) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
 }
 
+/** Kleine Checkbox „In Interpreten-Ordner verschieben“ – merkt sich den letzten Zustand (Store.moveOnAssign). */
+@Composable
+fun MoveCheckRow(checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }, verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked, onChange)
+        Icon(Icons.Filled.FolderOpen, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("In Interpreten-Ordner verschieben", Modifier.padding(start = 6.dp), style = MaterialTheme.typography.bodySmall)
+    }
+}
+
 /** Interpret für mehrere Lieder auf einmal. */
 @Composable
-fun AssignArtistDialog(count: Int, artists: List<String>, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+fun AssignArtistDialog(count: Int, artists: List<String>, onDismiss: () -> Unit, showMove: Boolean = true, onConfirm: (String, Boolean) -> Unit) {
     var artist by remember { mutableStateOf("") }
+    var move by remember { mutableStateOf(Store.moveOnAssign) }
+    val appCtx = LocalContext.current.applicationContext
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (count == 1) "Interpret zuordnen" else "Interpret für $count Lieder") },
-        text = { ArtistField(artist, { artist = it }, artists) },
-        confirmButton = { TextButton(onClick = { onConfirm(artist.trim()) }, enabled = artist.isNotBlank()) { Text("Zuordnen") } },
+        text = {
+            Column {
+                ArtistField(artist, { artist = it }, artists)
+                if (showMove) MoveCheckRow(move) { move = it }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (showMove) Store.setMoveOnAssign(appCtx, move)
+                onConfirm(artist.trim(), showMove && move)
+            }, enabled = artist.isNotBlank()) { Text("Zuordnen") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
 }

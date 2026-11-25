@@ -16,6 +16,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -267,14 +268,21 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     private fun startItems(items: List<MediaItem>, index: Int) {
         val t = Library.trackOf(items[index])
         if (Store.skipSilence && t != null && !Trim.known(t)) {
-            // Erst Anfang/Ende des Liedes ausmessen (dauert Sekundenbruchteile), dann abspielen
+            // Nur den Anfang schnell ausmessen (max. ~0,7 s), das Ende folgt im Hintergrund
             viewModelScope.launch {
-                withContext(Dispatchers.IO) { Trim.ensure(app, t) }
+                quickTrim(t)
                 val fixed = items.toMutableList()
                 fixed[index] = Library.reclip(items[index])
                 doStart(fixed, index)
             }
         } else doStart(items, index)
+    }
+
+    /** Anfang schnell (mit Zeitlimit) bestimmen; vollständige Analyse (Ende) läuft danach im Hintergrund weiter. */
+    private suspend fun quickTrim(t: Track) {
+        val job = viewModelScope.async(Dispatchers.IO) { Trim.ensure(app, t, startOnly = true) }
+        kotlinx.coroutines.withTimeoutOrNull(700) { job.await() }
+        viewModelScope.launch(Dispatchers.IO) { job.join(); Trim.ensure(app, t) }
     }
 
     /** Das nächste Lied in der Warteschlange vorab ausmessen und mit Schnitt versehen. */
@@ -329,7 +337,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         val t0 = Library.trackOf(sh[0])
         if (Store.skipSilence && t0 != null && !Trim.known(t0)) {
             viewModelScope.launch {
-                withContext(Dispatchers.IO) { Trim.ensure(app, t0) }
+                quickTrim(t0)
                 val fixed = sh.toMutableList()
                 fixed[0] = Library.reclip(sh[0])
                 c.setMediaItems(fixed, 0, 0L); c.prepare(); c.play()
@@ -689,7 +697,10 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         reindex()
     }
 
-    fun assignTrack(path: String, artist: String?) {
+    /** Interpret für ein Lied; mit [move] wandert die Datei danach in den Interpreten-Ordner. */
+    fun assignTrack(path: String, artist: String?, move: Boolean = false) {
+        val t = tracks.firstOrNull { it.path == path }
+        if (move && t != null && !artist.isNullOrBlank()) { assignTracks(listOf(t), artist, true); return }
         Store.setTrackArtist(app, path, artist)
         reindex()
     }
@@ -720,33 +731,56 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ---------- Datei bearbeiten ----------
 
-    /** Name (Datei) und/oder Interpret in einem Schritt ändern. */
-    fun editTrack(t: Track, newBaseName: String, artist: String?) {
+    /** Name (Datei), Interpret und Verschieben in den Interpreten-Ordner in einem Schritt. */
+    fun editTrack(t: Track, newBaseName: String, artist: String?, move: Boolean = false) {
+        val art = artist?.takeIf { it.isNotBlank() }
         val nameChanged = newBaseName.isNotBlank() && newBaseName != t.fileName.substringBeforeLast('.')
-        val artistChanged = (artist ?: "") != (if (t.artist == UNKNOWN_ARTIST) "" else t.artist)
-        if (!nameChanged && !artistChanged) return
+        val artistChanged = (art ?: "") != (if (t.artist == UNKNOWN_ARTIST) "" else t.artist)
+        val moveWanted = move && art != null
+        if (!nameChanged && !artistChanged && !moveWanted) return
         loading = true
         viewModelScope.launch {
-            val r = withContext(Dispatchers.IO) {
-                // erst Interpret (nach Pfad), dann Umbenennen (Store zieht den Pfad nach)
-                if (artistChanged) Store.setTrackArtist(app, t.path, artist?.takeIf { it.isNotBlank() })
-                val res = if (nameChanged) Library.renameFiles(app, listOf(t to newBaseName)) else null
+            var failed = 0
+            withContext(Dispatchers.IO) {
+                var cur = t
+                // erst Interpret (nach Pfad), dann Verschieben, dann Umbenennen (Store zieht den Pfad jeweils nach)
+                if (artistChanged) Store.setTrackArtist(app, cur.path, art)
+                if (moveWanted) {
+                    val r = Library.sortIntoArtistFolders(app, listOf(cur.copy(artist = art!!)))
+                    failed += r.failed
+                    r.map[cur.path]?.let { cur = cur.copy(path = it) }
+                }
+                if (nameChanged) failed += Library.renameFiles(app, listOf(cur to newBaseName)).failed
                 Library.load(app)
-                res
             }
             refreshFromLibrary()
             if (dupes != null) dupes = withContext(Dispatchers.Default) { Dupes.find(Library.tracks) }
             loading = false
-            message = if (r != null && r.failed > 0) "Umbenennen fehlgeschlagen" else "Gespeichert"
+            message = if (failed > 0) "Teilweise fehlgeschlagen" else "Gespeichert"
         }
     }
 
-    /** Interpret für viele Lieder auf einmal. */
-    fun assignTracks(list: List<Track>, artist: String?) {
+    /** Interpret für viele Lieder auf einmal; optional gleich in den Interpreten-Ordner verschieben. */
+    fun assignTracks(list: List<Track>, artist: String?, move: Boolean = false) {
         if (list.isEmpty()) return
-        Store.setTrackArtists(app, list.map { it.path }, artist?.takeIf { it.isNotBlank() })
-        reindex()
-        message = "Interpret für ${list.size} Lieder gesetzt"
+        val art = artist?.takeIf { it.isNotBlank() }
+        Store.setTrackArtists(app, list.map { it.path }, art)
+        if (!move || art == null) {
+            reindex()
+            message = "Interpret für ${list.size} Lieder gesetzt"
+            return
+        }
+        loading = true
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.IO) {
+                val res = Library.sortIntoArtistFolders(app, list.map { it.copy(artist = art) })
+                Library.load(app)
+                res
+            }
+            refreshFromLibrary()
+            loading = false
+            message = "Interpret gesetzt, ${r.moved} verschoben" + if (r.failed > 0) ", ${r.failed} fehlgeschlagen" else ""
+        }
     }
 
     /** Albumname für die Lieder ändern (nur in der App, Dateien bleiben unberührt). */
@@ -818,7 +852,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun setSkipSilence(on: Boolean) { Store.setSkipSilence(app, on) }
 
-    /** Öffnet den Ordner der Datei im Dateimanager; wenn das nicht geht, wird der Pfad kopiert. */
+    /** Öffnet den Ordner der Datei im Dateimanager (mehrere Wege nacheinander); zuletzt Ordnerauswahl am Ordner, sonst Pfad kopieren. */
     fun showInFolder(t: Track) {
         val path = t.folder
         val (vol, rel) = when {
@@ -826,17 +860,34 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
             path.startsWith("/storage/") -> path.removePrefix("/storage/").let { it.substringBefore('/') to it.substringAfter('/', "") }
             else -> "primary" to path.trim('/')
         }
-        val uri = android.provider.DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "$vol:$rel")
-        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
-            .setDataAndType(uri, android.provider.DocumentsContract.Document.MIME_TYPE_DIR)
-            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        try {
-            app.startActivity(intent)
-        } catch (e: Exception) {
-            val cm = app.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("Pfad", path))
-            message = "Kein Dateimanager gefunden – Pfad kopiert: $path"
+        val auth = "com.android.externalstorage.documents"
+        val docId = "$vol:$rel"
+        val docUri = android.provider.DocumentsContract.buildDocumentUri(auth, docId)
+        val treeDocUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(
+            android.provider.DocumentsContract.buildTreeDocumentUri(auth, docId), docId)
+        val newTask = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+        val grant = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+        val view = android.content.Intent.ACTION_VIEW
+        val dir = android.provider.DocumentsContract.Document.MIME_TYPE_DIR
+        val attempts = listOf(
+            // Samsung „Eigene Dateien“
+            android.content.Intent("samsung.myfiles.intent.action.LAUNCH_MY_FILES")
+                .setClassName("com.sec.android.app.myfiles", "com.sec.android.app.myfiles.external.ui.MainActivity")
+                .putExtra("samsung.myfiles.intent.extra.START_PATH", path).addFlags(newTask),
+            // Standard-Dateimanager des Systems / Files
+            android.content.Intent(view).setDataAndType(docUri, dir).addFlags(newTask or grant),
+            android.content.Intent(view).setDataAndType(treeDocUri, dir).addFlags(newTask or grant),
+            android.content.Intent(view).setDataAndType(android.net.Uri.parse("content://$auth/document/" + android.net.Uri.encode(docId)), "vnd.android.document/directory").addFlags(newTask or grant),
+            // Systemauswahl, geöffnet am Ordner
+            android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE)
+                .putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI, docUri).addFlags(newTask)
+        )
+        for (i in attempts) {
+            try { app.startActivity(i); return } catch (_: Exception) { }
         }
+        val cm = app.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("Pfad", path))
+        message = "Kein Dateimanager gefunden – Pfad kopiert: $path"
     }
 
     /** Wie oft ein Lied gespielt wurde. */

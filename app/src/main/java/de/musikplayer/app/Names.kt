@@ -36,14 +36,14 @@ object Names {
 
     fun clean(raw: String, artist: String? = null, folderNumbered: Boolean = false): String {
         var s = tidy(raw).trim()
-        while (EXT.containsMatchIn(s)) s = s.replace(EXT, "").trim()
+        s = stripExt(s)
         val artistStartsWithDigit = !artist.isNullOrBlank() && artist.first().isDigit()
         val protectedByArtist = artistStartsWithDigit && s.startsWith(artist!!, ignoreCase = true)
         if (!protectedByArtist) s = stripNumber(s, folderNumbered)
         s = s.replace('_', ' ').replace(SPACES, " ").trim().trim('-', '–', '—', ' ')
         if (extraStrip.isNotEmpty()) {
             for (x in extraStrip) if (x.isNotBlank()) s = s.replace(x, " ", ignoreCase = true)
-            s = s.replace(SPACES, " ").trim().trim('-', '–', '—', ' ')
+            s = stripExt(s.replace(SPACES, " ").trim()).trim().trimEnd('.').trim('-', '–', '—', ' ')
         }
         s = collapseRepeat(stripArtistPrefix(s, artist))
         return if (s.isEmpty()) raw.trim() else s
@@ -52,24 +52,39 @@ object Names {
     /** Leichte Bereinigung für selbst benannte Dateien: nur doppelte Endungen („x.mp3.mp3“) und Namen-Filter, Unterstriche bleiben. */
     fun light(raw: String): String {
         var s = tidy(raw).trim()
-        while (EXT.containsMatchIn(s)) s = s.replace(EXT, "").trim()
+        s = stripExt(s)
         for (x in extraStrip) if (x.isNotBlank()) s = s.replace(x, " ", ignoreCase = true)
-        return s.replace(SPACES, " ").trim().ifEmpty { raw.trim() }
+        return stripExt(s.replace(SPACES, " ").trim()).trim().trimEnd('.').ifEmpty { raw.trim() }
     }
 
     /** Dateiendungen gehören nie in den Namen („Song.mp3“ → „Song“). */
-    private val EXT = Regex("\\.(mp3|wav|flac|m4a|aac|ogg|oga|opus|wma|mp4|webm|mka|aiff?|amr|3gp)$", RegexOption.IGNORE_CASE)
+    private val EXT = Regex("\\.(mp3|wav|flac|m4a|aac|ogg|oga|opus|wma|mp4|webm|mka|aiff?|amr|3gp)(?=$|[\\s\\-_)\\]])", RegexOption.IGNORE_CASE)
 
     private val ARTIST_SEP = Regex("^\\s*[-–—:]\\s*")
 
     /** „Ice Cube - Titel“ bei Interpret „Ice Cube“ → „Titel“ (nur mit Trennstrich, und es muss etwas übrig bleiben). */
     private fun stripArtistPrefix(s: String, artist: String?): String {
         if (artist.isNullOrBlank() || artist == UNKNOWN_ARTIST) return s
-        if (!s.startsWith(artist, ignoreCase = true)) return s
-        val rest = s.substring(artist.length)
+        val ak = key(artist)
+        if (ak.isEmpty()) return s
+        // Schreibvarianten (AC/DC, AC-DC, AC DC, ACDC): nur Buchstaben/Ziffern vergleichen
+        var end = -1
+        for (i in 1..s.length) {
+            val k = key(s.substring(0, i))
+            if (k.length >= ak.length) { if (k == ak) end = i; break }
+        }
+        if (end < 0) return s
+        val rest = s.substring(end)
         val m = ARTIST_SEP.find(rest) ?: return s
         val r2 = rest.substring(m.value.length).trim()
         return if (r2.isBlank()) s else r2
+    }
+
+    /** Entfernt Dateiendungen überall im Namen („x.mp3.mp3“, „x.mp3 - y“, „x .mp3“). */
+    fun stripExt(x: String): String {
+        var s = x
+        while (EXT.containsMatchIn(s)) s = s.replace(EXT, "").replace(SPACES, " ").trim()
+        return s
     }
 
     private fun key(x: String) = fold(x).filter { it.isLetterOrDigit() }
@@ -141,7 +156,7 @@ object Names {
 
     /** Dateiname (ohne Endung) aus einem Titel: Zeichen, die Android in Dateinamen nicht erlaubt, werden zu „-“. */
     fun fileBaseName(title: String): String =
-        title.replace(BAD_FILE_CHARS, "-").replace(SPACES, " ").trim().trimEnd('.').ifEmpty { "_" }
+        stripExt(tidy(title)).replace(BAD_FILE_CHARS, "-").replace(SPACES, " ").trim().trimEnd('.').ifEmpty { "_" }
 
     /** Kleinschreibung ohne Akzente – für Sortierung und Suche. */
     fun fold(s: String): String =

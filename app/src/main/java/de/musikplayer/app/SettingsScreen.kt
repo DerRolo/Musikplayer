@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package de.musikplayer.app
 
 import androidx.compose.material3.OutlinedButton
@@ -11,6 +13,13 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -302,6 +311,7 @@ private fun NamesPage(vm: MusicViewModel, onBack: () -> Unit) {
     var letter by remember { mutableStateOf<String?>(null) }
     var confirm by remember { mutableStateOf<List<Pair<Track, String>>?>(null) }
     var manual by remember { mutableStateOf<Track?>(null) }
+    var single by remember { mutableStateOf(false) }
 
     val cands = remember(vm.tracks) { vm.renameCandidates() }
     val groups = remember(cands) { cands.groupBy { it.artist }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
@@ -314,7 +324,7 @@ private fun NamesPage(vm: MusicViewModel, onBack: () -> Unit) {
     fun proposals(list: List<Track>) = list.map { it to Library.proposedFileName(it).substringBeforeLast('.') }
 
     Column(Modifier.fillMaxSize()) {
-        PageHeader("Dateinamen übernehmen", onBack)
+        PageHeader("Dateinamen übernehmen", onBack) { ViewToggle(listOf(VIEW_SINGLE, VIEW_LIST), if (single) 0 else 1) { single = it == 0 } }
         Text(
             "Links der aktuelle Dateiname, darunter der Name, wie er in der App steht (ohne Nummern, Unterstriche usw.). " +
                 "Geändert wird erst nach deiner Bestätigung.",
@@ -333,6 +343,43 @@ private fun NamesPage(vm: MusicViewModel, onBack: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = ORANGE, contentColor = androidx.compose.ui.graphics.Color.Black),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             ) { Text(if (active == null) "Alle $shownCount übernehmen …" else "Alle mit $active ($shownCount) übernehmen …") }
+            if (single) {
+                val flat = shownGroups.values.flatten()
+                val pager = rememberPagerState { flat.size }
+                if (flat.isNotEmpty()) {
+                    Text(
+                        "Lied ${(pager.currentPage + 1).coerceAtMost(flat.size)} von ${flat.size}  ·  nach links/rechts wischen",
+                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    HorizontalPager(pager, Modifier.fillMaxSize(), key = { flat[it].path }) { page ->
+                        val t = flat[page]
+                        val proposed = Library.proposedFileName(t)
+                        val clash = (t.folder + "/" + proposed) in existing
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(
+                                Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(16.dp)
+                                    .clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(t.artist, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center)
+                                Text("Jetzt", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+                                Text(t.fileName.substringBeforeLast('.'), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+                                Text("Neu", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+                                Text(proposed.substringBeforeLast('.'), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center)
+                                if (clash) Text("Name gibt es schon – wird nummeriert", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                                Button(
+                                    onClick = { confirm = proposals(listOf(t)) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = ORANGE, contentColor = androidx.compose.ui.graphics.Color.Black),
+                                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                                ) { Text("Übernehmen") }
+                                OutlinedButton(onClick = { manual = t }, Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = ORANGE)) { Text("Ändern …") }
+                            }
+                        }
+                    }
+                }
+            } else
             LazyColumn(Modifier.fillMaxSize()) {
                 shownGroups.forEach { (artist, list) ->
                     item(key = "h$artist") {
@@ -350,9 +397,9 @@ private fun NamesPage(vm: MusicViewModel, onBack: () -> Unit) {
                         val clash = (t.folder + "/" + proposed) in existing
                         Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 6.dp)) {
                             Text("Jetzt:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(t.fileName, style = MaterialTheme.typography.bodyMedium)
+                            Text(t.fileName.substringBeforeLast('.'), style = MaterialTheme.typography.bodyMedium)
                             Text("Neu:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
-                            Text(proposed, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                            Text(proposed.substringBeforeLast('.'), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                             if (clash) Text("Name gibt es schon – wird nummeriert", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                 TextButton(onClick = { manual = t }) { Text("Ändern …", color = ORANGE) }

@@ -103,8 +103,8 @@ fun FoldersPage(vm: MusicViewModel, actions: TrackActions, onBack: () -> Unit) {
     input?.let { f ->
         AssignArtistDialog(
             f.unknownCount.coerceAtLeast(1), artists,
-            onDismiss = { input = null },
-            onConfirm = { vm.assignFolder(f.path, it); input = null }
+            onDismiss = { input = null }, showMove = false,
+            onConfirm = { a, _ -> vm.assignFolder(f.path, a); input = null }
         )
     }
     sortConfirm?.let { list ->
@@ -141,28 +141,33 @@ private fun FolderRow(f: FolderInfo, onClick: () -> Unit) {
     }
 }
 
-/** Kopf eines geöffneten Ordners: Zuordnung und Aktionen. Die Lieder stehen darunter. */
+/** Kopf eines geöffneten Ordners: zwei klare Blöcke – „Interpret“ (für Lieder ohne Interpret) und „Ordner“ (Aktionen). */
 @Composable
 private fun FolderHeader(vm: MusicViewModel, f: FolderInfo, inFolder: List<Track>, onInput: () -> Unit, onSort: (List<Track>) -> Unit) {
+    val known = inFolder.filter { it.artist != UNKNOWN_ARTIST }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(f.path.removePrefix("/storage/emulated/0/"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text("${f.count} Lieder, davon ${f.unknownCount} ohne Interpret", style = MaterialTheme.typography.bodyMedium)
-        if (f.assigned != null) {
-            Text("Interpret für Lieder ohne Interpret: ${f.assigned}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        } else if (f.unknownCount > 0) {
-            Text(
-                "Lieder ohne Interpret bekommen den Namen, den du wählst. Alternativ unten einzelne Lieder markieren und zuordnen.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        if (f.assigned == null && f.suggestion != null && f.unknownCount > 0) {
-            Button(onClick = { vm.assignFolder(f.path, f.suggestion) }, Modifier.fillMaxWidth()) {
-                Icon(Icons.Filled.Check, null, Modifier.size(20.dp)); Text("  Alle ohne Interpret → „${f.suggestion}“")
+
+        if (f.unknownCount > 0 || f.assigned != null) {
+            Text("Interpret", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
+            if (f.assigned != null) {
+                Text("Alle ohne Interpret gelten als „${f.assigned}“", style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(
+                    onClick = { vm.assignFolder(f.path, null) }, Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ORANGE)
+                ) { Icon(Icons.Filled.Close, null, Modifier.size(18.dp)); Text("  Zuordnung entfernen") }
+            } else {
+                if (f.suggestion != null) Button(onClick = { vm.assignFolder(f.path, f.suggestion) }, Modifier.fillMaxWidth()) {
+                    Icon(Icons.Filled.Check, null, Modifier.size(20.dp)); Text("  Alle ohne Interpret → „${f.suggestion}“")
+                }
+                OutlinedButton(onClick = onInput, Modifier.fillMaxWidth()) {
+                    Icon(Icons.Filled.Person, null, Modifier.size(20.dp)); Text("  Anderen Interpreten wählen …")
+                }
             }
         }
-        OutlinedButton(onClick = onInput, Modifier.fillMaxWidth()) {
-            Icon(Icons.Filled.Person, null, Modifier.size(20.dp)); Text("  Interpret für alle ohne Interpret wählen …")
-        }
+
+        Text("Ordner", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { inFolder.firstOrNull()?.let { vm.showInFolder(it) } }, Modifier.weight(1f), enabled = inFolder.isNotEmpty()) {
                 Icon(Icons.Filled.FolderOpen, null, Modifier.size(18.dp)); Text("  Dateimanager", maxLines = 1)
@@ -171,15 +176,10 @@ private fun FolderHeader(vm: MusicViewModel, f: FolderInfo, inFolder: List<Track
                 Icon(Icons.Filled.PlayArrow, null, Modifier.size(18.dp)); Text("  Anhören", maxLines = 1)
             }
         }
-        val known = inFolder.filter { it.artist != UNKNOWN_ARTIST }
-        OutlinedButton(
-            onClick = { onSort(known) }, Modifier.fillMaxWidth(), enabled = known.isNotEmpty(),
+        if (known.isNotEmpty()) OutlinedButton(
+            onClick = { onSort(known) }, Modifier.fillMaxWidth(),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = ORANGE)
-        ) { Icon(Icons.Filled.DriveFileMove, null, Modifier.size(18.dp)); Text("  ${known.size} Lieder mit Interpret in Interpreten-Ordner verschieben …") }
-        if (f.assigned != null) OutlinedButton(
-            onClick = { vm.assignFolder(f.path, null) }, Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = ORANGE)
-        ) { Icon(Icons.Filled.Close, null, Modifier.size(18.dp)); Text("  Zuordnung entfernen") }
+        ) { Icon(Icons.Filled.DriveFileMove, null, Modifier.size(18.dp)); Text("  ${known.size} Lieder in Interpreten-Ordner verschieben …") }
         OutlinedButton(
             onClick = { vm.blockFolder(f.path) }, Modifier.fillMaxWidth(),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
