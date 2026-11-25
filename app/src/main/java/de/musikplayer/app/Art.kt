@@ -39,7 +39,10 @@ object Art {
     var version by mutableIntStateOf(0)
         private set
 
+    @Volatile private var gen = 0
+
     fun invalidate() {
+        gen++
         cache.evictAll(); bigCache.evictAll(); missing.clear(); version++
     }
 
@@ -70,21 +73,23 @@ object Art {
     /** Großes Cover für den Player (nur wenn im Lied wirklich ein Bild steckt). */
     suspend fun large(ctx: Context, t: Track): Bitmap? = withContext(Dispatchers.IO) {
         bigCache.get(t.id)?.let { return@withContext it }
+        val g = gen
         var bmp: Bitmap? = custom(ctx, t.path, 900)
-        if (bmp != null) { bigCache.put(t.id, bmp); return@withContext bmp }
+        if (bmp != null) { if (g == gen) bigCache.put(t.id, bmp); return@withContext bmp }
         if (Build.VERSION.SDK_INT >= 29) {
             bmp = try { ctx.contentResolver.loadThumbnail(t.uri(), Size(900, 900), null) } catch (e: Exception) { null }
         }
         if (bmp == null) bmp = embedded(t.path, 900)
-        if (bmp != null) bigCache.put(t.id, bmp)
+        if (bmp != null && g == gen) bigCache.put(t.id, bmp)
         bmp
     }
 
     private fun load(ctx: Context, t: Track, size: Int): Bitmap? {
         cache.get(t.id)?.let { return it }
         if (t.id in missing) return null
+        val g = gen
         var bmp: Bitmap? = custom(ctx, t.path, size)
-        if (bmp != null) { cache.put(t.id, bmp); return bmp }
+        if (bmp != null) { if (g == gen) cache.put(t.id, bmp); return bmp }
         if (Build.VERSION.SDK_INT >= 29) {
             bmp = try {
                 ctx.contentResolver.loadThumbnail(t.uri(), Size(size, size), null)
@@ -93,7 +98,7 @@ object Art {
             }
         }
         if (bmp == null) bmp = embedded(t.path, size)
-        if (bmp == null) missing.add(t.id) else cache.put(t.id, bmp)
+        if (g == gen) { if (bmp == null) missing.add(t.id) else cache.put(t.id, bmp) }
         return bmp
     }
 

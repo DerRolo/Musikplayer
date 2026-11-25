@@ -215,7 +215,9 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier) 
     val artist = item?.mediaMetadata?.artist?.toString().orEmpty()
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val t = remember(item?.mediaId) { trackOf(item) }
-    val art by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, item?.mediaId, Art.version) {
+    val ver = Art.version
+    val coverTag = t?.let { Store.trackCovers[it.path] }
+    val art by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, item?.mediaId, ver, coverTag) {
         value = t?.let { Art.large(ctx, it)?.asImageBitmap() }
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
