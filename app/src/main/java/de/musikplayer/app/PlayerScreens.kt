@@ -380,7 +380,7 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                                     if (goNext || goPrev) {
                                         val before = vm.currentIndex to vm.current?.mediaId
                                         offset.animateTo(if (goNext) -w else w, tween(160))
-                                        if (goNext) vm.next() else vm.previous()
+                                        if (goNext) vm.next() else vm.previousFromSwipe()
                                         withTimeoutOrNull(700) { snapshotFlow { vm.currentIndex to vm.current?.mediaId }.first { it != before } }
                                         offset.snapTo(0f)
                                     } else offset.animateTo(0f, tween(180))
@@ -415,7 +415,7 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                         detectHorizontalDragGestures(
                             onDragStart = { drag = 0f },
                             onHorizontalDrag = { change, amount -> change.consume(); drag += amount },
-                            onDragEnd = { if (drag < -60.dp.toPx() && vm.nextItem != null) vm.next() else if (drag > 60.dp.toPx() && vm.prevItem != null) vm.previous() }
+                            onDragEnd = { if (drag < -60.dp.toPx() && vm.nextItem != null) vm.next() else if (drag > 60.dp.toPx() && vm.prevItem != null) vm.previousFromSwipe() }
                         )
                     }
             )
