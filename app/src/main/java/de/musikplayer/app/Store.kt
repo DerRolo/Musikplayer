@@ -48,6 +48,13 @@ object Store {
         private set
     var blockedFolders: Set<String> = emptySet()
         private set
+    // Soft block: exclude from library and library shuffle, but keep searchable and available in playlists.
+    var softBlockedTracks: Set<String> = emptySet()
+        private set
+    var softBlockedArtists: Set<String> = emptySet()
+        private set
+    var softBlockedFolders: Set<String> = emptySet()
+        private set
     /** Wie oft ein Lied gestartet wurde (für „Meistgehört“). */
     var playCounts: Map<String, Int> = emptyMap()
         private set
@@ -117,6 +124,9 @@ object Store {
             blockedTracks = o.optJSONArray("blockedTracks").strings().toHashSet()
             blockedArtists = o.optJSONArray("blockedArtists").strings().toHashSet()
             blockedFolders = o.optJSONArray("blockedFolders").strings().toHashSet()
+            softBlockedTracks = o.optJSONArray("softBlockedTracks").strings().toHashSet()
+            softBlockedArtists = o.optJSONArray("softBlockedArtists").strings().toHashSet()
+            softBlockedFolders = o.optJSONArray("softBlockedFolders").strings().toHashSet()
             playCounts = o.optJSONObject("playCounts").toMap().mapValues { it.value.toIntOrNull() ?: 0 }
             stripStrings = o.optJSONArray("stripStrings").strings()
             recentSearches = o.optJSONArray("recent").strings()
@@ -182,6 +192,9 @@ object Store {
         o.put("blockedTracks", JSONArray(blockedTracks.toList()))
         o.put("blockedArtists", JSONArray(blockedArtists.toList()))
         o.put("blockedFolders", JSONArray(blockedFolders.toList()))
+        o.put("softBlockedTracks", JSONArray(softBlockedTracks.toList()))
+        o.put("softBlockedArtists", JSONArray(softBlockedArtists.toList()))
+        o.put("softBlockedFolders", JSONArray(softBlockedFolders.toList()))
         o.put("playCounts", JSONObject(playCounts.mapValues { it.value.toString() }))
         o.put("stripStrings", JSONArray(stripStrings))
         o.put("skipSilence", skipSilence)
@@ -261,12 +274,26 @@ object Store {
     fun isBlocked(t: Track): Boolean =
         t.path in blockedTracks || t.folder in blockedFolders || (t.artist != UNKNOWN_ARTIST && t.artist in blockedArtists)
 
+    fun isSoftBlocked(t: Track): Boolean =
+        t.path in softBlockedTracks || t.folder in softBlockedFolders || (t.artist != UNKNOWN_ARTIST && t.artist in softBlockedArtists)
+
+    fun softBlockTracks(ctx: Context, paths: Collection<String>) { softBlockedTracks = softBlockedTracks + paths; save(ctx) }
+    fun softUnblockTracks(ctx: Context, paths: Collection<String>) { softBlockedTracks = softBlockedTracks - paths.toSet(); save(ctx) }
+    fun softBlockArtist(ctx: Context, name: String) { softBlockedArtists = softBlockedArtists + name; save(ctx) }
+    fun softUnblockArtist(ctx: Context, name: String) { softBlockedArtists = softBlockedArtists - name; save(ctx) }
+    fun softBlockFolder(ctx: Context, path: String) { softBlockedFolders = softBlockedFolders + path; save(ctx) }
+    fun softUnblockFolder(ctx: Context, path: String) { softBlockedFolders = softBlockedFolders - path; save(ctx) }
+
+    fun promoteTrackToHard(ctx: Context, path: String) { softBlockedTracks = softBlockedTracks - path; blockedTracks = blockedTracks + path; save(ctx) }
+    fun promoteArtistToHard(ctx: Context, name: String) { softBlockedArtists = softBlockedArtists - name; blockedArtists = blockedArtists + name; save(ctx) }
+    fun promoteFolderToHard(ctx: Context, path: String) { softBlockedFolders = softBlockedFolders - path; blockedFolders = blockedFolders + path; save(ctx) }
+
     fun blockTracks(ctx: Context, paths: Collection<String>) { blockedTracks = blockedTracks + paths; save(ctx) }
-    fun unblockTracks(ctx: Context, paths: Collection<String>) { blockedTracks = blockedTracks - paths.toSet(); save(ctx) }
+    fun unblockTracks(ctx: Context, paths: Collection<String>) { blockedTracks = blockedTracks - paths.toSet(); softBlockedTracks = softBlockedTracks - paths.toSet(); save(ctx) }
     fun blockArtist(ctx: Context, name: String) { blockedArtists = blockedArtists + name; save(ctx) }
-    fun unblockArtist(ctx: Context, name: String) { blockedArtists = blockedArtists - name; save(ctx) }
+    fun unblockArtist(ctx: Context, name: String) { blockedArtists = blockedArtists - name; softBlockedArtists = softBlockedArtists - name; save(ctx) }
     fun blockFolder(ctx: Context, path: String) { blockedFolders = blockedFolders + path; save(ctx) }
-    fun unblockFolder(ctx: Context, path: String) { blockedFolders = blockedFolders - path; save(ctx) }
+    fun unblockFolder(ctx: Context, path: String) { blockedFolders = blockedFolders - path; softBlockedFolders = softBlockedFolders - path; save(ctx) }
 
     // ---------- Zähler, Filter, Suchverlauf ----------
 
@@ -394,6 +421,7 @@ object Store {
         trackArtists = trackArtists.mapKeys { map[it.key] ?: it.key }
         knownPaths = knownPaths.map { map[it] ?: it }.toHashSet()
         blockedTracks = blockedTracks.map { map[it] ?: it }.toHashSet()
+        softBlockedTracks = softBlockedTracks.map { map[it] ?: it }.toHashSet()
         trackAlbums = trackAlbums.mapKeys { map[it.key] ?: it.key }
         trackCovers = trackCovers.mapKeys { map[it.key] ?: it.key }
         trims = trims.mapKeys { map[it.key] ?: it.key }

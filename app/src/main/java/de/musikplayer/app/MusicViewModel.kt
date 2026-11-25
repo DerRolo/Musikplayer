@@ -25,6 +25,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     // ---------- Mediathek ----------
     var tracks by mutableStateOf<List<Track>>(emptyList())
         private set
+    /** Suche zeigt Mediathek-Sperren weiterhin, aber vollständige Sperren bleiben ausgeblendet. */
+    val searchableTracks: List<Track> get() = Library.allTracks.filter { !Store.isBlocked(it) }
     var loading by mutableStateOf(false)
         private set
     var playlists by mutableStateOf<List<Playlist>>(emptyList())
@@ -839,23 +841,28 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun blockTracks(list: List<Track>) {
         if (list.isEmpty()) return
         val paths = list.map { it.path }
-        Store.blockTracks(app, paths)
-        afterBlock(if (list.size == 1) "Gesperrt: ${list[0].title}" else "${list.size} Lieder gesperrt", list) {
-            Store.unblockTracks(app, paths); blockTick++; reindex()
+        Store.softBlockTracks(app, paths)
+        afterBlock(if (list.size == 1) "Aus Mediathek gesperrt: ${list[0].title}" else "${list.size} Titel aus Mediathek gesperrt", list) {
+            Store.softUnblockTracks(app, paths); blockTick++; reindex()
         }
     }
 
     fun blockArtist(name: String) {
         val affected = tracks.filter { it.artist == name }
-        Store.blockArtist(app, name)
-        afterBlock("Gesperrt: $name", affected) { Store.unblockArtist(app, name); blockTick++; reindex() }
+        Store.softBlockArtist(app, name)
+        afterBlock("Aus Mediathek gesperrt: $name", affected) { Store.softUnblockArtist(app, name); blockTick++; reindex() }
     }
 
     fun blockFolder(path: String) {
         val affected = tracks.filter { it.folder == path }
-        Store.blockFolder(app, path)
-        afterBlock("Ordner gesperrt: ${path.substringAfterLast('/')}", affected) { Store.unblockFolder(app, path); blockTick++; reindex() }
+        Store.softBlockFolder(app, path)
+        afterBlock("Ordner aus Mediathek gesperrt: ${path.substringAfterLast('/')}", affected) { Store.softUnblockFolder(app, path); blockTick++; reindex() }
     }
+
+
+    fun hardBlockTrack(path: String) { Store.promoteTrackToHard(app, path); blockTick++; reindex(); message = "Vollständig gesperrt" }
+    fun hardBlockArtist(name: String) { Store.promoteArtistToHard(app, name); blockTick++; reindex(); message = "Interpret vollständig gesperrt" }
+    fun hardBlockFolder(path: String) { Store.promoteFolderToHard(app, path); blockTick++; reindex(); message = "Ordner vollständig gesperrt" }
 
     fun unblockTracks(paths: List<String>) { Store.unblockTracks(app, paths); blockTick++; reindex(); message = "Entsperrt" }
     fun unblockArtist(name: String) { Store.unblockArtist(app, name); blockTick++; reindex(); message = "Entsperrt: $name" }

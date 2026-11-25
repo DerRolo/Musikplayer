@@ -5,6 +5,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headphones
@@ -30,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
 
 private val TAB_TITLES = listOf("Bibliothek", "Suche", "Playlists", "Hörbücher", "Optionen")
 
@@ -101,7 +103,13 @@ fun MusicApp(vm: MusicViewModel) {
     )
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snack) },
+        snackbarHost = {
+            SnackbarHost(snack) { data ->
+                androidx.compose.material3.Snackbar(
+                    data, modifier = Modifier.padding(horizontal = 12.dp).heightIn(min = 68.dp)
+                )
+            }
+        },
         bottomBar = {
             Column {
                 if (!showPlayer) MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }, onEdit = { renameTrack = it }) { showPlayer = true }
@@ -193,7 +201,8 @@ fun MusicApp(vm: MusicViewModel) {
         EditTrackDialog(
             t, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
             onDismiss = { renameTrack = null },
-            onConfirm = { n, a, mv -> vm.editTrack(t, n, a, mv); renameTrack = null }
+            onConfirm = { n, a, mv -> vm.editTrack(t, n, a, mv); renameTrack = null },
+            onCover = { coverFor = t }
         )
     }
     coverFor?.let { t ->

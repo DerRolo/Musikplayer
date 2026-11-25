@@ -22,6 +22,9 @@ object Library {
     @Volatile
     var tracks: List<Track> = emptyList()
         private set
+    @Volatile
+    var allTracks: List<Track> = emptyList()
+        private set
 
     private val GENERIC_FOLDERS = setOf(
         "music", "musik", "download", "downloads", "audio", "sounds", "songs", "media", "documents",
@@ -61,8 +64,9 @@ object Library {
     fun load(ctx: Context): List<Track> {
         Store.load(ctx)
         val all = scan(ctx)
-        tracks = all.filter { !Store.isBlocked(it) }
-        blocked = all.filter { Store.isBlocked(it) }
+        allTracks = all
+        tracks = all.filter { !Store.isBlocked(it) && !Store.isSoftBlocked(it) }
+        blocked = all.filter { Store.isBlocked(it) || Store.isSoftBlocked(it) }
         return tracks
     }
 
@@ -266,7 +270,7 @@ object Library {
         context == "all" -> sorted(tracks, SortBy.Title)
         context.startsWith("a:") -> tracks.filter { it.artist == context.substring(2) }.sortedBy { it.sortKey }
         context.startsWith("p:") -> {
-            val byPath = tracks.associateBy { it.path }
+            val byPath = allTracks.filterNot { Store.isBlocked(it) }.associateBy { it.path }
             Store.playlists.firstOrNull { it.id == context.substring(2) }?.trackPaths?.mapNotNull { byPath[it] }.orEmpty()
         }
         else -> emptyList()
@@ -274,7 +278,7 @@ object Library {
 
     /** Einträge einer Playlist mit ihrer Position in der gespeicherten Liste (fehlende Dateien entfallen). */
     fun playlistEntries(id: String): List<Pair<Int, Track>> {
-        val byPath = tracks.associateBy { it.path }
+        val byPath = allTracks.filterNot { Store.isBlocked(it) }.associateBy { it.path }
         val p = Store.playlists.firstOrNull { it.id == id } ?: return emptyList()
         return p.trackPaths.mapIndexedNotNull { i, path -> byPath[path]?.let { i to it } }
     }

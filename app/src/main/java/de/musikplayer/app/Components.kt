@@ -4,6 +4,7 @@ package de.musikplayer.app
 
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Image
@@ -153,6 +154,7 @@ fun TrackRow(
             Column(Modifier.weight(1f)) {
                 Text(
                     track.title,
+                    Modifier.basicMarquee(iterations = 1, initialDelayMillis = 1000, velocity = 38.dp),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyLarge,
@@ -165,6 +167,14 @@ fun TrackRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+            if (!selectionMode && compact) {
+                val compactFav = actions.isFavorite(track)
+                val compactPlays = Store.playCounts[track.path] ?: 0
+                if (compactPlays > 0) Text("${compactPlays}×", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(34.dp)) {
+                    Icon(if (compactFav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Lieblingssong", tint = if (compactFav) HEART_PINK else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             if (!selectionMode && !compact) {
                 val fav = actions.isFavorite(track)
@@ -336,7 +346,7 @@ fun ArtistField(value: String, onChange: (String) -> Unit, artists: List<String>
 
 /** „Datei bearbeiten“: zeigt aktuellen Namen, Vorschlag der App und Interpret – alles änderbar. Deine Eingabe gilt immer. */
 @Composable
-fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, onConfirm: (name: String, artist: String, move: Boolean) -> Unit) {
+fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, onConfirm: (name: String, artist: String, move: Boolean) -> Unit, onCover: (() -> Unit)? = null) {
     val current = track.fileName.substringBeforeLast('.')
     var name by remember(track.path) { mutableStateOf(current) }
     var artist by remember(track.path) { mutableStateOf(if (track.artist == UNKNOWN_ARTIST) "" else track.artist) }
@@ -346,7 +356,13 @@ fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, 
     val guess = remember(track.path) { if (track.artist == UNKNOWN_ARTIST) Library.guessArtistFromName(track) else null }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Datei bearbeiten") },
+        title = {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Datei bearbeiten", Modifier.weight(1f))
+                Box(Modifier.size(52.dp)) { Cover(listOf(track), track.title, Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)), sizePx = 100) }
+                if (onCover != null) IconButton(onClick = onCover, modifier = Modifier.size(42.dp)) { Icon(Icons.Filled.Image, "Cover ändern") }
+            }
+        },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Aktueller Dateiname", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

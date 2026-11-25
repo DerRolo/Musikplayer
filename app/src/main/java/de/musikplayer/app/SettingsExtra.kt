@@ -42,52 +42,37 @@ import java.io.File
 
 @Composable
 internal fun BlockedPage(vm: MusicViewModel, onBack: () -> Unit) {
-    var kind by rememberSaveable { mutableIntStateOf(0) } // 0 Lieder, 1 Interpreten, 2 Ordner
-    var sort by rememberSaveable { mutableIntStateOf(0) } // 0 A–Z, 1 Z–A
-    val songs = remember(vm.blockTick, vm.tracks) {
-        Library.blocked.filter { it.path in Store.blockedTracks }
-    }
-    val artists = remember(vm.blockTick, vm.tracks) { Store.blockedArtists.toList() }
-    val folders = remember(vm.blockTick, vm.tracks) { Store.blockedFolders.toList() }
-
+    var kind by rememberSaveable { mutableIntStateOf(0) }
+    var sort by rememberSaveable { mutableIntStateOf(0) }
+    val songs = remember(vm.blockTick, vm.tracks) { Library.blocked.filter { it.path in Store.blockedTracks || it.path in Store.softBlockedTracks } }
+    val artists = remember(vm.blockTick, vm.tracks) { (Store.blockedArtists + Store.softBlockedArtists).toList() }
+    val folders = remember(vm.blockTick, vm.tracks) { (Store.blockedFolders + Store.softBlockedFolders).toList() }
     Column(Modifier.fillMaxSize()) {
         PageHeader("Gesperrt", onBack)
-        Text(
-            "Gesperrte Einträge bleiben auf dem Handy, werden von der App aber ignoriert.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-        )
+        Text("Stufe 1: aus Mediathek und Shuffle. Stufe 2: zusätzlich aus Suche. Playlists bleiben erhalten.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            LetterChip("Lieder (${songs.size})", kind == 0, true) { kind = 0 }
+            LetterChip("Titel (${songs.size})", kind == 0, true) { kind = 0 }
             LetterChip("Interpreten (${artists.size})", kind == 1, true) { kind = 1 }
             LetterChip("Ordner (${folders.size})", kind == 2, true) { kind = 2 }
             LetterChip(if (sort == 0) "A–Z" else "Z–A", true, true) { sort = 1 - sort }
         }
-        data class Entry(val key: String, val title: String, val sub: String, val unblock: () -> Unit)
+        data class Entry(val key: String, val title: String, val sub: String, val soft: Boolean, val unblock: () -> Unit, val harden: (() -> Unit)?)
         val entries: List<Entry> = when (kind) {
-            0 -> songs.map { t -> Entry(t.path, t.title, t.artist + "  ·  " + t.fileName) { vm.unblockTracks(listOf(t.path)) } }
-            1 -> artists.map { a -> Entry(a, a, "Interpret") { vm.unblockArtist(a) } }
-            else -> folders.map { f -> Entry(f, File(f).name.ifEmpty { f }, f) { vm.unblockFolder(f) } }
+            0 -> songs.map { t -> val soft = t.path in Store.softBlockedTracks; Entry(t.path, t.title, t.artist + " · " + t.fileName + if (soft) " · Mediathek-Sperre" else " · Vollsperre", soft, { vm.unblockTracks(listOf(t.path)) }, if (soft) ({ vm.hardBlockTrack(t.path) }) else null) }
+            1 -> artists.map { a -> val soft = a in Store.softBlockedArtists; Entry(a, a, if (soft) "Interpret · Mediathek-Sperre" else "Interpret · Vollsperre", soft, { vm.unblockArtist(a) }, if (soft) ({ vm.hardBlockArtist(a) }) else null) }
+            else -> folders.map { f -> val soft = f in Store.softBlockedFolders; Entry(f, File(f).name.ifEmpty { f }, f + if (soft) " · Mediathek-Sperre" else " · Vollsperre", soft, { vm.unblockFolder(f) }, if (soft) ({ vm.hardBlockFolder(f) }) else null) }
         }.sortedBy { Names.fold(it.title) }.let { if (sort == 1) it.reversed() else it }
-        if (entries.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nichts gesperrt") }
-        } else {
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(entries, key = { kind.toString() + it.key }) { e ->
-                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            when (kind) { 0 -> Icons.Filled.MusicNote; 1 -> Icons.Filled.Person; else -> Icons.Filled.Folder },
-                            null, tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                            Text(e.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
-                            Text(e.sub, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        TextButton(onClick = e.unblock) {
-                            Icon(Icons.Filled.LockOpen, null, Modifier.size(18.dp))
-                            Text("  Entsperren")
-                        }
+        if (entries.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nichts gesperrt") }
+        else LazyColumn(Modifier.fillMaxSize()) {
+            items(entries, key = { kind.toString() + it.key }) { e ->
+                Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(when (kind) { 0 -> Icons.Filled.MusicNote; 1 -> Icons.Filled.Person; else -> Icons.Filled.Folder }, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                        Text(e.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+                        Text(e.sub, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    if (e.harden != null) TextButton(onClick = e.harden) { Text("Voll sperren") }
+                    TextButton(onClick = e.unblock) { Icon(Icons.Filled.LockOpen, null, Modifier.size(18.dp)); Text(" Entsperren") }
                 }
             }
         }

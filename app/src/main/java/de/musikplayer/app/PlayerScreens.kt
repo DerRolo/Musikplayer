@@ -164,11 +164,10 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Tr
             Row(Modifier.padding(start = 10.dp, end = 2.dp, top = 8.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Cover(listOfNotNull(track), title, Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)), sizePx = 120)
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                    Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        item.mediaMetadata.artist?.toString().orEmpty(),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                    MarqueeText(title, MaterialTheme.typography.titleSmall, Modifier.fillMaxWidth(), align = TextAlign.Start)
+                    MarqueeText(
+                        item.mediaMetadata.artist?.toString().orEmpty(), MaterialTheme.typography.bodySmall, Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f), align = TextAlign.Start
                     )
                 }
                 if (track != null) {
@@ -197,11 +196,11 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Tr
                     )
                 }
             }
-            LinearProgressIndicator(
-                progress = { frac },
-                modifier = Modifier.fillMaxWidth().height(3.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f)
+            androidx.compose.material3.Slider(
+                value = if (vm.durationMs > 0) vm.positionMs.toFloat().coerceIn(0f, vm.durationMs.toFloat()) else 0f,
+                onValueChange = { vm.seekTo(it.toLong()) },
+                valueRange = 0f..vm.durationMs.coerceAtLeast(1L).toFloat(),
+                modifier = Modifier.fillMaxWidth().height(20.dp).padding(horizontal = 4.dp),
             )
         }
     }
@@ -218,6 +217,7 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier) 
     val ver = Art.version
     val coverTag = t?.let { Store.trackCovers[it.path] }
     val art by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, item?.mediaId, ver, coverTag) {
+        value = null
         value = t?.let { Art.large(ctx, it)?.asImageBitmap() }
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -411,7 +411,16 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
             // Equalizer sitzt direkt auf der Abspielleiste und wächst von ihr nach oben
             EqBars(
                 vm.isPlaying, micOk,
-                Modifier.fillMaxWidth().height(56.dp).offset(y = 14.dp).clickable(enabled = !micOk) { showEqInfo = true }
+                Modifier.fillMaxWidth().height(56.dp).offset(y = 14.dp)
+                    .clickable(enabled = !micOk) { showEqInfo = true }
+                    .pointerInput(vm.current?.mediaId) {
+                        var drag = 0f
+                        androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+                            onDragStart = { drag = 0f },
+                            onHorizontalDrag = { change, amount -> change.consume(); drag += amount },
+                            onDragEnd = { if (drag < -60.dp.toPx() && vm.nextItem != null) vm.next() else if (drag > 60.dp.toPx() && vm.prevItem != null) vm.previous() }
+                        )
+                    }
             )
         }
 

@@ -32,6 +32,8 @@ import java.util.Collections
 
 /** Lädt eingebettete Albumcover (klein, zwischengespeichert). Ohne Cover bleibt es beim Farb-Platzhalter. */
 object Art {
+    private fun cacheKey(t: Track): Long = t.id * 31L + (Store.trackCovers[t.path]?.hashCode()?.toLong() ?: 0L)
+
     private val cache = object : LruCache<Long, Bitmap>(48 * 1024 * 1024) {
         override fun sizeOf(key: Long, value: Bitmap) = value.byteCount
     }
@@ -72,24 +74,24 @@ object Art {
 
     /** Großes Cover für den Player (nur wenn im Lied wirklich ein Bild steckt). */
     suspend fun large(ctx: Context, t: Track): Bitmap? = withContext(Dispatchers.IO) {
-        bigCache.get(t.id)?.let { return@withContext it }
+        bigCache.get(cacheKey(t))?.let { return@withContext it }
         val g = gen
         var bmp: Bitmap? = custom(ctx, t.path, 900)
-        if (bmp != null) { if (g == gen) bigCache.put(t.id, bmp); return@withContext bmp }
+        if (bmp != null) { if (g == gen) bigCache.put(cacheKey(t), bmp); return@withContext bmp }
         if (Build.VERSION.SDK_INT >= 29) {
             bmp = try { ctx.contentResolver.loadThumbnail(t.uri(), Size(900, 900), null) } catch (e: Exception) { null }
         }
         if (bmp == null) bmp = embedded(t.path, 900)
-        if (bmp != null && g == gen) bigCache.put(t.id, bmp)
+        if (bmp != null && g == gen) bigCache.put(cacheKey(t), bmp)
         bmp
     }
 
     private fun load(ctx: Context, t: Track, size: Int): Bitmap? {
-        cache.get(t.id)?.let { return it }
+        cache.get(cacheKey(t))?.let { return it }
         if (t.id in missing) return null
         val g = gen
         var bmp: Bitmap? = custom(ctx, t.path, size)
-        if (bmp != null) { if (g == gen) cache.put(t.id, bmp); return bmp }
+        if (bmp != null) { if (g == gen) cache.put(cacheKey(t), bmp); return bmp }
         if (Build.VERSION.SDK_INT >= 29) {
             bmp = try {
                 ctx.contentResolver.loadThumbnail(t.uri(), Size(size, size), null)
@@ -98,7 +100,7 @@ object Art {
             }
         }
         if (bmp == null) bmp = embedded(t.path, size)
-        if (g == gen) { if (bmp == null) missing.add(t.id) else cache.put(t.id, bmp) }
+        if (g == gen) { if (bmp == null) missing.add(t.id) else cache.put(cacheKey(t), bmp) }
         return bmp
     }
 
