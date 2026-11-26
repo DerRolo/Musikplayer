@@ -50,6 +50,9 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     var blockTick by mutableIntStateOf(0)
         private set
     var artistGrid by mutableStateOf(true)
+    var favArtists by mutableStateOf<Set<String>>(emptySet())
+    var onlyFavArtists by mutableStateOf(false)
+    var rowScale by mutableStateOf(1.2f)
         private set
     var favoritePaths by mutableStateOf<Set<String>>(emptySet())
         private set
@@ -740,9 +743,6 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ---------- Ansicht ----------
 
-    var favArtists by mutableStateOf<Set<String>>(emptySet())
-    var onlyFavArtists by mutableStateOf(false)
-    var rowScale by mutableStateOf(1.2f)
     fun setRowScale(v: Float) { Store.setRowScale(app, v); rowScale = v }
 
     fun toggleFavArtist(name: String) {
