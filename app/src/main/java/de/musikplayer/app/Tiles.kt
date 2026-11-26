@@ -3,6 +3,7 @@
 package de.musikplayer.app
 
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -190,7 +191,7 @@ fun SelectionBar(
             TextButton(onClick = onSelectAll) { Text("Alle") }
             IconButton(onClick = onPlaylist, enabled = count > 0) { Icon(Icons.Filled.PlaylistAdd, "Zu Playlist") }
             IconButton(onClick = onQueue, enabled = count > 0) { Icon(Icons.Filled.QueueMusic, "Zur Warteschlange") }
-            if (removeLabel != null) IconButton(onClick = onRemove, enabled = count > 0) { Icon(Icons.Filled.Delete, removeLabel) }
+            if (removeLabel != null) IconButton(onClick = onRemove, enabled = count > 0) { Icon(Icons.Filled.RemoveCircleOutline, removeLabel) }
             else IconButton(onClick = onDelete, enabled = count > 0) { Icon(Icons.Filled.Delete, "Löschen", tint = MaterialTheme.colorScheme.error) }
             Box {
                 IconButton(onClick = { more = true }, enabled = count > 0) { Icon(Icons.Filled.MoreVert, "Mehr") }
@@ -198,7 +199,7 @@ fun SelectionBar(
                     MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { more = false; onPlayNext() }
                     MenuItem("Interpret zuordnen …", Icons.Filled.Person) { more = false; onAssign() }
                     MenuItem("Sperren", Icons.Filled.Block) { more = false; onBlock() }
-                    MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { more = false; onDelete() }
+                    MenuItem(if (removeLabel != null) "Datei löschen …" else "Löschen …", Icons.Filled.Delete, danger = true) { more = false; onDelete() }
                 }
             }
         }
