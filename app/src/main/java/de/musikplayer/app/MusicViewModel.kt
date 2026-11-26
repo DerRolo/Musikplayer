@@ -743,7 +743,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ---------- Ansicht ----------
 
-    fun setRowScale(v: Float) { Store.setRowScale(app, v); rowScale = v }
+    fun changeRowScale(v: Float) { Store.setRowScale(app, v); rowScale = v }
 
     fun toggleFavArtist(name: String) {
         val on = Store.toggleFavArtist(app, name)

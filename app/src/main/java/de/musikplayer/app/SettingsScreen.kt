@@ -116,7 +116,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
                 Text("Größe der Listenzeilen", style = MaterialTheme.typography.titleMedium)
                 Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("Kompakt" to 1.0f, "Normal" to 1.2f, "Groß" to 1.45f).forEach { (l, v) ->
-                        LetterChip(l, kotlin.math.abs(vm.rowScale - v) < 0.05f, true) { vm.setRowScale(v) }
+                        LetterChip(l, kotlin.math.abs(vm.rowScale - v) < 0.05f, true) { vm.changeRowScale(v) }
                     }
                 }
             }
