@@ -2,6 +2,7 @@
 
 package de.musikplayer.app
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -48,6 +49,8 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -288,9 +291,9 @@ fun ArtistsTab(
     if (artist == null) {
         val available = remember(groups) { groups.keys.map { Names.letterOf(it) }.toSet() }
         val activeLetter = letter?.takeIf { it in available }
-        val names = remember(groups, query, activeLetter, aSort) {
+        val names = remember(groups, query, activeLetter, aSort, vm.onlyFavArtists, vm.favArtists) {
             val q = Names.fold(query.trim())
-            val f = groups.keys.filter { (q.isEmpty() || q in Names.fold(it)) && (activeLetter == null || Names.letterOf(it) == activeLetter) }
+            val f = groups.keys.filter { (q.isEmpty() || q in Names.fold(it)) && (activeLetter == null || Names.letterOf(it) == activeLetter) && (!vm.onlyFavArtists || it in vm.favArtists) }
             when (aSort) {
                 0 -> f
                 1 -> f.reversed()
@@ -307,12 +310,16 @@ fun ArtistsTab(
         val sortRow: @Composable () -> Unit = {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("${names.size} Interpreten", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                if (vm.onlyFavArtists && names.isNotEmpty()) IconButton(onClick = { vm.playShuffled(names.flatMap { groups[it].orEmpty() }, "favartists") }) { Icon(Icons.Filled.Shuffle, "Favoriten zufällig") }
                 SortMenu("Sortierung: " + sortOptions[aSort], sortOptions, aSort) { aSort = it }
             }
         }
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SearchField(query, { query = it }, "Interpret suchen", Modifier.weight(1f))
+                IconButton(onClick = { vm.onlyFavArtists = !vm.onlyFavArtists }) {
+                    Icon(if (vm.onlyFavArtists) Icons.Filled.Star else Icons.Filled.StarBorder, "Nur Favoriten-Interpreten", tint = if (vm.onlyFavArtists) ORANGE else LocalContentColor.current)
+                }
                 IconButton(onClick = { vm.showArtistsAsGrid(!vm.artistGrid) }) {
                     Icon(if (vm.artistGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.artistGrid) "Listenansicht" else "Kachelansicht")
                 }
@@ -393,6 +400,10 @@ fun ArtistsTab(
                     if (v == "" ) artist else if (v == "*") "$artist · alle Lieder" else v,
                     Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
+                if (!isAlbum && v != "*") IconButton(onClick = { vm.toggleFavArtist(artist) }) {
+                    val on = artist in vm.favArtists
+                    Icon(if (on) Icons.Filled.Star else Icons.Filled.StarBorder, "Favoriten-Interpret", tint = if (on) ORANGE else LocalContentColor.current)
+                }
                 IconButton(onClick = { vm.playShuffled(shown, ctx) }) { Icon(Icons.Filled.Shuffle, "Zufällig") }
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Alle Lieder …") }
@@ -577,9 +588,19 @@ fun PlaylistsTab(
         val rs = remember(open.id) { ReorderState(listState) { from, to -> orderRef.add(to, orderRef.removeAt(from)) } }
         val scope = rememberCoroutineScope()
         val haptic = LocalHapticFeedback.current
-        Column(Modifier.fillMaxSize()) {
+        var collapsed by remember(open.id) { mutableStateOf(false) }
+        LaunchedEffect(open.id, shown.size) {
+            androidx.compose.runtime.snapshotFlow { listState.firstVisibleItemIndex * 100000 + listState.firstVisibleItemScrollOffset }
+                .collect { v ->
+                    if (shown.size > 8) {
+                        if (!collapsed && v > 120) collapsed = true
+                        else if (collapsed && v == 0) collapsed = false
+                    } else collapsed = false
+                }
+        }
+        Column(Modifier.fillMaxSize().animateContentSize()) {
             PlaylistHeader(
-                vm, open, list,
+                vm, open, list, compact = collapsed,
                 onBack = { openId = null },
                 onStart = { vm.playContext(list, ctx) },
                 onEdit = { onRename(open) },
@@ -589,7 +610,7 @@ fun PlaylistsTab(
             var pick by remember(open.id) { mutableStateOf(false) }
             val selecting = pick || psel.active
             val rmLabel = if (open.audio) "Aus Hörbuch entfernen" else "Aus Playlist entfernen"
-            Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (!collapsed || selecting) Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 SortMenu("Sortierung: " + modes[mode], modes, mode) { mode = it }
                 Spacer(Modifier.weight(1f))
                 if (!selecting) TextButton(onClick = { pick = true }) { Text("Auswählen") }

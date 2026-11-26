@@ -213,11 +213,32 @@ fun PlaylistTile(vm: MusicViewModel, p: Playlist, onOpen: () -> Unit, onEdit: ()
 @Composable
 fun PlaylistHeader(
     vm: MusicViewModel, p: Playlist, tracks: List<Track>,
-    onBack: () -> Unit, onStart: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit
+    onBack: () -> Unit, onStart: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit,
+    compact: Boolean = false
 ) {
     var menu by remember { mutableStateOf(false) }
     val thisPlaying = vm.playingContext == "p:${p.id}"
     val total = tracks.sumOf { it.durationMs }
+    if (compact) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("‹") }
+            PlaylistCover(p, tracks, Modifier.size(34.dp).clip(RoundedCornerShape(6.dp)), 96)
+            Text(p.name, Modifier.weight(1f).padding(horizontal = 10.dp), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary)
+                    .clickable { if (thisPlaying) vm.togglePlay() else onStart() },
+                contentAlignment = Alignment.Center
+            ) {
+                if (thisPlaying && vm.isPlaying) MiniEq(MaterialTheme.colorScheme.onPrimary, Modifier.size(20.dp))
+                else Icon(Icons.Filled.PlayArrow, "Abspielen", Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onPrimary)
+            }
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Menü") }
+                PlaylistMenu(menu, { menu = false }, vm, p, onEdit, onDelete)
+            }
+        }
+        return
+    }
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBack) { Text("‹ Zurück") }
@@ -228,7 +249,13 @@ fun PlaylistHeader(
             }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            PlaylistCover(p, tracks, Modifier.size(88.dp).clip(RoundedCornerShape(10.dp)), 240)
+            Box {
+                PlaylistCover(p, tracks, Modifier.size(88.dp).clip(RoundedCornerShape(10.dp)), 240)
+                if (p.id != FAV_ID) Box(
+                    Modifier.align(Alignment.TopEnd).padding(4.dp).size(28.dp).clip(CircleShape).background(ORANGE).clickable(onClick = onEdit),
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Filled.Image, "Cover ändern", Modifier.size(17.dp), tint = Color.Black) }
+            }
             Column(Modifier.weight(1f).padding(start = 14.dp)) {
                 Text(p.name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
@@ -308,7 +335,9 @@ fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -
     val checked = remember { mutableStateListOf<String>().also { it.addAll(initial) } }
     var creating by remember { mutableStateOf(false) }
     var showAudio by remember { mutableStateOf(false) }
-    val ordered = vm.orderedPlaylists().filter { it.audio == showAudio }
+    var q by remember { mutableStateOf("") }
+    val fq = Names.fold(q.trim())
+    val ordered = vm.orderedPlaylists().filter { it.audio == showAudio && (fq.isEmpty() || fq in Names.fold(it.name)) }
     val toAdd = checked.filter { it !in initial }
     val toRemove = initial.filter { it !in checked }
     AlertDialog(
@@ -322,12 +351,13 @@ fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -
                         colors = ButtonDefaults.buttonColors(containerColor = ORANGE, contentColor = Color.Black)
                     ) {
                         Icon(if (showAudio) Icons.Filled.Headphones else Icons.Filled.QueueMusic, null, Modifier.size(20.dp))
-                        Text(if (showAudio) "  Hörbücher & Podcasts" else "  Playlists")
+                        Text(if (showAudio) "  Hörbücher &\n  Podcasts" else "  Playlists", maxLines = 2, softWrap = false)
                     }
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { creating = true }) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text("  Neu") }
+                    TextButton(onClick = { creating = true }) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text(" Neu", maxLines = 1, softWrap = false) }
                 }
-                LazyColumn(Modifier.heightIn(max = 380.dp)) {
+                SearchField(q, { q = it }, if (showAudio) "Hörbuch suchen" else "Playlist suchen")
+                LazyColumn(Modifier.height(320.dp)) {
                     items(ordered, key = { it.id }) { p ->
                         val on = p.id in checked
                         Row(

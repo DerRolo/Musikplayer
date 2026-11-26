@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -71,6 +72,9 @@ private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip
 fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset: Int) {
     var page by rememberSaveable { mutableStateOf(Page.Menu) }
     OnReset(reset) { page = Page.Menu }
+    LaunchedEffect(vm.settingsPageRequest) {
+        if (vm.settingsPageRequest == "blocked") { page = Page.Blocked; vm.settingsPageRequest = null }
+    }
     BackHandler(enabled = page != Page.Menu) { page = Page.Menu }
     when (page) {
         Page.Menu -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {

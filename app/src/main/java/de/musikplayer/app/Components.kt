@@ -101,6 +101,9 @@ data class TrackActions(
 /** Orange = ändert Dateien auf dem Handy (Umbenennen, Verschieben); Rot ist nur für Löschen. */
 val ORANGE = Color(0xFFF59E0B)
 
+/** Id des gerade laufenden Titels – damit jede Liste (Bibliothek, Playlist, Hörbuch …) ihn gleich markiert. */
+val LocalPlayingId = androidx.compose.runtime.compositionLocalOf<Long?> { null }
+
 /** Menüeintrag mit Symbol. [danger] = rot (Löschen). */
 @Composable
 fun MenuItem(text: String, icon: ImageVector, danger: Boolean = false, warn: Boolean = false, onClick: () -> Unit) {
@@ -157,6 +160,7 @@ fun TrackRow(
     onClick: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
+    val playing = playing || LocalPlayingId.current == track.id
     val state = rememberSwipeToDismissBoxState(positionalThreshold = { total -> total * 0.25f }, confirmValueChange = { v ->
         when (v) {
             SwipeToDismissBoxValue.EndToStart -> actions.onAddToQueue(track)
@@ -226,6 +230,9 @@ fun TrackRow(
                 // Song-Metadaten sind unabhängig vom Ansichtstyp (Bibliothek, Playlist, Hörbuch etc.).
                 val fav = actions.isFavorite(track)
                 val plays = Store.playCounts[track.path] ?: 0
+                if (!compact) IconButton(onClick = { actions.onBlock(track) }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Filled.Block, contentDescription = "Sperren", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.75f), modifier = Modifier.size(20.dp))
+                }
                 IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(40.dp)) {
                     Icon(
                         if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,

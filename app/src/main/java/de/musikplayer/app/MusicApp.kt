@@ -112,17 +112,29 @@ fun MusicApp(vm: MusicViewModel) {
         onCoverMany = { coverMany = it }
     )
 
-    androidx.compose.runtime.CompositionLocalProvider(LocalIsPlaying provides vm.isPlaying) {
+    androidx.compose.runtime.CompositionLocalProvider(LocalIsPlaying provides vm.isPlaying, LocalPlayingId provides vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()) {
     Scaffold(
         snackbarHost = {
             SnackbarHost(snack) { data ->
                 val canPromote = vm.promoteLabel != null && data.visuals.message == vm.promoteLabel
+                val isLink = vm.linkLabel != null && data.visuals.message == vm.linkLabel
                 androidx.compose.material3.Snackbar(
-                    data,
+                    action = data.visuals.actionLabel?.let { al ->
+                        { androidx.compose.material3.TextButton(onClick = { data.performAction() }) { Text(al) } }
+                    },
+                    content = {
+                        Text(
+                            data.visuals.message,
+                            color = if (isLink) ORANGE else androidx.compose.material3.SnackbarDefaults.contentColor,
+                            textDecoration = if (isLink) androidx.compose.ui.text.style.TextDecoration.Underline else null
+                        )
+                    },
                     modifier = Modifier.padding(horizontal = 12.dp).heightIn(min = 68.dp).then(
-                        if (vm.openLabel != null && data.visuals.message == vm.openLabel) Modifier.clickable {
-                            val id = vm.openPlaylistId
-                            if (id != null) {
+                        if (isLink) Modifier.clickable {
+                            val tg = vm.linkTarget
+                            if (tg == "blocked") { vm.settingsPageRequest = "blocked"; tab = 4; showPlayer = false; data.dismiss() }
+                            else if (tg != null && tg.startsWith("pl:")) {
+                                val id = tg.removePrefix("pl:")
                                 playlistToOpen = id
                                 tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 3 else 2
                                 showPlayer = false

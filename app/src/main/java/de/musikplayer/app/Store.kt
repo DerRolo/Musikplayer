@@ -94,6 +94,8 @@ object Store {
     var stripStrings: List<String> = emptyList()
         private set
     var recentSearches: List<String> = emptyList()
+    /** Favorisierte Interpreten (Stern). */
+    var favArtists: List<String> = emptyList()
         private set
 
     private var loaded = false
@@ -132,6 +134,7 @@ object Store {
             playCounts = o.optJSONObject("playCounts").toMap().mapValues { it.value.toIntOrNull() ?: 0 }
             stripStrings = o.optJSONArray("stripStrings").strings()
             recentSearches = o.optJSONArray("recent").strings()
+            favArtists = o.optJSONArray("favArtists").strings()
             Names.extraStrip = stripStrings
             skipSilence = o.optBoolean("skipSilence", true)
             modes = o.optJSONObject("modes").toMap()
@@ -221,6 +224,7 @@ object Store {
         o.put("trackCovers", JSONObject(trackCovers))
         o.put("playlistPlays", JSONObject(playlistPlays.mapValues { it.value.toString() }))
         o.put("recent", JSONArray(recentSearches))
+        o.put("favArtists", JSONArray(favArtists))
         o.put("known", JSONArray().also { a -> knownPaths.forEach { a.put(it) } })
         val tmp = File(ctx.filesDir, "$FILE.tmp")
         tmp.writeText(o.toString())
@@ -478,6 +482,13 @@ object Store {
     fun setEqAsked(ctx: Context) {
         eqAsked = true
         save(ctx)
+    }
+
+    fun toggleFavArtist(ctx: Context, name: String): Boolean {
+        val on = name !in favArtists
+        favArtists = if (on) favArtists + name else favArtists - name
+        save(ctx)
+        return on
     }
 
     fun setArtistGrid(ctx: Context, grid: Boolean) {

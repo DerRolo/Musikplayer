@@ -115,6 +115,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         sortBy = Store.sortBy
         sortLevel = Store.sortLevel
         artistGrid = Store.artistGrid
+        favArtists = Store.favArtists.toSet()
         playlistGrid = Store.playlistGrid
         syncPlaylists()
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
@@ -484,7 +485,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun toggleFavorite(path: String) {
         val now = Store.toggleFavorite(app, path)
         syncPlaylists()
-        message = if (now) "Zu Lieblingssongs hinzugefügt" else "Aus Lieblingssongs entfernt"
+        linkLabel = null; linkTarget = null
+        if (now) linked("Zu Lieblingssongs hinzugefügt", "pl:$FAV_ID") else message = "Aus Lieblingssongs entfernt"
     }
 
     // ---------- Dateinamen übernehmen / umbenennen (immer erst nach Bestätigung in der Oberfläche) ----------
@@ -667,8 +669,12 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     var pickerRequest by mutableStateOf<List<Track>?>(null)
 
     /** Tippen auf die „hinzugefügt“-Meldung öffnet diese Playlist. */
-    var openLabel: String? = null
-    var openPlaylistId: String? = null
+    var linkLabel: String? = null
+    /** "pl:<id>" = Playlist öffnen, "blocked" = Sperrliste in den Einstellungen. */
+    var linkTarget: String? = null
+    var navRequest by mutableStateOf<String?>(null)
+    var settingsPageRequest by mutableStateOf<String?>(null)
+    private fun linked(msg: String, target: String) { linkLabel = msg; linkTarget = target; message = msg }
 
     fun addToPlaylists(ids: List<String>, list: List<Track>, removeIds: List<String> = emptyList()) {
         val pathSet = list.map { Store.resolve(it.path) }.toHashSet()
@@ -687,15 +693,15 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }
         syncPlaylists()
         val names = ids.mapNotNull { id -> Store.playlists.firstOrNull { it.id == id }?.name }
-        openLabel = null; openPlaylistId = null
+        linkLabel = null; linkTarget = null
         val msg = when {
             added == 0 && removed > 0 -> if (removeIds.size == 1) "Aus „${Store.playlists.firstOrNull { it.id == removeIds[0] }?.name.orEmpty()}“ entfernt" else "Aus ${removeIds.size} Playlists entfernt"
             added == 0 -> "Schon in der Playlist"
             names.size == 1 -> "Zu „${names[0]}“ hinzugefügt" + if (removed > 0) " (und woanders entfernt)" else ""
             else -> "Zu ${names.size} Playlists hinzugefügt" + if (removed > 0) " (und woanders entfernt)" else ""
         }
-        if (added > 0 && names.size == 1) { openLabel = msg; openPlaylistId = ids.firstOrNull { id -> Store.playlists.any { it.id == id } } }
-        message = msg
+        val tid = ids.firstOrNull { id -> Store.playlists.any { it.id == id } }
+        if (added > 0 && names.size == 1 && tid != null) linked(msg, "pl:$tid") else message = msg
     }
 
     fun renamePlaylist(id: String, name: String) {
@@ -732,6 +738,15 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun playlistEntries(id: String): List<Pair<Int, Track>> = Library.playlistEntries(id)
 
     // ---------- Ansicht ----------
+
+    var favArtists by mutableStateOf<Set<String>>(emptySet())
+    var onlyFavArtists by mutableStateOf(false)
+
+    fun toggleFavArtist(name: String) {
+        val on = Store.toggleFavArtist(app, name)
+        favArtists = Store.favArtists.toSet()
+        message = if (on) "„$name“ zu Favoriten-Interpreten hinzugefügt" else "„$name“ aus Favoriten-Interpreten entfernt"
+    }
 
     fun showArtistsAsGrid(grid: Boolean) {
         Store.setArtistGrid(app, grid)
@@ -885,6 +900,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     var promoteAction: (() -> Unit)? = null
 
     private fun afterBlock(label: String, affected: List<Track>, promote: (() -> Unit)? = null, undoAction: () -> Unit) {
+        linkLabel = label; linkTarget = "blocked"
         promoteLabel = if (promote != null) label else null
         promoteAction = promote
         val ids = affected.map { it.id }.toHashSet()
