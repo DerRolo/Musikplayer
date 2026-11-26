@@ -110,15 +110,13 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    var favArtists by mutableStateOf<Set<String>>(emptySet())
-    var onlyFavArtists by mutableStateOf(false)
-
     init {
         Store.load(app)
         sortBy = Store.sortBy
         sortLevel = Store.sortLevel
         artistGrid = Store.artistGrid
         favArtists = Store.favArtists.toSet()
+        rowScale = Store.rowScale
         playlistGrid = Store.playlistGrid
         syncPlaylists()
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
@@ -741,6 +739,11 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun playlistEntries(id: String): List<Pair<Int, Track>> = Library.playlistEntries(id)
 
     // ---------- Ansicht ----------
+
+    var favArtists by mutableStateOf<Set<String>>(emptySet())
+    var onlyFavArtists by mutableStateOf(false)
+    var rowScale by mutableStateOf(1.2f)
+    fun setRowScale(v: Float) { Store.setRowScale(app, v); rowScale = v }
 
     fun toggleFavArtist(name: String) {
         val on = Store.toggleFavArtist(app, name)

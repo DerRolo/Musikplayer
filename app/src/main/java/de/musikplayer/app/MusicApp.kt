@@ -47,6 +47,7 @@ fun MusicApp(vm: MusicViewModel) {
     // Sprünge aus der Suche in die Interpreten-/Playlist-Reiter
     var artistToOpen by remember { mutableStateOf<String?>(null) }
     var playlistToOpen by remember { mutableStateOf<String?>(null) }
+    var backTo by remember { mutableStateOf<Pair<Int, Boolean>?>(null) }
 
     // Dialog-Zustand
     var addToPlaylist by remember { mutableStateOf<List<Track>?>(null) }
@@ -108,11 +109,11 @@ fun MusicApp(vm: MusicViewModel) {
         onBlockMany = { vm.blockTracks(it) },
         onAssignMany = { assignMany = it },
         onCover = { coverFor = it },
-        onOpenArtist = { artistToOpen = it; tab = 0; showPlayer = false },
+        onOpenArtist = { backTo = tab to showPlayer; artistToOpen = it; tab = 0; showPlayer = false },
         onCoverMany = { coverMany = it }
     )
 
-    androidx.compose.runtime.CompositionLocalProvider(LocalIsPlaying provides vm.isPlaying, LocalPlayingId provides vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()) {
+    androidx.compose.runtime.CompositionLocalProvider(LocalIsPlaying provides vm.isPlaying, LocalRowScale provides vm.rowScale, LocalPlayingId provides vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()) {
     Scaffold(
         snackbarHost = {
             SnackbarHost(snack) { data ->
@@ -165,6 +166,7 @@ fun MusicApp(vm: MusicViewModel) {
                             onClick = {
                                 // Nochmal auf den aktuellen Reiter: zurück auf die oberste Ebene
                                 if (!showPlayer && tab == i) resets[i] = resets[i] + 1
+                                backTo = null
                                 tab = i; showPlayer = false
                             },
                             icon = { Icon(icons[i], null) },
@@ -181,13 +183,15 @@ fun MusicApp(vm: MusicViewModel) {
                 NowPlayingScreen(
                     vm, actions, onAddToPlaylist = { addToPlaylist = listOf(it) },
                     nav = PlayerNav(
-                        onArtist = { artistToOpen = it; tab = 0; showPlayer = false },
-                        onLocate = { t -> artistToOpen = t.artist + "\u0000" + t.albumName; tab = 0; showPlayer = false },
+                        onArtist = { backTo = tab to showPlayer; artistToOpen = it; tab = 0; showPlayer = false },
+                        onLocate = { t -> backTo = tab to showPlayer; artistToOpen = t.artist + "\u0000" + t.albumName; tab = 0; showPlayer = false },
                         onPlaylist = { id -> playlistToOpen = id; tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 3 else 2; showPlayer = false }
                     )
                 ) { showPlayer = false }
             } else holder.SaveableStateProvider(tab) { when (tab) {
-                0 -> LibraryTab(vm, actions, sel, artistToOpen, { artistToOpen = null }, resets[0])
+                0 -> LibraryTab(vm, actions, sel, artistToOpen, { artistToOpen = null }, resets[0],
+                    originBack = backTo?.let { b -> { backTo = null; tab = b.first; showPlayer = b.second } },
+                    onArtistClosed = { backTo = null })
                 1 -> SearchTab(
                     vm, actions, resets[1],
                     onOpenArtist = { artistToOpen = it; tab = 0 },

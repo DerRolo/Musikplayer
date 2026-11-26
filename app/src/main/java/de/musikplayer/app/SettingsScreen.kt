@@ -112,6 +112,14 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
                 }
                 androidx.compose.material3.Checkbox(checked = quickMove, onCheckedChange = { quickMove = it; Store.setQuickMove(appCtx, it) })
             }
+            Column(Modifier.padding(16.dp)) {
+                Text("Größe der Listenzeilen", style = MaterialTheme.typography.titleMedium)
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Kompakt" to 1.0f, "Normal" to 1.2f, "Groß" to 1.45f).forEach { (l, v) ->
+                        LetterChip(l, kotlin.math.abs(vm.rowScale - v) < 0.05f, true) { vm.setRowScale(v) }
+                    }
+                }
+            }
             Text(
                 "Playlists, Zuordnungen und Einstellungen liegen nur in der App. Deine Dateien werden nie kopiert.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

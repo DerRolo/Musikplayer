@@ -3,6 +3,8 @@
 package de.musikplayer.app
 
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Block
@@ -71,7 +73,9 @@ data class GroupActions(
     val onAddToPlaylist: (() -> Unit)? = null,
     val onBlock: (() -> Unit)? = null,
     val onEdit: (() -> Unit)? = null,
-    val onDelete: (() -> Unit)? = null
+    val onDelete: (() -> Unit)? = null,
+    val onStar: (() -> Unit)? = null,
+    val starred: Boolean = false
 )
 
 @Composable
@@ -84,6 +88,7 @@ fun GroupMenu(expanded: Boolean, onDismiss: () -> Unit, a: GroupActions) {
         a.onAddToPlaylist?.let { add ->
             MenuItem("Zu Playlist hinzufügen", Icons.Filled.PlaylistAdd) { onDismiss(); add() }
         }
+        a.onStar?.let { st -> MenuItem(if (a.starred) "Aus Favoriten-Interpreten" else "Zu Favoriten-Interpreten", if (a.starred) Icons.Filled.Star else Icons.Filled.StarBorder, warn = true) { onDismiss(); st() } }
         a.onEdit?.let { e -> MenuItem("Album bearbeiten …", Icons.Filled.Edit, warn = true) { onDismiss(); e() } }
         a.onBlock?.let { b -> MenuItem("Sperren", Icons.Filled.Block, danger = true) { onDismiss(); b() } }
         a.onDelete?.let { d -> MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { onDismiss(); d() } }
@@ -132,18 +137,20 @@ fun GroupRow(
     circle: Boolean,
     actions: GroupActions,
     heart: Boolean = false,
+    star: Boolean = false,
     onClick: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     Box {
         Row(
-            Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = { menu = true }).padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = { menu = true }).padding(horizontal = 16.dp, vertical = (4 + 5 * LocalRowScale.current).dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             val shape = if (circle) CircleShape else RoundedCornerShape(8.dp)
             if (heart) FavCover(Modifier.size(48.dp).clip(shape))
-            else Cover(tracks, name, Modifier.size(48.dp).clip(shape), sizePx = 128)
+            else Cover(tracks, name, Modifier.size((46 * LocalRowScale.current).dp).clip(shape), sizePx = 128)
             Text(name, Modifier.weight(1f).padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (star) Icon(Icons.Filled.Star, "Favoriten-Interpret", Modifier.padding(end = 8.dp).size(18.dp), tint = ORANGE)
             Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         GroupMenu(menu, { menu = false }, actions)

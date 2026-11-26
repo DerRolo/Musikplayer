@@ -43,6 +43,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.filled.Add
@@ -102,6 +103,8 @@ data class TrackActions(
 val ORANGE = Color(0xFFF59E0B)
 
 /** Id des gerade laufenden Titels – damit jede Liste (Bibliothek, Playlist, Hörbuch …) ihn gleich markiert. */
+val LocalRowScale = androidx.compose.runtime.compositionLocalOf { 1.2f }
+
 val LocalPlayingId = androidx.compose.runtime.compositionLocalOf<Long?> { null }
 
 /** Menüeintrag mit Symbol. [danger] = rot (Löschen). */
@@ -188,11 +191,11 @@ fun TrackRow(
     ) {
         Row(
             Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)
-                .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(start = 16.dp, top = 6.dp, bottom = 6.dp),
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(start = 16.dp, top = (4 + 5 * LocalRowScale.current).dp, bottom = (4 + 5 * LocalRowScale.current).dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (selectionMode) Checkbox(checked = selected, onCheckedChange = null, modifier = Modifier.padding(end = 12.dp))
-            Cover(listOf(track), track.title, Modifier.size(46.dp).clip(RoundedCornerShape(6.dp)), sizePx = 96)
+            Cover(listOf(track), track.title, Modifier.size((46 * LocalRowScale.current).dp).clip(RoundedCornerShape(6.dp)), sizePx = 128)
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 val titleColor = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -209,17 +212,31 @@ fun TrackRow(
                 val plays = Store.playCounts[track.path] ?: 0
                 val openArtist = actions.onOpenArtist
                 val canOpen = openArtist != null && track.artist != UNKNOWN_ARTIST
+                Text(
+                    track.artist,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (canOpen) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist) } else Modifier)
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        track.artist,
+                    val hasAlbum = track.albumName.isNotBlank()
+                    if (hasAlbum) Text(
+                        track.albumName,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (canOpen) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f, fill = false).then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist) } else Modifier)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f, fill = false).then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist + "\u0000" + track.albumName) } else Modifier)
                     )
+                    if (plays > 0) {
+                        Text(if (hasAlbum) "  ·  " else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Filled.Headphones, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(" $plays", maxLines = 1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     Text(
-                        (if (track.manual) " ·  zugeordnet" else "") + "  ·  " + formatDuration(track.durationMs) + if (plays > 0) "  ·  $plays×" else "",
+                        (if (hasAlbum || plays > 0) "  ·  " else "") + formatDuration(track.durationMs),
                         maxLines = 1,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -2,6 +2,16 @@
 
 package de.musikplayer.app
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -177,24 +187,32 @@ fun TrackListBody(
 // ---------- Bibliothek (Titel + Interpreten) ----------
 
 @Composable
-fun LibraryTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, openArtist: String?, onArtistConsumed: () -> Unit, reset: Int) {
+fun LibraryTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, openArtist: String?, onArtistConsumed: () -> Unit, reset: Int, originBack: (() -> Unit)? = null, onArtistClosed: () -> Unit = {}) {
     var mode by rememberSaveable { mutableIntStateOf(0) }
     val holder = rememberSaveableStateHolder()
     val songsState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     OnReset(reset) { if (mode == 0) scope.launch { songsState.animateScrollToItem(0) } }
-    LaunchedEffect(openArtist) { if (openArtist != null) mode = 1 }
+    var modeBefore by rememberSaveable { mutableIntStateOf(0) }
+    var fromRequest by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(openArtist) { if (openArtist != null) { if (mode != 1) modeBefore = mode; fromRequest = true; mode = 1 } }
     // Die beiden Umschalter stehen unter dem Suchfeld
     val switch: @Composable () -> Unit = {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            LetterChip("Bibliothek", mode == 0, true) { mode = 0 }
-            LetterChip("Interpreten", mode == 1, true) { mode = 1 }
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 2.dp)) {
+            // Ein Knopf, der umschaltet (wie Playlists ⇄ Hörbücher)
+            androidx.compose.material3.Button(
+                onClick = { mode = if (mode == 0) 1 else 0; fromRequest = false },
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = ORANGE, contentColor = Color.Black)
+            ) {
+                Icon(if (mode == 0) Icons.Filled.LibraryMusic else Icons.Filled.Person, null, Modifier.size(20.dp))
+                Text(if (mode == 0) "  Bibliothek" else "  Interpreten")
+            }
         }
     }
     Column(Modifier.fillMaxSize()) {
         holder.SaveableStateProvider(mode) {
             if (mode == 0) SongsTab(vm, actions, sel, songsState, switch)
-            else ArtistsTab(vm, actions, sel, openArtist, onArtistConsumed, reset, switch)
+            else ArtistsTab(vm, actions, sel, openArtist, onArtistConsumed, reset, switch, originBack, onClosed = { onArtistClosed(); if (fromRequest) { fromRequest = false; mode = modeBefore } })
         }
     }
 }
@@ -254,9 +272,16 @@ fun ArtistsTab(
     openRequest: String?,
     onConsumed: () -> Unit,
     reset: Int,
-    switch: @Composable () -> Unit
+    switch: @Composable () -> Unit,
+    originBack: (() -> Unit)? = null,
+    onClosed: () -> Unit = {}
 ) {
     var open by rememberSaveable { mutableStateOf<String?>(null) }
+    var wasOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(open) {
+        if (open != null) wasOpen = true
+        else if (wasOpen) { wasOpen = false; onClosed() }
+    }
     var view by rememberSaveable { mutableStateOf("") } // "" Überblick, "*" alle Lieder, sonst Albumname
     val gridState = rememberLazyGridState()
     val artistsListState = rememberLazyListState()
@@ -284,7 +309,7 @@ fun ArtistsTab(
     LaunchedEffect(openRequest) {
         if (openRequest != null) { open = openRequest.substringBefore('\u0000'); view = openRequest.substringAfter('\u0000', ""); onConsumed() }
     }
-    BackHandler(enabled = open != null) { open = null }
+    BackHandler(enabled = open != null) { open = null; view = ""; originBack?.invoke() }
 
     val groups = remember(vm.tracks) { vm.tracks.groupBy { it.artist }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
     val artist = open
@@ -338,7 +363,7 @@ fun ArtistsTab(
                         item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { sortRow() }
                         items(names, key = { it }) { name ->
                             val list = remember(groups, name) { (groups[name] ?: emptyList()).sortedBy { it.sortKey } }
-                            GroupTile(name, list, list.size, true, groupActions(vm, list, "a:$name", actions) { vm.blockArtist(name) }) { view = ""; open = name }
+                            GroupTile(name, list, list.size, true, groupActions(vm, list, "a:$name", actions) { vm.blockArtist(name) }.copy(onStar = { vm.toggleFavArtist(name) }, starred = name in vm.favArtists)) { view = ""; open = name }
                         }
                     }
                     GridScrollbar(gridState, Modifier.align(Alignment.CenterEnd))
@@ -349,7 +374,9 @@ fun ArtistsTab(
                         item { sortRow() }
                         items(names, key = { it }) { name ->
                             val list = remember(groups, name) { (groups[name] ?: emptyList()).sortedBy { it.sortKey } }
-                            GroupRow(name, list, list.size, true, groupActions(vm, list, "a:$name", actions) { vm.blockArtist(name) }) { view = ""; open = name }
+                            ArtistSwipe(vm, name) {
+                                GroupRow(name, list, list.size, true, groupActions(vm, list, "a:$name", actions) { vm.blockArtist(name) }.copy(onStar = { vm.toggleFavArtist(name) }, starred = name in vm.favArtists), star = name in vm.favArtists) { view = ""; open = name }
+                            }
                         }
                     }
                     ListScrollbar(artistsListState, Modifier.align(Alignment.CenterEnd))
@@ -396,15 +423,15 @@ fun ArtistsTab(
             if (v == "" && sel.active) TrackSelectionBar(vm, fullList, actions, sel)
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { if (v != "") view = "" else open = null }) { Text("‹ Zurück") }
-                Text(
-                    if (v == "" ) artist else if (v == "*") "$artist · alle Lieder" else v,
+                if (v != "") Text(
+                    if (v == "*") "$artist · alle Lieder" else v,
                     Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
+                ) else Spacer(Modifier.weight(1f))
                 if (!isAlbum && v != "*") IconButton(onClick = { vm.toggleFavArtist(artist) }) {
                     val on = artist in vm.favArtists
                     Icon(if (on) Icons.Filled.Star else Icons.Filled.StarBorder, "Favoriten-Interpret", tint = if (on) ORANGE else LocalContentColor.current)
                 }
-                IconButton(onClick = { vm.playShuffled(shown, ctx) }) { Icon(Icons.Filled.Shuffle, "Zufällig") }
+                if (v != "") IconButton(onClick = { vm.playShuffled(shown, ctx) }) { Icon(Icons.Filled.Shuffle, "Zufällig") }
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Alle Lieder …") }
                     GroupMenu(
@@ -425,10 +452,49 @@ fun ArtistsTab(
                     val swipeOkOv = rememberSwipeAllowed(ovState)
                     androidx.compose.runtime.CompositionLocalProvider(LocalSwipeAllowed provides swipeOkOv) {
                     LazyColumn(Modifier.fillMaxSize(), state = ovState) {
+                        item(key = "hdr") {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Cover(fullList, artist, Modifier.size(104.dp).clip(CircleShape), sizePx = 256)
+                                    Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                                        Text(artist, style = MaterialTheme.typography.headlineMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                        val totalPlays = fullList.sumOf { vm.plays(it.path) }
+                                        Text(
+                                            (if (albums.isNotEmpty()) "${albums.size} Alben · " else "") + "${fullList.size} Lieder" + if (totalPlays > 0) " · $totalPlays× gehört" else "",
+                                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    androidx.compose.material3.Button(onClick = { vm.play(fullList, 0, ctx) }, Modifier.weight(1f)) {
+                                        Icon(Icons.Filled.PlayArrow, null); Text("  Alle Songs abspielen")
+                                    }
+                                    androidx.compose.material3.FilledTonalIconButton(onClick = { vm.playShuffled(fullList, ctx) }) { Icon(Icons.Filled.Shuffle, "Zufällig") }
+                                }
+                            }
+                        }
                         if (top.isNotEmpty()) {
                             item { SectionTitle("Meistgehört") }
-                            itemsIndexed(top, key = { _, t -> "top" + t.id }) { i, t ->
-                                TrackRow(t, actions, playing = t.id == playingId, modifier = Modifier.fillMaxWidth()) { vm.play(top, i, ctx) }
+                            item {
+                                androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    itemsIndexed(top, key = { _, t -> "top" + t.id }) { i, t ->
+                                        Column(Modifier.width(124.dp).clickable { vm.play(top, i, ctx) }) {
+                                            Box {
+                                                Cover(listOf(t), t.title, Modifier.size(124.dp).clip(RoundedCornerShape(10.dp)), sizePx = 256)
+                                                Text(
+                                                    "${i + 1}", color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                                    modifier = Modifier.padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 7.dp, vertical = 1.dp)
+                                                )
+                                                if (t.id == playingId) MiniEq(ORANGE, LocalIsPlaying.current)
+                                            }
+                                            Text(t.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = if (t.id == playingId) ORANGE else MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 4.dp))
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Filled.Headphones, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(" ${vm.plays(t.path)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                         if (albums.isNotEmpty()) {
@@ -592,13 +658,13 @@ fun PlaylistsTab(
         LaunchedEffect(open.id, shown.size) {
             androidx.compose.runtime.snapshotFlow { listState.firstVisibleItemIndex * 100000 + listState.firstVisibleItemScrollOffset }
                 .collect { v ->
-                    if (shown.size > 8) {
+                    if (shown.size >= 14) {
                         if (!collapsed && v > 120) collapsed = true
                         else if (collapsed && v == 0) collapsed = false
                     } else collapsed = false
                 }
         }
-        Column(Modifier.fillMaxSize().animateContentSize()) {
+        Column(Modifier.fillMaxSize()) {
             PlaylistHeader(
                 vm, open, list, compact = collapsed,
                 onBack = { openId = null },
@@ -660,4 +726,25 @@ fun PlaylistsTab(
             }
         }
     }
+}
+
+
+/** Nach rechts wischen = Stern (Favoriten-Interpret), wie das Herz bei Liedern. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun ArtistSwipe(vm: MusicViewModel, name: String, content: @Composable () -> Unit) {
+    val state = androidx.compose.material3.rememberSwipeToDismissBoxState(
+        positionalThreshold = { total -> total * 0.25f },
+        confirmValueChange = { v -> if (v == androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd) vm.toggleFavArtist(name); false }
+    )
+    androidx.compose.material3.SwipeToDismissBox(
+        state = state,
+        enableDismissFromEndToStart = false,
+        enableDismissFromStartToEnd = LocalSwipeAllowed.current,
+        backgroundContent = {
+            if (state.dismissDirection == androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd) Box(
+                Modifier.fillMaxSize().background(ORANGE).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart
+            ) { Icon(Icons.Filled.Star, "Favoriten-Interpret", tint = Color.Black) }
+        }
+    ) { Box(Modifier.background(MaterialTheme.colorScheme.background)) { content() } }
 }
