@@ -286,7 +286,6 @@ private fun PlayerFullPage(
     }
 }
 
-@Composable
 /** Sprünge aus dem Player in die Bibliothek. */
 class PlayerNav(val onArtist: (String) -> Unit, val onLocate: (Track) -> Unit, val onPlaylist: (String) -> Unit)
 
