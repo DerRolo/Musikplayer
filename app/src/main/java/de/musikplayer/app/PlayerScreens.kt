@@ -128,7 +128,7 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Tr
     val trackNow by androidx.compose.runtime.rememberUpdatedState(track)
     val onEditNow by androidx.compose.runtime.rememberUpdatedState(onEdit)
     val swipe = androidx.compose.material3.rememberSwipeToDismissBoxState(
-        positionalThreshold = { total -> total * 0.45f },
+        positionalThreshold = { total -> total * 0.25f },
         confirmValueChange = { v ->
             when (v) {
                 androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> trackNow?.let(onEditNow)
@@ -210,16 +210,18 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Tr
 
 /** Eine „Seite“ des Players: Platte, Titel, Interpret. Beim Wischen sind drei davon nebeneinander zu sehen. */
 @Composable
-private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier) {
+private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier, onTitle: (() -> Unit)? = null, onArtist: (() -> Unit)? = null) {
     val title = item?.mediaMetadata?.title?.toString() ?: "Nichts ausgewählt"
     val artist = item?.mediaMetadata?.artist?.toString().orEmpty()
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val t = remember(item?.mediaId) { trackOf(item) }
     val ver = Art.version
     val coverTag = t?.let { Store.trackCovers[it.path] }
-    val art by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, item?.mediaId, ver, coverTag) {
-        value = null
-        value = t?.let { Art.large(ctx, it)?.asImageBitmap() }
+    val art by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
+        initialValue = t?.let { Art.peekLarge(it)?.asImageBitmap() }, item?.mediaId, ver, coverTag
+    ) {
+        // altes Bild bleibt stehen, bis das neue geladen ist (kein Aufblitzen/Leerlauf)
+        t?.let { Art.large(ctx, it)?.asImageBitmap() }?.let { value = it } ?: run { if (t == null) value = null }
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         val a = art
@@ -236,10 +238,11 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier) 
             }
         }
         Spacer(Modifier.height(12.dp))
-        MarqueeText(title, MaterialTheme.typography.titleLarge, Modifier.fillMaxWidth())
+        MarqueeText(title, MaterialTheme.typography.titleLarge, Modifier.fillMaxWidth().then(if (onTitle != null) Modifier.clickable(onClick = onTitle) else Modifier))
         MarqueeText(
-            artist.ifBlank { " " }, MaterialTheme.typography.titleMedium, Modifier.fillMaxWidth().padding(top = 2.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            artist.ifBlank { " " }, MaterialTheme.typography.titleMedium.copy(textDecoration = if (onArtist != null && artist.isNotBlank()) androidx.compose.ui.text.style.TextDecoration.Underline else null),
+            Modifier.fillMaxWidth().padding(top = 2.dp).then(if (onArtist != null && artist.isNotBlank()) Modifier.clickable(onClick = onArtist) else Modifier),
+            color = if (onArtist != null && artist.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -248,12 +251,18 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier) 
 @Composable
 private fun PlayerFullPage(
     item: MediaItem?, track: Track?, favorite: Boolean, vm: MusicViewModel, actions: TrackActions,
-    onAddToPlaylist: (Track) -> Unit, modifier: Modifier
+    onAddToPlaylist: (Track) -> Unit, modifier: Modifier, nav: PlayerNav? = null
 ) {
     val base = track?.fileName?.substringBeforeLast('.')
     val proposed = track?.let { Names.fileBaseName(it.title) }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        key(item?.mediaId) { PlayerPage(item, vm.isPlaying, Modifier.weight(1f).fillMaxWidth()) }
+        key(item?.mediaId) {
+            PlayerPage(
+                item, vm.isPlaying, Modifier.weight(1f).fillMaxWidth(),
+                onTitle = if (track != null && nav != null) ({ nav.onLocate(track) }) else null,
+                onArtist = if (track != null && nav != null && track.artist != UNKNOWN_ARTIST) ({ nav.onArtist(track.artist) }) else null
+            )
+        }
         if (track != null) {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { actions.onBlock(track) }) { Icon(Icons.Filled.Block, "Sperren", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(26.dp)) }
@@ -278,7 +287,11 @@ private fun PlayerFullPage(
 }
 
 @Composable
-fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist: (Track) -> Unit, onClose: () -> Unit) {
+/** Sprünge aus dem Player in die Bibliothek. */
+class PlayerNav(val onArtist: (String) -> Unit, val onLocate: (Track) -> Unit, val onPlaylist: (String) -> Unit)
+
+@Composable
+fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist: (Track) -> Unit, nav: PlayerNav? = null, onClose: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
@@ -321,6 +334,40 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
     val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { micOk = it }
     var showEqInfo by remember { mutableStateOf(!micOk && !Store.eqAsked) }
 
+    // Wisch-Geste für alles oberhalb der Abspielleiste (Cover, Texte, Equalizer): Strecke ODER schnelles Wischen genügt
+    val swipeMod = Modifier.pointerInput(Unit) {
+        val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
+        detectHorizontalDragGestures(
+            onDragStart = { tracker.resetTracking() },
+            onDragEnd = {
+                val w = pageW
+                val o = offset.value
+                val vx = tracker.calculateVelocity().x
+                scope.launch {
+                    val far = w * 0.22f
+                    val fling = 900.dp.toPx()
+                    val goNext = (o < -far || (vx < -fling && o < -12.dp.toPx())) && vm.nextItem != null
+                    val goPrev = (o > far || (vx > fling && o > 12.dp.toPx())) && vm.prevItem != null
+                    if (goNext || goPrev) {
+                        val before = vm.currentIndex to vm.current?.mediaId
+                        offset.animateTo(if (goNext) -w else w, tween(160))
+                        if (goNext) vm.next() else vm.previousFromSwipe()
+                        withTimeoutOrNull(700) { snapshotFlow { vm.currentIndex to vm.current?.mediaId }.first { it != before } }
+                        offset.snapTo(0f)
+                    } else offset.animateTo(0f, tween(180))
+                }
+            },
+            onDragCancel = { scope.launch { offset.animateTo(0f, tween(180)) } },
+            onHorizontalDrag = { change, dx ->
+                change.consume()
+                tracker.addPosition(change.uptimeMillis, change.position)
+                val o = offset.value
+                val blocked = (dx + o < 0 && vm.nextItem == null) || (dx + o > 0 && vm.prevItem == null)
+                scope.launch { offset.snapTo(o + if (blocked) dx * 0.3f else dx) }
+            }
+        )
+    }
+
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.Filled.KeyboardArrowDown, "Schließen") }
@@ -361,6 +408,14 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
             }
         }
 
+        val ctxKey = vm.playContextKey
+        val fromList = if (ctxKey.startsWith("p:")) vm.playlists.firstOrNull { it.id == ctxKey.removePrefix("p:") } else null
+        if (fromList != null && nav != null && !showQueue) {
+            TextButton(onClick = { nav.onPlaylist(fromList.id) }, Modifier.align(Alignment.CenterHorizontally)) {
+                Text("Spielt aus ", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(fromList.name, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)
+            }
+        }
         if (showQueue) {
             Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
             Text(artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
@@ -369,34 +424,9 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
             Box(
                 Modifier.fillMaxWidth().weight(1f)
                     .onSizeChanged { pageW = it.width.toFloat().coerceAtLeast(1f) }
-                    .pointerInput(Unit) {
-                        detectHorizontalDragGestures(
-                            onDragEnd = {
-                                val w = size.width.toFloat()
-                                val o = offset.value
-                                scope.launch {
-                                    val goNext = o < -w * 0.22f && vm.nextItem != null
-                                    val goPrev = o > w * 0.22f && vm.prevItem != null
-                                    if (goNext || goPrev) {
-                                        val before = vm.currentIndex to vm.current?.mediaId
-                                        offset.animateTo(if (goNext) -w else w, tween(160))
-                                        if (goNext) vm.next() else vm.previousFromSwipe()
-                                        withTimeoutOrNull(700) { snapshotFlow { vm.currentIndex to vm.current?.mediaId }.first { it != before } }
-                                        offset.snapTo(0f)
-                                    } else offset.animateTo(0f, tween(180))
-                                }
-                            },
-                            onDragCancel = { scope.launch { offset.animateTo(0f, tween(180)) } },
-                            onHorizontalDrag = { change, dx ->
-                                change.consume()
-                                val o = offset.value
-                                val blocked = (dx + o < 0 && vm.nextItem == null) || (dx + o > 0 && vm.prevItem == null)
-                                scope.launch { offset.snapTo(o + if (blocked) dx * 0.3f else dx) }
-                            }
-                        )
-                    }
+                    .then(swipeMod)
             ) {
-                PlayerFullPage(item, track, fav, vm, actions, onAddToPlaylist, Modifier.fillMaxSize().graphicsLayer { translationX = offset.value })
+                PlayerFullPage(item, track, fav, vm, actions, onAddToPlaylist, Modifier.fillMaxSize().graphicsLayer { translationX = offset.value }, nav)
                 if (offset.value > 0f) vm.prevItem?.let { adjacent ->
                     PlayerFullPage(adjacent, trackOf(adjacent), trackOf(adjacent)?.let { vm.isFavorite(it.path) } ?: false, vm, actions, onAddToPlaylist, Modifier.fillMaxSize().graphicsLayer { translationX = offset.value - pageW })
                 }
@@ -410,14 +440,8 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                 vm.isPlaying, micOk,
                 Modifier.fillMaxWidth().height(56.dp).offset(y = 14.dp)
                     .clickable(enabled = !micOk) { showEqInfo = true }
-                    .pointerInput(vm.current?.mediaId) {
-                        var drag = 0f
-                        detectHorizontalDragGestures(
-                            onDragStart = { drag = 0f },
-                            onHorizontalDrag = { change, amount -> change.consume(); drag += amount },
-                            onDragEnd = { if (drag < -60.dp.toPx() && vm.nextItem != null) vm.next() else if (drag > 60.dp.toPx() && vm.prevItem != null) vm.previousFromSwipe() }
-                        )
-                    }
+                    .then(swipeMod)
+                    .graphicsLayer { translationX = offset.value }
             )
 
         Slider(
@@ -625,7 +649,7 @@ private fun EqBars(playing: Boolean, live: Boolean, modifier: Modifier) {
 
 /** Einzeilig; ist der Text zu lang, läuft er nach ein paar Sekunden einmal nach links durch. */
 @Composable
-private fun MarqueeText(
+internal fun MarqueeText(
     text: String, style: androidx.compose.ui.text.TextStyle, modifier: Modifier = Modifier,
     color: Color = Color.Unspecified, align: TextAlign = TextAlign.Center
 ) {

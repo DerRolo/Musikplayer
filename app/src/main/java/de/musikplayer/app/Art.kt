@@ -72,6 +72,9 @@ object Art {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
+    /** Sofort (ohne Laden) das große Cover, falls schon im Zwischenspeicher – verhindert Aufblitzen beim Liedwechsel. */
+    fun peekLarge(t: Track): Bitmap? = bigCache.get(cacheKey(t))
+
     /** Großes Cover für den Player (nur wenn im Lied wirklich ein Bild steckt). */
     suspend fun large(ctx: Context, t: Track): Bitmap? = withContext(Dispatchers.IO) {
         bigCache.get(cacheKey(t))?.let { return@withContext it }

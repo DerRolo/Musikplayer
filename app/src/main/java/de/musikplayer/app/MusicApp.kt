@@ -30,6 +30,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 
@@ -57,6 +59,8 @@ fun MusicApp(vm: MusicViewModel) {
     var assignMany by remember { mutableStateOf<List<Track>?>(null) }
     var newAudioList by remember { mutableStateOf(false) }
     var coverFor by remember { mutableStateOf<Track?>(null) }
+    var coverMany by remember { mutableStateOf<List<Track>?>(null) }
+    var coverQuery by remember { mutableStateOf<String?>(null) }
     var stagedCoverUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var stagedCoverUrl by remember { mutableStateOf<String?>(null) }
     var stagedCoverReset by remember { mutableStateOf(false) }
@@ -102,14 +106,28 @@ fun MusicApp(vm: MusicViewModel) {
         onShowFile = { vm.showInFolder(it) },
         onBlockMany = { vm.blockTracks(it) },
         onAssignMany = { assignMany = it },
-        onCover = { coverFor = it }
+        onCover = { coverFor = it },
+        onOpenArtist = { artistToOpen = it; tab = 0; showPlayer = false },
+        onCoverMany = { coverMany = it }
     )
 
+    androidx.compose.runtime.CompositionLocalProvider(LocalIsPlaying provides vm.isPlaying) {
     Scaffold(
         snackbarHost = {
             SnackbarHost(snack) { data ->
+                val canPromote = vm.promoteLabel != null && data.visuals.message == vm.promoteLabel
                 androidx.compose.material3.Snackbar(
-                    data, modifier = Modifier.padding(horizontal = 12.dp).heightIn(min = 68.dp)
+                    data,
+                    modifier = Modifier.padding(horizontal = 12.dp).heightIn(min = 68.dp).then(
+                        if (!canPromote) Modifier else Modifier.pointerInput(data) {
+                            var total = 0f
+                            detectHorizontalDragGestures(
+                                onDragStart = { total = 0f },
+                                onDragEnd = { if (total > 70.dp.toPx()) { vm.promoteAction?.invoke(); vm.promoteAction = null; vm.promoteLabel = null } },
+                                onHorizontalDrag = { change, dx -> change.consume(); total += dx }
+                            )
+                        }
+                    )
                 )
             }
         },
@@ -137,7 +155,14 @@ fun MusicApp(vm: MusicViewModel) {
         PullRefresh(onRefresh = { vm.refresh() }, modifier = Modifier.padding(pad)) {
         Column(Modifier.fillMaxSize()) {
             if (showPlayer) {
-                NowPlayingScreen(vm, actions, onAddToPlaylist = { addToPlaylist = listOf(it) }) { showPlayer = false }
+                NowPlayingScreen(
+                    vm, actions, onAddToPlaylist = { addToPlaylist = listOf(it) },
+                    nav = PlayerNav(
+                        onArtist = { artistToOpen = it; tab = 0; showPlayer = false },
+                        onLocate = { t -> artistToOpen = t.artist + "\u0000" + t.albumName; tab = 0; showPlayer = false },
+                        onPlaylist = { id -> playlistToOpen = id; tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 3 else 2; showPlayer = false }
+                    )
+                ) { showPlayer = false }
             } else holder.SaveableStateProvider(tab) { when (tab) {
                 0 -> LibraryTab(vm, actions, sel, artistToOpen, { artistToOpen = null }, resets[0])
                 1 -> SearchTab(
@@ -159,8 +184,8 @@ fun MusicApp(vm: MusicViewModel) {
                     onNew = { newAudioList = true },
                     onRename = { renameList = it },
                     onDeleteList = { deleteList = it },
-                    openRequest = null,
-                    onConsumed = {},
+                    openRequest = playlistToOpen,
+                    onConsumed = { playlistToOpen = null },
                     reset = resets[3],
                     audio = true
                 )
@@ -168,6 +193,7 @@ fun MusicApp(vm: MusicViewModel) {
             } }
         }
         }
+    }
     }
 
     // ---------- Dialoge ----------
@@ -208,16 +234,25 @@ fun MusicApp(vm: MusicViewModel) {
                 vm.editTrack(t, n, a, mv, stagedCoverUri, stagedCoverUrl, coverSelected = stagedCoverReset || stagedCoverUri != null || stagedCoverUrl != null, coverReset = stagedCoverReset)
                 renameTrack = null; stagedCoverUri = null; stagedCoverUrl = null; stagedCoverReset = false
             },
-            onCover = { coverFor = t }, coverUri = stagedCoverUri, coverUrl = stagedCoverUrl, coverResetPending = stagedCoverReset
+            onCover = { q -> coverQuery = q; coverFor = t }, coverUri = stagedCoverUri, coverUrl = stagedCoverUrl, coverResetPending = stagedCoverReset
         )
     }
     coverFor?.let { t ->
         CoverPickerDialog(
-            initialQuery = listOf(t.artist, t.title).filter { it.isNotBlank() }.joinToString(" "),
-            onDismiss = { coverFor = null },
+            initialQuery = coverQuery ?: listOf(t.artist, t.title).filter { it.isNotBlank() }.joinToString(" "),
+            onDismiss = { coverFor = null; coverQuery = null },
             onUri = { if (renameTrack != null) { stagedCoverUri = it; stagedCoverUrl = null; stagedCoverReset = false } else vm.setTrackCover(listOf(t), uri = it) },
             onUrl = { if (renameTrack != null) { stagedCoverUrl = it; stagedCoverUri = null; stagedCoverReset = false } else vm.setTrackCover(listOf(t), url = it) },
             onReset = if (vm.hasOwnCover(listOf(t)) || stagedCoverUri != null || stagedCoverUrl != null) ({ if (renameTrack != null) { stagedCoverUri = null; stagedCoverUrl = null; stagedCoverReset = true } else vm.setTrackCover(listOf(t)) }) else null
+        )
+    }
+    coverMany?.let { list ->
+        CoverPickerDialog(
+            initialQuery = list.firstOrNull()?.let { listOf(it.artist.takeIf { a -> a != UNKNOWN_ARTIST } ?: "", it.albumName).filter { s -> s.isNotBlank() }.joinToString(" ") }.orEmpty(),
+            onDismiss = { coverMany = null },
+            onUri = { vm.setTrackCover(list, uri = it) },
+            onUrl = { vm.setTrackCover(list, url = it) },
+            onReset = if (vm.hasOwnCover(list)) ({ vm.setTrackCover(list) }) else null
         )
     }
     assignMany?.let { list ->

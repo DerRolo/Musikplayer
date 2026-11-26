@@ -6,7 +6,12 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.FolderOpen
@@ -86,7 +91,11 @@ data class TrackActions(
     val onShowFile: (Track) -> Unit = {},
     val onBlockMany: (List<Track>) -> Unit = {},
     val onAssignMany: (List<Track>) -> Unit = {},
-    val onCover: (Track) -> Unit = {}
+    val onCover: (Track) -> Unit = {},
+    /** Tippen auf den Interpreten-Namen in einer Zeile: zur Interpreten-Seite springen. */
+    val onOpenArtist: ((String) -> Unit)? = null,
+    /** Ein gemeinsames Cover für alle ausgewählten Lieder. */
+    val onCoverMany: (List<Track>) -> Unit = {}
 )
 
 /** Orange = ändert Dateien auf dem Handy (Umbenennen, Verschieben); Rot ist nur für Löschen. */
@@ -105,6 +114,32 @@ fun MenuItem(text: String, icon: ImageVector, danger: Boolean = false, warn: Boo
 
 private val HEART_PINK = Color(0xFFE5486B)
 
+/** Läuft gerade Musik? (für die kleinen Equalizer-Balken in Listenzeilen) */
+val LocalIsPlaying = androidx.compose.runtime.compositionLocalOf { false }
+
+/** Drei kleine Equalizer-Balken, in der Farbe des Titels; stehen still, solange pausiert ist. */
+@Composable
+fun MiniEq(color: Color, active: Boolean) {
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "eq")
+    val specs = listOf(420, 560, 480)
+    val hs = specs.mapIndexed { i, ms ->
+        t.animateFloat(
+            0.25f, 1f,
+            androidx.compose.animation.core.infiniteRepeatable(
+                androidx.compose.animation.core.tween(ms, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                androidx.compose.animation.core.RepeatMode.Reverse,
+                androidx.compose.animation.core.StartOffset(i * 130)
+            ), label = "b$i"
+        )
+    }
+    Row(Modifier.size(width = 16.dp, height = 14.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+        hs.forEachIndexed { i, h ->
+            val f = if (active) h.value else listOf(0.5f, 0.8f, 0.35f)[i]
+            Box(Modifier.width(4.dp).fillMaxHeight(f).clip(RoundedCornerShape(1.dp)).background(color))
+        }
+    }
+}
+
 /** Nach rechts wischen = Herz, nach links wischen = Warteschlange. Die Zeile springt danach zurück. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -122,7 +157,7 @@ fun TrackRow(
     onClick: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
-    val state = rememberSwipeToDismissBoxState(positionalThreshold = { total -> total * 0.45f }, confirmValueChange = { v ->
+    val state = rememberSwipeToDismissBoxState(positionalThreshold = { total -> total * 0.25f }, confirmValueChange = { v ->
         when (v) {
             SwipeToDismissBoxValue.EndToStart -> actions.onAddToQueue(track)
             SwipeToDismissBoxValue.StartToEnd -> actions.onToggleFavorite(track)
@@ -153,28 +188,44 @@ fun TrackRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (selectionMode) Checkbox(checked = selected, onCheckedChange = null, modifier = Modifier.padding(end = 12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    track.title,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.basicMarquee(iterations = 1, initialDelayMillis = 1000, velocity = 40.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    track.artist + (if (track.manual) " ·  zugeordnet" else "") + "  ·  " + formatDuration(track.durationMs),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Cover(listOf(track), track.title, Modifier.size(46.dp).clip(RoundedCornerShape(6.dp)), sizePx = 96)
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                val titleColor = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (playing) { MiniEq(titleColor, LocalIsPlaying.current); Spacer(Modifier.width(8.dp)) }
+                    Text(
+                        track.title,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).basicMarquee(iterations = 1, initialDelayMillis = 1000, velocity = 40.dp),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = titleColor
+                    )
+                }
+                val plays = Store.playCounts[track.path] ?: 0
+                val openArtist = actions.onOpenArtist
+                val canOpen = openArtist != null && track.artist != UNKNOWN_ARTIST
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        track.artist,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (canOpen) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f, fill = false).then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist) } else Modifier)
+                    )
+                    Text(
+                        (if (track.manual) " ·  zugeordnet" else "") + "  ·  " + formatDuration(track.durationMs) + if (plays > 0) "  ·  $plays×" else "",
+                        maxLines = 1,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             if (!selectionMode) {
                 // Song-Metadaten sind unabhängig vom Ansichtstyp (Bibliothek, Playlist, Hörbuch etc.).
                 val fav = actions.isFavorite(track)
                 val plays = Store.playCounts[track.path] ?: 0
-                if (plays > 0) Text("$plays×", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(40.dp)) {
                     Icon(
                         if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -341,7 +392,7 @@ fun ArtistField(value: String, onChange: (String) -> Unit, artists: List<String>
 
 /** „Datei bearbeiten“: zeigt aktuellen Namen, Vorschlag der App und Interpret – alles änderbar. Deine Eingabe gilt immer. */
 @Composable
-fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, onConfirm: (name: String, artist: String, move: Boolean) -> Unit, onCover: (() -> Unit)? = null, coverUri: android.net.Uri? = null, coverUrl: String? = null, coverResetPending: Boolean = false) {
+fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, onConfirm: (name: String, artist: String, move: Boolean) -> Unit, onCover: ((String) -> Unit)? = null, coverUri: android.net.Uri? = null, coverUrl: String? = null, coverResetPending: Boolean = false) {
     val current = track.fileName.substringBeforeLast('.')
     var name by remember(track.path) { mutableStateOf(current) }
     var artist by remember(track.path) { mutableStateOf(if (track.artist == UNKNOWN_ARTIST) "" else track.artist) }
@@ -351,19 +402,18 @@ fun EditTrackDialog(track: Track, artists: List<String>, onDismiss: () -> Unit, 
     val guess = remember(track.path) { if (track.artist == UNKNOWN_ARTIST) Library.guessArtistFromName(track) else null }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Datei bearbeiten", Modifier.weight(1f))
-                EditCoverPreview(track, coverUri, coverUrl, coverResetPending, Modifier.size(44.dp).clip(RoundedCornerShape(6.dp)))
-                if (onCover != null) {
-                    IconButton(onClick = onCover) {
-                        Icon(Icons.Filled.Image, contentDescription = "Cover ändern")
-                    }
-                }
-            }
-        },
+        title = { Text("Datei bearbeiten") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                // Cover groß, mit Bearbeiten-Symbol mittendrin (wie der Play-Knopf auf Playlist-Covern)
+                Box(Modifier.align(Alignment.CenterHorizontally).size(132.dp).clip(RoundedCornerShape(12.dp))) {
+                    EditCoverPreview(track, coverUri, coverUrl, coverResetPending, Modifier.fillMaxSize())
+                    if (onCover != null) Box(
+                        Modifier.align(Alignment.Center).size(48.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f))
+                            .clickable { onCover(listOf(artist.trim(), name.trim()).filter { it.isNotEmpty() }.joinToString(" ")) },
+                        contentAlignment = Alignment.Center
+                    ) { Icon(Icons.Filled.Edit, "Cover ändern", tint = Color.White) }
+                }
                 Text("Aktueller Dateiname", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(current, style = MaterialTheme.typography.bodySmall)
                 if (proposal != current) {

@@ -125,6 +125,7 @@ fun TrackSelectionBar(vm: MusicViewModel, list: List<Track>, actions: TrackActio
         onDelete = { actions.onDeleteMany(chosen()); done() },
         onBlock = { actions.onBlockMany(chosen()); done() },
         onAssign = { actions.onAssignMany(chosen()); done() },
+        onCover = { actions.onCoverMany(chosen()); done() },
         removeLabel = removeLabel,
         onRemove = { onRemove(); done() }
     )
@@ -278,7 +279,7 @@ fun ArtistsTab(
         }
     }
     LaunchedEffect(openRequest) {
-        if (openRequest != null) { open = openRequest; view = ""; onConsumed() }
+        if (openRequest != null) { open = openRequest.substringBefore('\u0000'); view = openRequest.substringAfter('\u0000', ""); onConsumed() }
     }
     BackHandler(enabled = open != null) { open = null }
 

@@ -336,6 +336,13 @@ object Library {
             !File(it.folder).name.equals(safeName(it.artist), ignoreCase = true)
     }
 
+    /** Liegt die Datei schon im Interpreten-Ordner (oder einem Unterordner, z. B. Album)? Dann wird sie nie verschoben. */
+    fun inArtistTree(t: Track): Boolean {
+        if (t.artist == UNKNOWN_ARTIST) return false
+        val seg = safeName(t.artist)
+        return File(t.path).parent.orEmpty().split('/').any { it.equals(seg, ignoreCase = true) }
+    }
+
     data class MoveResult(val moved: Int, val failed: Int, val map: Map<String, String>)
 
     /**
@@ -346,7 +353,7 @@ object Library {
         val map = LinkedHashMap<String, String>()
         var failed = 0
         for (t in list) {
-            if (t.artist == UNKNOWN_ARTIST) continue
+            if (t.artist == UNKNOWN_ARTIST || inArtistTree(t)) continue
             val src = File(t.path)
             if (!src.isFile) continue
             val dir = File(File(volumeRoot(ctx, t.path), "Music"), safeName(t.artist))

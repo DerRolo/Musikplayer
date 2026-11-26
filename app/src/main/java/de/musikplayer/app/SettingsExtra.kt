@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package de.musikplayer.app
 
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +39,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.io.File
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.runtime.getValue
 
 // ---------- Sperrliste ----------
 
@@ -49,7 +57,7 @@ internal fun BlockedPage(vm: MusicViewModel, onBack: () -> Unit) {
     val folders = remember(vm.blockTick, vm.tracks) { (Store.blockedFolders + Store.softBlockedFolders).toList() }
     Column(Modifier.fillMaxSize()) {
         PageHeader("Gesperrt", onBack)
-        Text("Stufe 1: aus Mediathek und Shuffle. Stufe 2: zusätzlich aus Suche. Playlists bleiben erhalten.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+        Text("Orange = nur aus Mediathek/Shuffle (Stufe 1), rot = auch aus Suche (Stufe 2). Wischen: → Vollsperre, ← entsperren. Tippen spielt ab.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             LetterChip("Titel (${songs.size})", kind == 0, true) { kind = 0 }
             LetterChip("Interpreten (${artists.size})", kind == 1, true) { kind = 1 }
@@ -58,25 +66,68 @@ internal fun BlockedPage(vm: MusicViewModel, onBack: () -> Unit) {
         }
         data class Entry(val key: String, val title: String, val sub: String, val soft: Boolean, val unblock: () -> Unit, val harden: (() -> Unit)?)
         val entries: List<Entry> = when (kind) {
-            0 -> songs.map { t -> val soft = t.path in Store.softBlockedTracks; Entry(t.path, t.title, t.artist + " · " + t.fileName + if (soft) " · Mediathek-Sperre" else " · Vollsperre", soft, { vm.unblockTracks(listOf(t.path)) }, if (soft) ({ vm.hardBlockTrack(t.path) }) else null) }
-            1 -> artists.map { a -> val soft = a in Store.softBlockedArtists; Entry(a, a, if (soft) "Interpret · Mediathek-Sperre" else "Interpret · Vollsperre", soft, { vm.unblockArtist(a) }, if (soft) ({ vm.hardBlockArtist(a) }) else null) }
-            else -> folders.map { f -> val soft = f in Store.softBlockedFolders; Entry(f, File(f).name.ifEmpty { f }, f + if (soft) " · Mediathek-Sperre" else " · Vollsperre", soft, { vm.unblockFolder(f) }, if (soft) ({ vm.hardBlockFolder(f) }) else null) }
+            0 -> songs.map { t -> val soft = t.path in Store.softBlockedTracks; Entry(t.path, t.title, t.artist + " · " + t.fileName, soft, { vm.unblockTracks(listOf(t.path)) }, if (soft) ({ vm.hardBlockTrack(t.path) }) else null) }
+            1 -> artists.map { a -> val soft = a in Store.softBlockedArtists; Entry(a, a, if (soft) "Interpret" else "Interpret", soft, { vm.unblockArtist(a) }, if (soft) ({ vm.hardBlockArtist(a) }) else null) }
+            else -> folders.map { f -> val soft = f in Store.softBlockedFolders; Entry(f, File(f).name.ifEmpty { f }, f, soft, { vm.unblockFolder(f) }, if (soft) ({ vm.hardBlockFolder(f) }) else null) }
         }.sortedBy { Names.fold(it.title) }.let { if (sort == 1) it.reversed() else it }
         if (entries.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nichts gesperrt") }
         else LazyColumn(Modifier.fillMaxSize()) {
             items(entries, key = { kind.toString() + it.key }) { e ->
-                Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(when (kind) { 0 -> Icons.Filled.MusicNote; 1 -> Icons.Filled.Person; else -> Icons.Filled.Folder }, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                        Text(e.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
-                        Text(e.sub, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val eNow by androidx.compose.runtime.rememberUpdatedState(e)
+                val state = androidx.compose.material3.rememberSwipeToDismissBoxState(
+                    positionalThreshold = { total -> total * 0.3f },
+                    confirmValueChange = { v ->
+                        when (v) {
+                            androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> eNow.harden?.invoke()      // nach rechts: Vollsperre
+                            androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> eNow.unblock()             // nach links: entsperren
+                            else -> {}
+                        }
+                        false
                     }
-                    if (e.harden != null) TextButton(onClick = e.harden) { Text("Voll sperren") }
-                    TextButton(onClick = e.unblock) { Icon(Icons.Filled.LockOpen, null, Modifier.size(18.dp)); Text(" Entsperren") }
+                )
+                androidx.compose.material3.SwipeToDismissBox(
+                    state = state,
+                    enableDismissFromStartToEnd = e.harden != null,
+                    backgroundContent = {
+                        val right = state.dismissDirection == androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd
+                        Box(
+                            Modifier.fillMaxSize().background(if (right) MaterialTheme.colorScheme.error else ORANGE).padding(horizontal = 20.dp),
+                            contentAlignment = if (right) Alignment.CenterStart else Alignment.CenterEnd
+                        ) {
+                            Icon(if (right) Icons.Filled.Block else Icons.Filled.LockOpen, null, tint = Color.Black)
+                        }
+                    }
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)
+                            .clickable { playBlocked(vm, kind, e.key) }
+                            .padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            when (kind) { 0 -> Icons.Filled.MusicNote; 1 -> Icons.Filled.Person; else -> Icons.Filled.Folder }, null,
+                            tint = if (e.soft) ORANGE else MaterialTheme.colorScheme.error
+                        )
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                            MarqueeText(e.title, MaterialTheme.typography.bodyLarge, Modifier.fillMaxWidth(), align = TextAlign.Start)
+                            MarqueeText(e.sub, MaterialTheme.typography.bodySmall, Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant, align = TextAlign.Start)
+                        }
+                        Icon(if (e.soft) Icons.Filled.LockOpen else Icons.Filled.Block, if (e.soft) "Mediathek-Sperre" else "Vollsperre", Modifier.size(18.dp), tint = if (e.soft) ORANGE else MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }
     }
+}
+
+private fun playBlocked(vm: MusicViewModel, kind: Int, key: String) {
+    val all = Library.blocked
+    val list = when (kind) {
+        0 -> all.filter { it.path == key }
+        1 -> all.filter { it.artist == key }
+        else -> all.filter { it.folder == key }
+    }
+    if (list.isNotEmpty()) vm.play(list, 0, "q")
 }
 
 // ---------- Namen-Filter ----------

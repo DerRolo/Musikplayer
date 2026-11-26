@@ -251,6 +251,9 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Ursprüngliche Reihenfolge der zuletzt gestarteten Liste (um „Zufall aus“ wiederherzustellen). */
     private var baseList: List<MediaItem> = emptyList()
 
+    /** Kontext des laufenden Titels: „p:<id>“ für Playlists/Hörbücher, sonst z. B. „all“. */
+    val playContextKey: String get() = current?.mediaId?.removePrefix("t:")?.substringBeforeLast(':') ?: ""
+
     private fun keyOf(context: String?) = if (context != null && context.startsWith("p:")) context else "all"
 
     fun shuffleFor(key: String): Boolean { modeVersion; return Store.modeOf(key).first }
@@ -475,7 +478,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         favoritePaths = Store.playlists.firstOrNull { it.id == FAV_ID }?.trackPaths?.toHashSet() ?: emptySet()
     }
 
-    fun isFavorite(path: String) = path in favoritePaths
+    fun isFavorite(path: String) = Store.resolve(path) in favoritePaths
 
     /** Herz an/aus für ein Lied (Lieblingssongs). */
     fun toggleFavorite(path: String) {
@@ -509,18 +512,26 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun quickRename(t: Track, newBase: String) {
         val oldBase = t.fileName.substringBeforeLast('.')
         val ext = t.fileName.substringAfterLast('.', "")
-        val expected = java.io.File(java.io.File(t.path).parentFile, Names.fileBaseName(newBase) + if (ext.isEmpty()) "" else ".$ext").path
+        val newName = Names.fileBaseName(newBase) + if (ext.isEmpty()) "" else ".$ext"
+        val expected = java.io.File(java.io.File(t.path).parentFile, newName).path
+        val wantMove = Store.quickMove && t.artist != UNKNOWN_ARTIST && !Library.inArtistTree(t)
         viewModelScope.launch {
+            var movedTo: String? = null
             val r = withContext(Dispatchers.IO) {
                 val res = Library.renameFiles(app, listOf(t to newBase))
+                if (res.renamed > 0 && wantMove) {
+                    val cur = t.copy(path = expected)
+                    Library.sortIntoArtistFolders(app, listOf(cur)).map[expected]?.let { movedTo = it }
+                }
                 Library.load(app)
                 res
             }
             refreshFromLibrary()
             if (dupes != null) dupes = withContext(Dispatchers.Default) { Dupes.find(Library.tracks) }
             if (r.renamed == 0) { message = "Umbenennen fehlgeschlagen"; return@launch }
-            val nu = Library.tracks.firstOrNull { it.path == expected }
-            message = "Dateiname geändert"
+            val nu = Library.tracks.firstOrNull { it.path == (movedTo ?: expected) }
+            message = if (movedTo != null) "Dateiname geändert, in Interpreten-Ordner verschoben" else "Dateiname geändert"
+            // Rückgängig stellt nur den Namen wieder her (Verschieben bleibt)
             if (nu != null) undo = { renameFiles(listOf(nu to oldBase)) }
         }
     }
@@ -850,7 +861,13 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         if (c.mediaItemCount > 0 && pred(idAt(c.currentMediaItemIndex))) c.removeMediaItem(c.currentMediaItemIndex)
     }
 
-    private fun afterBlock(label: String, affected: List<Track>, undoAction: () -> Unit) {
+    /** Nach rechts wischen auf der „gesperrt“-Meldung = sofort Vollsperre. */
+    var promoteLabel: String? = null
+    var promoteAction: (() -> Unit)? = null
+
+    private fun afterBlock(label: String, affected: List<Track>, promote: (() -> Unit)? = null, undoAction: () -> Unit) {
+        promoteLabel = if (promote != null) label else null
+        promoteAction = promote
         val ids = affected.map { it.id }.toHashSet()
         dropFromPlayer { it in ids }
         blockTick++
@@ -863,7 +880,10 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         if (list.isEmpty()) return
         val paths = list.map { it.path }
         Store.softBlockTracks(app, paths)
-        afterBlock(if (list.size == 1) "Aus Mediathek gesperrt: ${list[0].title}" else "${list.size} Titel aus Mediathek gesperrt", list) {
+        afterBlock(
+            if (list.size == 1) "Aus Mediathek gesperrt: ${list[0].title}" else "${list.size} Titel aus Mediathek gesperrt", list,
+            promote = { paths.forEach { Store.promoteTrackToHard(app, it) }; blockTick++; reindex(); message = "Vollständig gesperrt" }
+        ) {
             Store.softUnblockTracks(app, paths); blockTick++; reindex()
         }
     }
@@ -871,13 +891,13 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun blockArtist(name: String) {
         val affected = tracks.filter { it.artist == name }
         Store.softBlockArtist(app, name)
-        afterBlock("Aus Mediathek gesperrt: $name", affected) { Store.softUnblockArtist(app, name); blockTick++; reindex() }
+        afterBlock("Aus Mediathek gesperrt: $name", affected, promote = { Store.promoteArtistToHard(app, name); blockTick++; reindex(); message = "Interpret vollständig gesperrt" }) { Store.softUnblockArtist(app, name); blockTick++; reindex() }
     }
 
     fun blockFolder(path: String) {
         val affected = tracks.filter { it.folder == path }
         Store.softBlockFolder(app, path)
-        afterBlock("Ordner aus Mediathek gesperrt: ${path.substringAfterLast('/')}", affected) { Store.softUnblockFolder(app, path); blockTick++; reindex() }
+        afterBlock("Ordner aus Mediathek gesperrt: ${path.substringAfterLast('/')}", affected, promote = { Store.promoteFolderToHard(app, path); blockTick++; reindex(); message = "Ordner vollständig gesperrt" }) { Store.softUnblockFolder(app, path); blockTick++; reindex() }
     }
 
 

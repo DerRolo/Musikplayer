@@ -136,11 +136,13 @@ fun CoverPickerDialog(
     onReset: (() -> Unit)? = null
 ) {
     var query by remember { mutableStateOf(initialQuery) }
-    var submitted by remember { mutableStateOf(initialQuery) }
     var loading by remember { mutableStateOf(true) }
-    val results by produceState<List<WebCover>>(emptyList(), submitted) {
+    // Sucht schon beim Tippen (kurze Pause nach der letzten Eingabe)
+    val results by produceState<List<WebCover>>(emptyList(), query) {
         loading = true
-        value = if (submitted.isBlank()) emptyList() else searchCovers(submitted)
+        kotlinx.coroutines.delay(450)
+        val q = query.trim()
+        value = if (q.isBlank()) emptyList() else searchCovers(q)
         loading = false
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -155,11 +157,11 @@ fun CoverPickerDialog(
                     Icon(Icons.Filled.Image, null, Modifier.size(18.dp)); Text("  Aus meinen Bildern wählen")
                 }
                 OutlinedTextField(
-                    query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    query, { query = it }, maxLines = 3, modifier = Modifier.fillMaxWidth(),
                     label = { Text("Im Web suchen") },
-                    trailingIcon = { IconButton(onClick = { submitted = query.trim() }) { Icon(Icons.Filled.Search, "Suchen") } },
+                    trailingIcon = { Icon(Icons.Filled.Search, null) },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { submitted = query.trim() })
+                    keyboardActions = KeyboardActions(onSearch = { })
                 )
                 Box(Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 340.dp)) {
                     when {

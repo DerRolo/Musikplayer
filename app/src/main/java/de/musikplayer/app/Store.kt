@@ -78,6 +78,8 @@ object Store {
     var silenceMinMs: Int = 1500       // erst Stille ab dieser Länge wird gekürzt
         private set
     var moveOnAssign: Boolean = true
+    /** Schnell-Button „Dateinamen übernehmen“ im Player verschiebt auch in den Interpreten-Ordner. */
+    var quickMove: Boolean = true
     var silenceKeepMs: Int = 500       // so viel Stille bleibt stehen (Hall)
         private set
     var silenceTailMs: Int = 1000      // so viel Stille bleibt nach dem letzten Ton
@@ -136,6 +138,7 @@ object Store {
             silenceThr = o.optInt("silenceThr", 200)
             silenceMinMs = o.optInt("silenceMinMs", 1500)
             moveOnAssign = o.optBoolean("moveOnAssign", true)
+            quickMove = o.optBoolean("quickMove", true)
             silenceKeepMs = o.optInt("silenceKeepMs", 300)
             silenceTailMs = o.optInt("silenceTailMs", 1000)
             trims = o.optJSONObject("trims").toMap()
@@ -157,7 +160,12 @@ object Store {
     }
 
     /** Herz an/aus. Neue Favoriten kommen nach vorn. Gibt zurück, ob das Lied jetzt ein Favorit ist. */
-    fun toggleFavorite(ctx: Context, path: String): Boolean {
+    private val aliases = HashMap<String, String>()
+    @Synchronized fun resolve(path: String): String = aliases[path] ?: path
+
+    @Synchronized
+    fun toggleFavorite(ctx: Context, rawPath: String): Boolean {
+        val path = resolve(rawPath)
         val fav = playlists.firstOrNull { it.id == FAV_ID } ?: return false
         val now = path !in fav.trackPaths
         playlists = playlists.map { p ->
@@ -204,6 +212,7 @@ object Store {
         o.put("trims", JSONObject(trims))
         o.put("silenceMinMs", silenceMinMs)
         o.put("moveOnAssign", moveOnAssign)
+        o.put("quickMove", quickMove)
         o.put("silenceKeepMs", silenceKeepMs)
         o.put("silenceStartSec", silenceStartSec)
         o.put("silenceEndSec", silenceEndSec)
@@ -307,6 +316,7 @@ object Store {
         save(ctx)
     }
 
+    fun setQuickMove(ctx: Context, on: Boolean) { quickMove = on; save(ctx) }
     fun setMoveOnAssign(ctx: Context, on: Boolean) { moveOnAssign = on; save(ctx) }
     fun setSkipSilence(ctx: Context, on: Boolean) { skipSilence = on; save(ctx) }
 
@@ -383,7 +393,9 @@ object Store {
     }
 
     /** Fügt Pfade hinzu. Mit [skipDuplicates] werden Lieder übersprungen, die schon in der Playlist sind. */
-    fun addToPlaylist(ctx: Context, id: String, paths: List<String>, skipDuplicates: Boolean = true) {
+    @Synchronized
+    fun addToPlaylist(ctx: Context, id: String, rawPaths: List<String>, skipDuplicates: Boolean = true) {
+        val paths = rawPaths.map { resolve(it) }
         playlists = playlists.map { p ->
             if (p.id != id) p
             else if (skipDuplicates) {
@@ -415,8 +427,12 @@ object Store {
     }
 
     /** Nach Verschieben/Umbenennen von Dateien: Pfade in Playlists und Zuordnungen nachziehen. */
+    @Synchronized
     fun remapPaths(ctx: Context, map: Map<String, String>) {
         if (map.isEmpty()) return
+        // alte Pfade merken, damit schnelle Aktionen (z. B. Herz direkt nach „Name übernehmen“) nicht ins Leere laufen
+        for ((k, v) in map) { aliases[k] = v }
+        for (k in aliases.keys.toList()) { aliases[k] = map[aliases[k]] ?: aliases[k]!! }
         playlists = playlists.map { p -> p.copy(trackPaths = p.trackPaths.map { map[it] ?: it }) }
         trackArtists = trackArtists.mapKeys { map[it.key] ?: it.key }
         knownPaths = knownPaths.map { map[it] ?: it }.toHashSet()

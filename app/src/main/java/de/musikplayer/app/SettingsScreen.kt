@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.FiberNew
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -92,6 +93,20 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
                 }
                 androidx.compose.material3.IconButton(onClick = { showSilence = true }) { Icon(Icons.Filled.Tune, "Feineinstellung") }
                 androidx.compose.material3.Switch(checked = silence, onCheckedChange = { silence = it; vm.setSkipSilence(it) })
+            }
+            var quickMove by remember { mutableStateOf(Store.quickMove) }
+            val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+            Row(Modifier.fillMaxWidth().clickable { quickMove = !quickMove; Store.setQuickMove(appCtx, quickMove) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.FolderOpen, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Schnell-Speichern verschiebt", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Der orange Speichern-Knopf im Player (Dateinamen übernehmen) schiebt das Lied zusätzlich in den Interpreten-Ordner. " +
+                            "Lieder, die schon im Interpreten-Ordner oder einem Unterordner (Album) liegen, bleiben, wo sie sind.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                androidx.compose.material3.Checkbox(checked = quickMove, onCheckedChange = { quickMove = it; Store.setQuickMove(appCtx, it) })
             }
             Text(
                 "Playlists, Zuordnungen und Einstellungen liegen nur in der App. Deine Dateien werden nie kopiert.",

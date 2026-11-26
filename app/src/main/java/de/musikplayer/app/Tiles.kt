@@ -3,6 +3,7 @@
 package de.musikplayer.app
 
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.foundation.text.KeyboardActions
@@ -180,6 +181,7 @@ fun SelectionBar(
     onDelete: () -> Unit,
     onBlock: () -> Unit = {},
     onAssign: () -> Unit = {},
+    onCover: (() -> Unit)? = null,
     removeLabel: String? = null,
     onRemove: () -> Unit = {}
 ) {
@@ -198,6 +200,7 @@ fun SelectionBar(
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
                     MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { more = false; onPlayNext() }
                     MenuItem("Interpret zuordnen …", Icons.Filled.Person) { more = false; onAssign() }
+                    if (onCover != null) MenuItem("Cover ändern …", Icons.Filled.Image) { more = false; onCover() }
                     MenuItem("Sperren", Icons.Filled.Block) { more = false; onBlock() }
                     MenuItem(if (removeLabel != null) "Datei löschen …" else "Löschen …", Icons.Filled.Delete, danger = true) { more = false; onDelete() }
                 }
