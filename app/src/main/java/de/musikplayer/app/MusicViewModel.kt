@@ -110,6 +110,9 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    var favArtists by mutableStateOf<Set<String>>(emptySet())
+    var onlyFavArtists by mutableStateOf(false)
+
     init {
         Store.load(app)
         sortBy = Store.sortBy
@@ -738,9 +741,6 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun playlistEntries(id: String): List<Pair<Int, Track>> = Library.playlistEntries(id)
 
     // ---------- Ansicht ----------
-
-    var favArtists by mutableStateOf<Set<String>>(emptySet())
-    var onlyFavArtists by mutableStateOf(false)
 
     fun toggleFavArtist(name: String) {
         val on = Store.toggleFavArtist(app, name)
