@@ -17,6 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
@@ -119,6 +120,16 @@ fun MusicApp(vm: MusicViewModel) {
                 androidx.compose.material3.Snackbar(
                     data,
                     modifier = Modifier.padding(horizontal = 12.dp).heightIn(min = 68.dp).then(
+                        if (vm.openLabel != null && data.visuals.message == vm.openLabel) Modifier.clickable {
+                            val id = vm.openPlaylistId
+                            if (id != null) {
+                                playlistToOpen = id
+                                tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 3 else 2
+                                showPlayer = false
+                                data.dismiss()
+                            }
+                        } else Modifier
+                    ).then(
                         if (!canPromote) Modifier else Modifier.pointerInput(data) {
                             var total = 0f
                             detectHorizontalDragGestures(
@@ -197,6 +208,7 @@ fun MusicApp(vm: MusicViewModel) {
     }
 
     // ---------- Dialoge ----------
+    vm.pickerRequest?.let { list -> AddToPlaylistDialog(vm, list, onDismiss = { vm.pickerRequest = null }) }
     addToPlaylist?.let { list ->
         AddToPlaylistDialog(vm, list, onDismiss = { addToPlaylist = null })
     }
@@ -226,7 +238,9 @@ fun MusicApp(vm: MusicViewModel) {
             onConfirm = { a, mv -> vm.assignTrack(t.path, a, mv); assign = null }
         )
     }
-    renameTrack?.let { t ->
+    renameTrack?.let { t0 ->
+        // immer den aktuellen Stand nehmen (nach Speichern ändern sich Name, Pfad und Interpret)
+        val t = vm.tracks.firstOrNull { it.id == t0.id } ?: vm.tracks.firstOrNull { it.path == Store.resolve(t0.path) } ?: t0
         EditTrackDialog(
             t, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
             onDismiss = { renameTrack = null; stagedCoverUri = null; stagedCoverUrl = null; stagedCoverReset = false },

@@ -123,7 +123,7 @@ private fun trackOf(item: MediaItem?): Track? =
 @Composable
 fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Track) -> Unit, onOpen: () -> Unit) {
     val item = vm.current ?: return
-    val track = remember(item.mediaId) { trackOf(item) }
+    val track = remember(item.mediaId, vm.tracks) { trackOf(item) }
     // Nach rechts wischen = Datei bearbeiten, nach links wischen = Player wegwischen (Wiedergabe endet)
     val trackNow by androidx.compose.runtime.rememberUpdatedState(track)
     val onEditNow by androidx.compose.runtime.rememberUpdatedState(onEdit)
@@ -210,7 +210,7 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Tr
 
 /** Eine „Seite“ des Players: Platte, Titel, Interpret. Beim Wischen sind drei davon nebeneinander zu sehen. */
 @Composable
-private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier, onTitle: (() -> Unit)? = null, onArtist: (() -> Unit)? = null) {
+private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier, onTitle: (() -> Unit)? = null, onArtist: (() -> Unit)? = null, onCover: (() -> Unit)? = null) {
     val title = item?.mediaMetadata?.title?.toString() ?: "Nichts ausgewählt"
     val artist = item?.mediaMetadata?.artist?.toString().orEmpty()
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -228,6 +228,7 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier, 
         // Cover/Platte nimmt nur den Platz, der übrig ist (Steuerung unten bleibt immer sichtbar)
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             val side = minOf(maxWidth * 0.72f, maxHeight)
+            Box(Modifier.size(side)) {
             if (a == null) Vinyl(spinning, Modifier.size(side))
             else Box(Modifier.size(side)) {
                 androidx.compose.foundation.Image(
@@ -235,6 +236,13 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier, 
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
                 Vinyl(spinning, Modifier.align(Alignment.BottomEnd).fillMaxWidth(0.3f).padding(4.dp))
+            }
+            // Cover ändern: orangefarbenes Symbol direkt am Cover
+            if (onCover != null) Box(
+                Modifier.align(Alignment.TopEnd).padding(8.dp).size(44.dp).clip(CircleShape)
+                    .background(ORANGE).clickable(onClick = onCover),
+                contentAlignment = Alignment.Center
+            ) { Icon(Icons.Filled.Image, "Cover ändern", tint = Color.Black) }
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -260,7 +268,8 @@ private fun PlayerFullPage(
             PlayerPage(
                 item, vm.isPlaying, Modifier.weight(1f).fillMaxWidth(),
                 onTitle = if (track != null && nav != null) ({ nav.onLocate(track) }) else null,
-                onArtist = if (track != null && nav != null && track.artist != UNKNOWN_ARTIST) ({ nav.onArtist(track.artist) }) else null
+                onArtist = if (track != null && nav != null && track.artist != UNKNOWN_ARTIST) ({ nav.onArtist(track.artist) }) else null,
+                onCover = if (track != null) ({ actions.onCover(track) }) else null
             )
         }
         if (track != null) {

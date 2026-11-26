@@ -663,7 +663,22 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Fügt Lieder zu mehreren Playlists hinzu (Doppelte werden übersprungen) und meldet das Ergebnis. */
-    fun addToPlaylists(ids: List<String>, list: List<Track>) {
+    /** Auswahl „Zu Playlist“ von außen öffnen (z. B. alle Lieder einer Playlist in eine andere). */
+    var pickerRequest by mutableStateOf<List<Track>?>(null)
+
+    /** Tippen auf die „hinzugefügt“-Meldung öffnet diese Playlist. */
+    var openLabel: String? = null
+    var openPlaylistId: String? = null
+
+    fun addToPlaylists(ids: List<String>, list: List<Track>, removeIds: List<String> = emptyList()) {
+        val pathSet = list.map { Store.resolve(it.path) }.toHashSet()
+        var removed = 0
+        for (id in removeIds) {
+            val p = Store.playlists.firstOrNull { it.id == id } ?: continue
+            p.trackPaths.withIndex().filter { it.value in pathSet }.map { it.index }.sortedDescending().forEach {
+                Store.removeFromPlaylistAt(app, id, it); removed++
+            }
+        }
         var added = 0
         for (id in ids) {
             val before = Store.playlists.firstOrNull { it.id == id }?.trackPaths?.size ?: 0
@@ -672,11 +687,15 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }
         syncPlaylists()
         val names = ids.mapNotNull { id -> Store.playlists.firstOrNull { it.id == id }?.name }
-        message = when {
+        openLabel = null; openPlaylistId = null
+        val msg = when {
+            added == 0 && removed > 0 -> if (removeIds.size == 1) "Aus „${Store.playlists.firstOrNull { it.id == removeIds[0] }?.name.orEmpty()}“ entfernt" else "Aus ${removeIds.size} Playlists entfernt"
             added == 0 -> "Schon in der Playlist"
-            names.size == 1 -> "Zu „${names[0]}“ hinzugefügt"
-            else -> "Zu ${names.size} Playlists hinzugefügt"
+            names.size == 1 -> "Zu „${names[0]}“ hinzugefügt" + if (removed > 0) " (und woanders entfernt)" else ""
+            else -> "Zu ${names.size} Playlists hinzugefügt" + if (removed > 0) " (und woanders entfernt)" else ""
         }
+        if (added > 0 && names.size == 1) { openLabel = msg; openPlaylistId = ids.firstOrNull { id -> Store.playlists.any { it.id == id } } }
+        message = msg
     }
 
     fun renamePlaylist(id: String, name: String) {

@@ -51,6 +51,8 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
@@ -141,6 +143,7 @@ fun PlaylistMenu(expanded: Boolean, onDismiss: () -> Unit, vm: MusicViewModel, p
         MenuItem("Zufällig abspielen", Icons.Filled.Shuffle) { onDismiss(); vm.playShuffled(vm.playlistTracks(p.id), "p:${p.id}") }
         MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { onDismiss(); vm.playNext(vm.playlistTracks(p.id)) }
         MenuItem("Zur Warteschlange", Icons.Filled.QueueMusic) { onDismiss(); vm.addToQueue(vm.playlistTracks(p.id)) }
+        MenuItem(if (p.audio) "Zu Playlist / Hörbuch …" else "Zu Playlist / Hörbuch …", Icons.Filled.PlaylistAdd) { onDismiss(); vm.pickerRequest = vm.playlistTracks(p.id) }
         if (p.id != FAV_ID) {
             MenuItem(if (p.pinned) "Fixierung lösen" else "Fixieren", Icons.Filled.PushPin) { onDismiss(); vm.setPinned(p.id, !p.pinned) }
             MenuItem("Bearbeiten (Name, Beschreibung, Bild)", Icons.Filled.Edit) { onDismiss(); onEdit() }
@@ -295,44 +298,49 @@ fun EditPlaylistDialog(vm: MusicViewModel, playlistId: String, onDismiss: () -> 
     )
 }
 
-/** „Zu Playlist hinzufügen“: Liste mit Bild, mehrere Playlists ankreuzen, neue erstellen, unten „Fertig“. */
+/** „Zu Playlist hinzufügen“: ein Umschalter Playlist ⇄ Hörbuch, Häkchen setzen/entfernen, unten „Fertig“. */
 @Composable
 fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -> Unit) {
-    val checked = remember { mutableStateListOf<String>() }
+    val paths = remember(tracks) { tracks.map { Store.resolve(it.path) }.toHashSet() }
+    val initial = remember(tracks) {
+        vm.playlists.filter { paths.isNotEmpty() && it.trackPaths.toHashSet().containsAll(paths) }.map { it.id }.toHashSet()
+    }
+    val checked = remember { mutableStateListOf<String>().also { it.addAll(initial) } }
     var creating by remember { mutableStateOf(false) }
-    var creatingAudio by remember { mutableStateOf(false) }
     var showAudio by remember { mutableStateOf(false) }
-    val hasAudio = vm.playlists.any { it.audio }
     val ordered = vm.orderedPlaylists().filter { it.audio == showAudio }
-    val paths = remember(tracks) { tracks.map { it.path }.toHashSet() }
+    val toAdd = checked.filter { it !in initial }
+    val toRemove = initial.filter { it !in checked }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (tracks.size == 1) "Zu Playlist hinzufügen" else "${tracks.size} Lieder hinzufügen") },
         text = {
             Column {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LetterChip("Playlists", !showAudio, true) { showAudio = false }
-                    LetterChip("Hörbücher & Podcasts", showAudio, true) { showAudio = true }
-                }
-                Row {
-                    TextButton(onClick = { creating = true }) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text("  Neue Playlist") }
-                    TextButton(onClick = { creatingAudio = true }) { Icon(Icons.Filled.Headphones, null, Modifier.size(20.dp)); Text("  Neues Hörbuch") }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Button(
+                        onClick = { showAudio = !showAudio },
+                        colors = ButtonDefaults.buttonColors(containerColor = ORANGE, contentColor = Color.Black)
+                    ) {
+                        Icon(if (showAudio) Icons.Filled.Headphones else Icons.Filled.QueueMusic, null, Modifier.size(20.dp))
+                        Text(if (showAudio) "  Hörbücher & Podcasts" else "  Playlists")
+                    }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { creating = true }) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text("  Neu") }
                 }
                 LazyColumn(Modifier.heightIn(max = 380.dp)) {
                     items(ordered, key = { it.id }) { p ->
-                        val already = paths.isNotEmpty() && p.trackPaths.toHashSet().containsAll(paths)
-                        val on = already || p.id in checked
+                        val on = p.id in checked
                         Row(
-                            Modifier.fillMaxWidth().clickable(enabled = !already) { if (p.id in checked) checked.remove(p.id) else checked.add(p.id) }
+                            Modifier.fillMaxWidth().clickable { if (on) checked.remove(p.id) else checked.add(p.id) }
                                 .padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Checkbox(checked = on, onCheckedChange = null, enabled = !already)
+                            Checkbox(checked = on, onCheckedChange = null)
                             PlaylistCover(p, remember(p) { vm.playlistTracks(p.id) }, Modifier.padding(start = 10.dp).size(52.dp).clip(RoundedCornerShape(8.dp)), 120)
                             Column(Modifier.padding(start = 12.dp).weight(1f)) {
                                 Text(p.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(
-                                    if (already) "schon drin" else "${p.trackPaths.size} Lieder",
+                                    "${p.trackPaths.size} Lieder",
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -343,11 +351,10 @@ fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -
             }
         },
         confirmButton = {
-            Row {
-                TextButton(onClick = { vm.addToPlaylists(checked.toList(), tracks); onDismiss() }, enabled = checked.isNotEmpty()) {
-                    Text("Fertig" + if (checked.isNotEmpty()) " (${checked.size})" else "")
-                }
-            }
+            TextButton(
+                onClick = { vm.addToPlaylists(toAdd, tracks, toRemove); onDismiss() },
+                enabled = toAdd.isNotEmpty() || toRemove.isNotEmpty()
+            ) { Text("Fertig") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
@@ -356,13 +363,6 @@ fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -
             title = "Neue Playlist", label = "Name", confirmText = "Erstellen",
             onDismiss = { creating = false },
             onConfirm = { n -> vm.createPlaylist(n, audio = showAudio)?.let { checked.add(it) }; creating = false }
-        )
-    }
-    if (creatingAudio) {
-        TextInputDialog(
-            title = "Neue Hörbuch-/Podcast-Liste", label = "Name", confirmText = "Erstellen",
-            onDismiss = { creatingAudio = false },
-            onConfirm = { n -> vm.createPlaylist(n, audio = true)?.let { checked.add(it); showAudio = true }; creatingAudio = false }
         )
     }
 }
