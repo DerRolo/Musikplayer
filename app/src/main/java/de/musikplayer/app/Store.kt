@@ -104,7 +104,7 @@ object Store {
     /** Favorisierte Interpreten (Stern). */
     var favArtists: List<String> = emptyList()
     /** Höhe/Größe der Listenzeilen. */
-    var rowScale: Float = 1.2f
+    var rowScale: Float = 1.0f
         private set
 
     private var loaded = false
@@ -146,7 +146,7 @@ object Store {
             stripStrings = o.optJSONArray("stripStrings").strings()
             recentSearches = o.optJSONArray("recent").strings()
             favArtists = o.optJSONArray("favArtists").strings()
-            rowScale = o.optDouble("rowScale", 1.2).toFloat()
+            rowScale = o.optDouble("rowScale2", 1.0).toFloat()
             Names.extraStrip = stripStrings
             skipSilence = o.optBoolean("skipSilence", true)
             modes = o.optJSONObject("modes").toMap()
@@ -241,7 +241,7 @@ object Store {
         o.put("playlistPlays", JSONObject(playlistPlays.mapValues { it.value.toString() }))
         o.put("recent", JSONArray(recentSearches))
         o.put("favArtists", JSONArray(favArtists))
-        o.put("rowScale", rowScale.toDouble())
+        o.put("rowScale2", rowScale.toDouble())
         o.put("known", JSONArray().also { a -> knownPaths.forEach { a.put(it) } })
         val tmp = File(ctx.filesDir, "$FILE.tmp")
         tmp.writeText(o.toString())

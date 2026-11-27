@@ -158,7 +158,7 @@ private fun DeveloperOptionsPage(vm: MusicViewModel, onOpenPreview: () -> Unit, 
         Column(Modifier.padding(16.dp)) {
             Text("UI Size", style = MaterialTheme.typography.titleMedium)
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Small" to 1.0f, "Medium" to 1.2f, "Large" to 1.45f).forEach { (label, value) ->
+                listOf("Small" to 0.85f, "Medium" to 1.0f, "Large" to 1.25f).forEach { (label, value) ->
                     LetterChip(label, kotlin.math.abs(vm.rowScale - value) < 0.05f, true) { vm.changeRowScale(value) }
                 }
             }
@@ -179,11 +179,14 @@ private fun DeveloperPreviewPage(vm: MusicViewModel, onBack: () -> Unit) {
     }
     Column(Modifier.fillMaxSize()) {
         PageHeader("UI Preview", onBack)
-        Text("Actual song row · current UI scale", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-        androidx.compose.runtime.CompositionLocalProvider(LocalRowScale provides vm.rowScale) {
-            TrackRow(sample, inert, compact = false, swipe = false, onClick = {})
+        Text("Actual song row · all UI sizes", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        listOf("Small" to 0.85f, "Medium" to 1.0f, "Large" to 1.25f).forEach { (label, v) ->
+            Text(label + if (kotlin.math.abs(vm.rowScale - v) < 0.05f) " (current)" else "", style = MaterialTheme.typography.labelMedium, color = ORANGE, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+            androidx.compose.runtime.CompositionLocalProvider(LocalRowScale provides v) {
+                TrackRow(sample, inert, compact = false, swipe = false, onClick = {})
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
         Text("Preview uses the same component as song lists. Actions are inert.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
     }
 }

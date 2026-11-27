@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,6 +70,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /** Aktionen, die ein Titel-Menü auslösen kann. */
 data class TrackActions(
@@ -103,7 +105,7 @@ data class TrackActions(
 val ORANGE = Color(0xFFF59E0B)
 
 /** Id des gerade laufenden Titels – damit jede Liste (Bibliothek, Playlist, Hörbuch …) ihn gleich markiert. */
-val LocalRowScale = androidx.compose.runtime.compositionLocalOf { 1.2f }
+val LocalRowScale = androidx.compose.runtime.compositionLocalOf { 1.0f }
 
 val LocalPlayingId = androidx.compose.runtime.compositionLocalOf<Long?> { null }
 
@@ -189,15 +191,33 @@ fun TrackRow(
             }
         }
     ) {
+        val sc = LocalRowScale.current
+        val lv = if (sc < 0.95f) 0 else if (sc < 1.12f) 1 else 2 // 0 Klein, 1 Mittel, 2 Groß
+        val coverDp = listOf(40, 48, 58)[lv].dp
+        val vPad = listOf(4, 5, 8)[lv].dp
+        val titleSp = listOf(14, 16, 18)[lv].sp
+        val subSp = listOf(11, 13, 14)[lv].sp
+        val btnW = listOf(32, 34, 40)[lv].dp
+        val btnH = listOf(32, 32, 38)[lv].dp
+        val iconDp = listOf(18, 19, 22)[lv].dp
+        val moreDp = listOf(32, 34, 40)[lv].dp
+        val muted = MaterialTheme.colorScheme.onSurfaceVariant
+        val titleColor = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        val openArtist = actions.onOpenArtist
+        val canOpen = openArtist != null && track.artist != UNKNOWN_ARTIST
+        val fav = actions.isFavorite(track)
+        val plays = Store.playCounts[track.path] ?: 0
+        val showAlbum = Store.showAlbum && track.albumName.isNotBlank()
+        val subStyle = MaterialTheme.typography.bodySmall.copy(fontSize = subSp)
         Row(
             Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)
-                .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(start = 16.dp, top = (4 + 5 * LocalRowScale.current).dp, bottom = (4 + 5 * LocalRowScale.current).dp),
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(start = 12.dp, top = vPad, bottom = vPad),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (selectionMode) Checkbox(checked = selected, onCheckedChange = null, modifier = Modifier.padding(end = 12.dp))
-            Cover(listOf(track), track.title, Modifier.size((46 * LocalRowScale.current).dp).clip(RoundedCornerShape(6.dp)), sizePx = 128)
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                val titleColor = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            if (selectionMode) Checkbox(checked = selected, onCheckedChange = null, modifier = Modifier.padding(end = 8.dp))
+            Cover(listOf(track), track.title, Modifier.size(coverDp).clip(RoundedCornerShape(6.dp)), sizePx = 128)
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                // Zeile 1: Titel (Klein: mit Dauer)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (playing) { MiniEq(titleColor, LocalIsPlaying.current); Spacer(Modifier.width(8.dp)) }
                     Text(
@@ -205,81 +225,94 @@ fun TrackRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).basicMarquee(iterations = 1, initialDelayMillis = 1000, velocity = 40.dp),
-                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize * LocalRowScale.current),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = titleSp),
                         color = titleColor
                     )
-                    if (!selectionMode) {
-                        Box {
-                            IconButton(onClick = { menu = true }, modifier = Modifier.size(40.dp)) {
-                                Icon(Icons.Filled.MoreVert, contentDescription = "Aktionsmenü")
-                            }
-                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { menu = false; actions.onPlayNext(track) }
-                                MenuItem("Zur Warteschlange", Icons.Filled.QueueMusic) { menu = false; actions.onAddToQueue(track) }
-                                MenuItem("Zu Playlist hinzufügen", Icons.Filled.PlaylistAdd) { menu = false; actions.onAddToPlaylist(track) }
-                                MenuItem(
-                                    if (actions.isFavorite(track)) "Aus Lieblingssongs entfernen" else "Zu Lieblingssongs",
-                                    if (actions.isFavorite(track)) Icons.Outlined.FavoriteBorder else Icons.Filled.Favorite
-                                ) { menu = false; actions.onToggleFavorite(track) }
-                                MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
-                                actions.onRemoveFromPlaylist?.let { rm ->
-                                    MenuItem(actions.removeLabel, Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
+                    if (lv == 0) Text(formatDuration(track.durationMs), maxLines = 1, softWrap = false, style = subStyle, color = muted, modifier = Modifier.padding(start = 6.dp, end = 4.dp))
+                }
+                if (lv == 0) {
+                    // Klein: zwei Ebenen – Interpret · Album
+                    Row {
+                        Text(
+                            track.artist, maxLines = 1, overflow = TextOverflow.Ellipsis, style = subStyle,
+                            color = if (canOpen) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f) else muted,
+                            textDecoration = if (canOpen) androidx.compose.ui.text.style.TextDecoration.Underline else null,
+                            modifier = Modifier.weight(1f, fill = false).then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist) } else Modifier)
+                        )
+                        if (showAlbum) Text(
+                            "  ·  " + track.albumName, maxLines = 1, overflow = TextOverflow.Ellipsis, style = subStyle, color = muted,
+                            modifier = Modifier.weight(1f, fill = false).then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist + "\u0000" + track.albumName) } else Modifier)
+                        )
+                    }
+                } else {
+                    // Zeile 2: Album (nur wenn „Show Album“ an)
+                    if (showAlbum) Text(
+                        track.albumName, maxLines = 1, overflow = TextOverflow.Ellipsis, style = subStyle, color = muted,
+                        modifier = Modifier.then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist + "\u0000" + track.albumName) } else Modifier)
+                    )
+                    // Zeile 3: Interpret · Dauer links (Dauer wird nie abgeschnitten), Schnellsymbole rechts
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                track.artist, maxLines = 1, overflow = TextOverflow.Ellipsis, style = subStyle,
+                                color = if (canOpen) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f) else muted,
+                                textDecoration = if (canOpen) androidx.compose.ui.text.style.TextDecoration.Underline else null,
+                                modifier = Modifier.weight(1f, fill = false).then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist) } else Modifier)
+                            )
+                            Text("  ·  " + formatDuration(track.durationMs), maxLines = 1, softWrap = false, style = subStyle, color = muted)
+                        }
+                        if (!selectionMode) {
+                            Row(Modifier.height(btnH), verticalAlignment = Alignment.CenterVertically) {
+                                Row(Modifier.width(btnW), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                                    Icon(Icons.Filled.Headphones, "Wiedergaben", Modifier.size(subSp.value.dp), tint = muted)
+                                    Text(plays.toString(), style = MaterialTheme.typography.labelSmall.copy(fontSize = (subSp.value - 2).sp), color = muted, maxLines = 1)
                                 }
-                                MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
-                                MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }
-                                MenuItem("Datei im Ordner zeigen", Icons.Filled.FolderOpen) { menu = false; actions.onShowFile(track) }
-                                MenuItem("Sperren", Icons.Filled.Lock, warn = true) { menu = false; actions.onBlock(track) }
-                                MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
+                                IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(btnW, btnH)) {
+                                    Icon(if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Lieblingssong", Modifier.size(iconDp), tint = if (fav) HEART_PINK else muted)
+                                }
+                                if (!compact) IconButton(onClick = { actions.onAddToPlaylist(track) }, modifier = Modifier.size(btnW, btnH)) {
+                                    Icon(Icons.Filled.Add, "Zu Playlist", Modifier.size(iconDp), tint = muted)
+                                }
+                                IconButton(onClick = { actions.onBlock(track) }, modifier = Modifier.size(btnW, btnH)) {
+                                    Icon(Icons.Filled.Lock, "Sperren", Modifier.size(iconDp), tint = ORANGE)
+                                }
                             }
                         }
                     }
                 }
-                val openArtist = actions.onOpenArtist
-                val canOpen = openArtist != null && track.artist != UNKNOWN_ARTIST
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        track.artist,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = MaterialTheme.typography.bodySmall.fontSize * LocalRowScale.current),
-                        color = if (canOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        textDecoration = if (canOpen) androidx.compose.ui.text.style.TextDecoration.Underline else null,
-                        modifier = Modifier.weight(1f).then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist) } else Modifier)
-                    )
-                    Text(formatDuration(track.durationMs), maxLines = 1, style = MaterialTheme.typography.bodySmall.copy(fontSize = MaterialTheme.typography.bodySmall.fontSize * LocalRowScale.current), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp, end = 6.dp))
+            }
+            if (!selectionMode) {
+                if (lv == 0) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.width(30.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                        Icon(Icons.Filled.Headphones, "Wiedergaben", Modifier.size(11.dp), tint = muted)
+                        Text(plays.toString(), style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = muted, maxLines = 1)
+                    }
+                    IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(btnW, btnH)) {
+                        Icon(if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Lieblingssong", Modifier.size(iconDp), tint = if (fav) HEART_PINK else muted)
+                    }
+                    IconButton(onClick = { actions.onBlock(track) }, modifier = Modifier.size(btnW, btnH)) {
+                        Icon(Icons.Filled.Lock, "Sperren", Modifier.size(iconDp), tint = ORANGE)
+                    }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (Store.showAlbum) track.albumName.takeIf { it.isNotBlank() } ?: " " else " ",
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = MaterialTheme.typography.bodySmall.fontSize * LocalRowScale.current),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (!selectionMode) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                            val quickIconSize = (20 * LocalRowScale.current).dp.coerceAtMost(24.dp)
-                            val plays = Store.playCounts[track.path] ?: 0
-                            Row(Modifier.size(width = 38.dp, height = 40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                                Icon(Icons.Filled.Headphones, contentDescription = "Wiedergaben", modifier = Modifier.size((16 * LocalRowScale.current).dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(plays.toString(), style = MaterialTheme.typography.labelSmall.copy(fontSize = MaterialTheme.typography.labelSmall.fontSize * LocalRowScale.current), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                            }
-                            IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(40.dp)) {
-                                Icon(
-                                    if (actions.isFavorite(track)) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                    contentDescription = "Lieblingssong",
-                                    tint = if (actions.isFavorite(track)) HEART_PINK else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(quickIconSize)
-                                )
-                            }
-                            if (!compact) IconButton(onClick = { actions.onAddToPlaylist(track) }, modifier = Modifier.size(40.dp)) {
-                                Icon(Icons.Filled.Add, contentDescription = "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(quickIconSize))
-                            }
-                            Spacer(Modifier.width(if (compact) 8.dp else 4.dp))
-                            IconButton(onClick = { actions.onBlock(track) }, modifier = Modifier.size(40.dp)) {
-                                Icon(Icons.Filled.Lock, contentDescription = "Sperren", tint = ORANGE, modifier = Modifier.size(quickIconSize))
-                            }
+                Box {
+                    IconButton(onClick = { menu = true }, modifier = Modifier.size(moreDp)) { Icon(Icons.Filled.MoreVert, "Aktionsmenü") }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { menu = false; actions.onPlayNext(track) }
+                        MenuItem("Zur Warteschlange", Icons.Filled.QueueMusic) { menu = false; actions.onAddToQueue(track) }
+                        MenuItem("Zu Playlist hinzufügen", Icons.Filled.PlaylistAdd) { menu = false; actions.onAddToPlaylist(track) }
+                        MenuItem(
+                            if (fav) "Aus Lieblingssongs entfernen" else "Zu Lieblingssongs",
+                            if (fav) Icons.Outlined.FavoriteBorder else Icons.Filled.Favorite
+                        ) { menu = false; actions.onToggleFavorite(track) }
+                        MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
+                        actions.onRemoveFromPlaylist?.let { rm ->
+                            MenuItem(actions.removeLabel, Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
                         }
+                        MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                        MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }
+                        MenuItem("Datei im Ordner zeigen", Icons.Filled.FolderOpen) { menu = false; actions.onShowFile(track) }
+                        MenuItem("Sperren", Icons.Filled.Lock, warn = true) { menu = false; actions.onBlock(track) }
+                        MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
                     }
                 }
             }

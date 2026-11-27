@@ -54,7 +54,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     var artistGrid by mutableStateOf(true)
     var favArtists by mutableStateOf<Set<String>>(emptySet())
     var onlyFavArtists by mutableStateOf(false)
-    var rowScale by mutableStateOf(1.2f)
+    var rowScale by mutableStateOf(1.0f)
         private set
     var favoritePaths by mutableStateOf<Set<String>>(emptySet())
         private set
