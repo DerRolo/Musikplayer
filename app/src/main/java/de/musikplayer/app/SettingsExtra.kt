@@ -18,7 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import java.io.File
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.filled.Block
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.getValue
@@ -94,7 +93,7 @@ internal fun BlockedPage(vm: MusicViewModel, onBack: () -> Unit) {
                             Modifier.fillMaxSize().background(if (right) MaterialTheme.colorScheme.error else ORANGE).padding(horizontal = 20.dp),
                             contentAlignment = if (right) Alignment.CenterStart else Alignment.CenterEnd
                         ) {
-                            Icon(if (right) Icons.Filled.Block else Icons.Filled.LockOpen, null, tint = Color.Black)
+                            Icon(Icons.Filled.Lock, null, tint = Color.Black)
                         }
                     }
                 ) {
@@ -112,7 +111,7 @@ internal fun BlockedPage(vm: MusicViewModel, onBack: () -> Unit) {
                             MarqueeText(e.title, MaterialTheme.typography.bodyLarge, Modifier.fillMaxWidth(), align = TextAlign.Start)
                             MarqueeText(e.sub, MaterialTheme.typography.bodySmall, Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant, align = TextAlign.Start)
                         }
-                        Icon(if (e.soft) Icons.Filled.LockOpen else Icons.Filled.Block, if (e.soft) "Mediathek-Sperre" else "Vollsperre", Modifier.size(18.dp), tint = if (e.soft) ORANGE else MaterialTheme.colorScheme.error)
+                        Icon(Icons.Filled.Lock, if (e.soft) "Mediathek-Sperre" else "Vollsperre", Modifier.size(18.dp), tint = if (e.soft) ORANGE else MaterialTheme.colorScheme.error)
                     }
                 }
             }

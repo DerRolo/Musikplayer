@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Delete
@@ -205,70 +205,82 @@ fun TrackRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).basicMarquee(iterations = 1, initialDelayMillis = 1000, velocity = 40.dp),
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize * LocalRowScale.current),
                         color = titleColor
                     )
+                    if (!selectionMode) {
+                        Box {
+                            IconButton(onClick = { menu = true }, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "Aktionsmenü")
+                            }
+                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { menu = false; actions.onPlayNext(track) }
+                                MenuItem("Zur Warteschlange", Icons.Filled.QueueMusic) { menu = false; actions.onAddToQueue(track) }
+                                MenuItem("Zu Playlist hinzufügen", Icons.Filled.PlaylistAdd) { menu = false; actions.onAddToPlaylist(track) }
+                                MenuItem(
+                                    if (actions.isFavorite(track)) "Aus Lieblingssongs entfernen" else "Zu Lieblingssongs",
+                                    if (actions.isFavorite(track)) Icons.Outlined.FavoriteBorder else Icons.Filled.Favorite
+                                ) { menu = false; actions.onToggleFavorite(track) }
+                                MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
+                                actions.onRemoveFromPlaylist?.let { rm ->
+                                    MenuItem(actions.removeLabel, Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
+                                }
+                                MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                                MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }
+                                MenuItem("Datei im Ordner zeigen", Icons.Filled.FolderOpen) { menu = false; actions.onShowFile(track) }
+                                MenuItem("Sperren", Icons.Filled.Lock, warn = true) { menu = false; actions.onBlock(track) }
+                                MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
+                            }
+                        }
+                    }
                 }
                 val openArtist = actions.onOpenArtist
                 val canOpen = openArtist != null && track.artist != UNKNOWN_ARTIST
-                // Fixed three-line layout: title, optional album, clickable artist. Album is never navigational.
-                Text(
-                    if (Store.showAlbum) track.albumName.takeIf { it.isNotBlank() }?.let { "Album: $it" } ?: " " else " ",
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    track.artist,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (canOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    textDecoration = if (canOpen) androidx.compose.ui.text.style.TextDecoration.Underline else null,
-                    modifier = Modifier.then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist) } else Modifier)
-                )
-            }
-            Column(Modifier.width(64.dp).padding(end = 2.dp), horizontalAlignment = Alignment.End) {
-                val plays = Store.playCounts[track.path] ?: 0
-                Text(if (plays > 0) "$plays×" else " ", maxLines = 1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(formatDuration(track.durationMs), maxLines = 1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (!selectionMode) {
-                // Song-Metadaten sind unabhängig vom Ansichtstyp (Bibliothek, Playlist, Hörbuch etc.).
-                val fav = actions.isFavorite(track)
-                if (!compact) IconButton(onClick = { actions.onBlock(track) }, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Filled.Block, contentDescription = "Sperren", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.75f), modifier = Modifier.size(20.dp))
-                }
-                IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(40.dp)) {
-                    Icon(
-                        if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = "Lieblingssong",
-                        tint = if (fav) HEART_PINK else MaterialTheme.colorScheme.onSurfaceVariant
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        track.artist,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = MaterialTheme.typography.bodySmall.fontSize * LocalRowScale.current),
+                        color = if (canOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        textDecoration = if (canOpen) androidx.compose.ui.text.style.TextDecoration.Underline else null,
+                        modifier = Modifier.weight(1f).then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist) } else Modifier)
                     )
+                    Text(formatDuration(track.durationMs), maxLines = 1, style = MaterialTheme.typography.bodySmall.copy(fontSize = MaterialTheme.typography.bodySmall.fontSize * LocalRowScale.current), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp, end = 6.dp))
                 }
-                if (!compact) IconButton(onClick = { actions.onAddToPlaylist(track) }, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Filled.Add, contentDescription = "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            if (!selectionMode) Box {
-                IconButton(onClick = { menu = true }, modifier = Modifier.size(40.dp)) { Icon(Icons.Filled.MoreVert, contentDescription = "Menü") }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { menu = false; actions.onPlayNext(track) }
-                    MenuItem("Zur Warteschlange", Icons.Filled.QueueMusic) { menu = false; actions.onAddToQueue(track) }
-                    MenuItem("Zu Playlist hinzufügen", Icons.Filled.PlaylistAdd) { menu = false; actions.onAddToPlaylist(track) }
-                    MenuItem(
-                        if (actions.isFavorite(track)) "Aus Lieblingssongs entfernen" else "Zu Lieblingssongs",
-                        if (actions.isFavorite(track)) Icons.Outlined.FavoriteBorder else Icons.Filled.Favorite
-                    ) { menu = false; actions.onToggleFavorite(track) }
-                    MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
-                    actions.onRemoveFromPlaylist?.let { rm ->
-                        MenuItem(actions.removeLabel, Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (Store.showAlbum) track.albumName.takeIf { it.isNotBlank() } ?: " " else " ",
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = MaterialTheme.typography.bodySmall.fontSize * LocalRowScale.current),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (!selectionMode) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                            val quickIconSize = (20 * LocalRowScale.current).dp.coerceAtMost(24.dp)
+                            val plays = Store.playCounts[track.path] ?: 0
+                            Row(Modifier.size(width = 38.dp, height = 40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                                Icon(Icons.Filled.Headphones, contentDescription = "Wiedergaben", modifier = Modifier.size((16 * LocalRowScale.current).dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(plays.toString(), style = MaterialTheme.typography.labelSmall.copy(fontSize = MaterialTheme.typography.labelSmall.fontSize * LocalRowScale.current), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            }
+                            IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(40.dp)) {
+                                Icon(
+                                    if (actions.isFavorite(track)) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                    contentDescription = "Lieblingssong",
+                                    tint = if (actions.isFavorite(track)) HEART_PINK else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(quickIconSize)
+                                )
+                            }
+                            if (!compact) IconButton(onClick = { actions.onAddToPlaylist(track) }, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.Filled.Add, contentDescription = "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(quickIconSize))
+                            }
+                            Spacer(Modifier.width(if (compact) 8.dp else 4.dp))
+                            IconButton(onClick = { actions.onBlock(track) }, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.Filled.Lock, contentDescription = "Sperren", tint = ORANGE, modifier = Modifier.size(quickIconSize))
+                            }
+                        }
                     }
-                    MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
-                    MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }
-                    MenuItem("Datei im Ordner zeigen", Icons.Filled.FolderOpen) { menu = false; actions.onShowFile(track) }
-                    MenuItem("Sperren", Icons.Filled.Block, danger = true) { menu = false; actions.onBlock(track) }
-                    MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
                 }
             }
         }

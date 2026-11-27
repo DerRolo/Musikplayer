@@ -204,7 +204,7 @@ fun PlaylistTile(vm: MusicViewModel, p: Playlist, onOpen: () -> Unit, onEdit: ()
                 p.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp).basicMarquee(iterations = 1, initialDelayMillis = 1000, velocity = 40.dp),
                 color = if (thisPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
             )
-            Text("${p.trackPaths.size} Lieder", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${p.trackPaths.size} ${if (p.audio) "Kapitel" else "Songs"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         PlaylistMenu(menu, { menu = false }, vm, p, onEdit, onDelete)
     }
@@ -260,7 +260,7 @@ fun PlaylistHeader(
             Column(Modifier.weight(1f).padding(start = 14.dp)) {
                 Text(p.name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${tracks.size} Lieder · " + formatDuration(total), style = MaterialTheme.typography.bodySmall,
+                    "${tracks.size} ${if (p.audio) "Kapitel" else "Songs"} · " + formatDuration(total), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (p.description.isNotBlank()) Text(p.description, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis)

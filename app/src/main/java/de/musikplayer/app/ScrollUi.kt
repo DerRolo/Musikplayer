@@ -144,12 +144,22 @@ fun SortMenu(label: String, options: List<String>, selected: Int, onPick: (Int) 
 /** Album-Kachel: Cover (falls Bilder in den Liedern stecken), Name und Anzahl. */
 @Composable
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-fun AlbumTile(name: String, tracks: List<Track>, actions: GroupActions? = null, onClick: () -> Unit) {
+fun AlbumTile(
+    name: String,
+    tracks: List<Track>,
+    actions: GroupActions? = null,
+    playingNow: Boolean = false,
+    onShuffle: () -> Unit,
+    onClick: () -> Unit
+) {
     var menu by remember { mutableStateOf(false) }
     Column(Modifier.width(132.dp).combinedClickable(onClick = onClick, onLongClick = { if (actions != null) menu = true }).padding(4.dp)) {
-        if (actions != null) Box { GroupMenu(menu, { menu = false }, actions) }
-        Cover(tracks, name, Modifier.size(124.dp).clip(RoundedCornerShape(10.dp)))
-        Text(name, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Box {
+            Cover(tracks, name, Modifier.size(124.dp).clip(RoundedCornerShape(10.dp)))
+            PlayOverlay(playingNow, Modifier.align(Alignment.BottomEnd).padding(7.dp), 34.dp, onShuffle)
+            if (actions != null) GroupMenu(menu, { menu = false }, actions)
+        }
+        Text(name, Modifier.padding(top = 4.dp).clickable(onClick = onClick), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         Text("${tracks.size} Lieder", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

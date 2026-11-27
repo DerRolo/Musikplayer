@@ -389,8 +389,10 @@ fun ArtistsTab(
         val top = remember(fullList, vm.current) { fullList.filter { vm.plays(it.path) > 0 }.sortedByDescending { vm.plays(it.path) }.take(5) }
         val v = view
         BackHandler(enabled = v != "") { view = "" }
-        val shown = fullList
-        val ctx = "a:$artist"
+        val albumDetail = v.startsWith("album:")
+        val detailAlbumName = if (albumDetail) v.removePrefix("album:") else ""
+        val shown = if (albumDetail) albums[detailAlbumName].orEmpty() else fullList
+        val ctx = if (albumDetail) "album:$artist:$detailAlbumName" else "a:$artist"
         var menu by remember { mutableStateOf(false) }
         var editAlbumFor by remember { mutableStateOf<String?>(null) }
         var albumCover by remember { mutableStateOf<Pair<String, List<Track>>?>(null) }
@@ -427,26 +429,40 @@ fun ArtistsTab(
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { if (v != "") view = "" else { open = null; originBack?.invoke() } }) { Text("‹ Zurück") }
                 if (v != "") Text(
-                    "$artist · alle Lieder",
+                    if (albumDetail) detailAlbumName else "$artist · alle Lieder",
                     Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis
                 ) else Spacer(Modifier.weight(1f))
-                if (v != "*") IconButton(onClick = { vm.toggleFavArtist(artist) }) {
+                if (!albumDetail && v != "*") IconButton(onClick = { vm.toggleFavArtist(artist) }) {
                     val on = artist in vm.favArtists
                     Icon(if (on) Icons.Filled.Star else Icons.Filled.StarBorder, "Favoriten-Interpret", tint = if (on) ORANGE else LocalContentColor.current)
                 }
-                if (v != "") IconButton(onClick = { vm.playShuffled(shown, ctx) }) { Icon(Icons.Filled.Shuffle, "Zufällig") }
+                if (v != "" && !albumDetail) IconButton(onClick = { vm.playShuffled(shown, ctx) }) { Icon(Icons.Filled.Shuffle, "Zufällig") }
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Alle Lieder …") }
                     GroupMenu(
                         menu, { menu = false },
-                        groupActions(vm, shown, ctx, actions) { vm.blockArtist(artist); open = null }
+                        (groupActions(vm, shown, ctx, actions) {
+                            if (albumDetail) vm.blockTracks(shown) else vm.blockArtist(artist)
+                            open = null
+                        }).let { ga ->
+                            if (albumDetail) ga.copy(onEdit = { editAlbumFor = detailAlbumName }, onDelete = { actions.onDeleteMany(shown) }) else ga
+                        }
                     )
                 }
             }
             if (shown.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Keine Lieder") }
             } else if (v != "") {
-                TrackListBody(vm, shown, ctx, actions, sel)
+                if (albumDetail) {
+                    Column(Modifier.fillMaxSize()) {
+                        AlbumDetailHeader(
+                            artist = artist, album = detailAlbumName, tracks = shown,
+                            onPlay = { if (shown.isNotEmpty()) vm.play(shown, 0, ctx) },
+                            onShuffle = { if (shown.isNotEmpty()) vm.playShuffled(shown, ctx) }
+                        )
+                        TrackListBody(vm, shown, ctx, actions, sel)
+                    }
+                } else TrackListBody(vm, shown, ctx, actions, sel)
             } else {
                 val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
                 Box(Modifier.fillMaxSize()) {
@@ -506,11 +522,15 @@ fun ArtistsTab(
                             item {
                                 androidx.compose.foundation.lazy.LazyRow(state = albumRowState, contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     items(albums.entries.toList(), key = { it.key }) { (name, l) ->
+                                        val albumCtx = "album:$artist:$name"
                                         AlbumTile(
                                             name, l,
-                                            groupActions(vm, l, ctx, actions) { vm.blockTracks(l) }
-                                                .copy(onEdit = { editAlbumFor = name }, onDelete = { actions.onDeleteMany(l) })
-                                        ) { vm.play(l, 0, ctx) }
+                                            groupActions(vm, l, albumCtx, actions) { vm.blockTracks(l) }
+                                                .copy(onEdit = { editAlbumFor = name }, onDelete = { actions.onDeleteMany(l) }),
+                                            playingNow = vm.playingContext == albumCtx && vm.isPlaying,
+                                            onShuffle = { vm.playShuffled(l, albumCtx) },
+                                            onClick = { view = "album:$name" }
+                                        )
                                     }
                                 }
                             }
@@ -529,6 +549,30 @@ fun ArtistsTab(
                     }
                     ListScrollbar(ovState, Modifier.align(Alignment.CenterEnd))
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlbumDetailHeader(artist: String, album: String, tracks: List<Track>, onPlay: () -> Unit, onShuffle: () -> Unit) {
+    val total = tracks.sumOf { it.durationMs }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Cover(tracks, album, Modifier.size(136.dp).clip(RoundedCornerShape(12.dp)), sizePx = 320)
+            Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                Text("ALBUM", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(album, style = MaterialTheme.typography.headlineSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(artist, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("${tracks.size} Songs · ${formatDuration(total)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Button(onClick = onPlay, enabled = tracks.isNotEmpty()) {
+                Icon(Icons.Filled.PlayArrow, null); Text("  Play")
+            }
+            androidx.compose.material3.FilledTonalIconButton(onClick = onShuffle, enabled = tracks.isNotEmpty()) {
+                Icon(Icons.Filled.Shuffle, "Shuffle")
             }
         }
     }

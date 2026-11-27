@@ -39,7 +39,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Build
@@ -69,7 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked }
+private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview }
 
 @Composable
 fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset: Int) {
@@ -78,7 +78,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
     LaunchedEffect(vm.settingsPageRequest) {
         if (vm.settingsPageRequest == "blocked") { page = Page.Blocked; vm.settingsPageRequest = null }
     }
-    BackHandler(enabled = page != Page.Menu) { page = Page.Menu }
+    BackHandler(enabled = page != Page.Menu) { page = if (page == Page.DeveloperPreview) Page.Developer else Page.Menu }
     when (page) {
         Page.Menu -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
@@ -89,7 +89,8 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
             MenuEntry(Icons.Filled.ContentCopy, "Duplikate", "Ähnliche Lieder finden und aufräumen") { page = Page.Dupes }
             MenuEntry(Icons.Filled.Build, "Aufräumen", "Duplikate und Dateinamen zusammen: pro Version behalten, säubern oder löschen") { page = Page.Cleanup }
             MenuEntry(Icons.Filled.FilterAlt, "Namen-Filter", "Texte, die aus Titeln entfernt werden (z. B. „Official Video“)") { page = Page.Strip }
-            MenuEntry(Icons.Filled.Block, "Gesperrt", "Gesperrte Lieder, Interpreten und Ordner ansehen und entsperren") { page = Page.Blocked }
+            MenuEntry(Icons.Filled.Lock, "Gesperrt", "Gesperrte Lieder, Interpreten und Ordner ansehen und entsperren") { page = Page.Blocked }
+            MenuEntry(Icons.Filled.Tune, "Developer Options", "Developer tools and UI settings") { page = Page.Developer }
             var silence by remember { mutableStateOf(Store.skipSilence) }
             var showSilence by remember { mutableStateOf(false) }
             if (showSilence) SilenceDialog { showSilence = false }
@@ -115,44 +116,6 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
                 }
                 androidx.compose.material3.Checkbox(checked = quickMove, onCheckedChange = { quickMove = it; Store.setQuickMove(appCtx, it) })
             }
-            var showAlbum by remember { mutableStateOf(Store.showAlbum) }
-            Column(Modifier.padding(16.dp)) {
-                Text("UI-Größe", style = MaterialTheme.typography.titleMedium)
-                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Klein" to 1.0f, "Mittel" to 1.2f, "Groß" to 1.45f).forEach { (l, v) ->
-                        LetterChip(l, kotlin.math.abs(vm.rowScale - v) < 0.05f, true) { vm.changeRowScale(v) }
-                    }
-                }
-                androidx.compose.material3.Surface(tonalElevation = 1.dp, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = (4 + 5 * vm.rowScale).dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.GraphicEq, null, modifier = Modifier.size((40 * vm.rowScale).dp), tint = MaterialTheme.colorScheme.primary)
-                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text("Beispiel-Song", maxLines = 1, style = MaterialTheme.typography.bodyLarge)
-                            if (showAlbum) Text("Album: Beispiel-Album", maxLines = 1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("Beispiel-Interpret", maxLines = 1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)
-                        }
-                        Column(Modifier.width(64.dp), horizontalAlignment = Alignment.End) {
-                            Text("12×", style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                            Text("3:42", style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                        }
-                    }
-                }
-            }
-            Row(Modifier.fillMaxWidth().clickable { showAlbum = !showAlbum; Store.setShowAlbum(appCtx, showAlbum) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Show Album", style = MaterialTheme.typography.titleMedium)
-                    Text("Albumzeile in der Songliste ein-/ausblenden", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                androidx.compose.material3.Switch(checked = showAlbum, onCheckedChange = { showAlbum = it; Store.setShowAlbum(appCtx, it) })
-            }
-            androidx.compose.material3.Surface(tonalElevation = 1.dp, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Show Album – Vorschau", style = MaterialTheme.typography.titleSmall)
-                        Text("Beispiel-Song · ${if (showAlbum) "Beispiel-Album" else "Album ausgeblendet"} · Beispiel-Interpret", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
             Text(
                 "Playlists, Zuordnungen und Einstellungen liegen nur in der App. Deine Dateien werden nie kopiert.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -167,6 +130,61 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
         Page.Cleanup -> CleanupPage(vm) { page = Page.Menu }
         Page.Strip -> StripPage(vm) { page = Page.Menu }
         Page.Blocked -> BlockedPage(vm) { page = Page.Menu }
+        Page.Developer -> DeveloperOptionsPage(vm, onOpenPreview = { page = Page.DeveloperPreview }) { page = Page.Menu }
+        Page.DeveloperPreview -> DeveloperPreviewPage(vm) { page = Page.Developer }
+    }
+}
+
+@Composable
+private fun DeveloperOptionsPage(vm: MusicViewModel, onOpenPreview: () -> Unit, onBack: () -> Unit) {
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        PageHeader("Developer Options", onBack)
+        Row(Modifier.fillMaxWidth().clickable(onClick = onOpenPreview).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Tune, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 16.dp))
+            Column(Modifier.weight(1f)) {
+                Text("UI Preview", style = MaterialTheme.typography.titleMedium)
+                Text("Preview the actual song-list row and quick actions", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        var showAlbum by remember { mutableStateOf(Store.showAlbum) }
+        Row(Modifier.fillMaxWidth().clickable { showAlbum = !showAlbum; Store.setShowAlbum(appContext, showAlbum) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Show Album", style = MaterialTheme.typography.titleMedium)
+                Text("Show album name in song lists", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            androidx.compose.material3.Switch(checked = showAlbum, onCheckedChange = { showAlbum = it; Store.setShowAlbum(appContext, it) })
+        }
+        Column(Modifier.padding(16.dp)) {
+            Text("UI Size", style = MaterialTheme.typography.titleMedium)
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Small" to 1.0f, "Medium" to 1.2f, "Large" to 1.45f).forEach { (label, value) ->
+                    LetterChip(label, kotlin.math.abs(vm.rowScale - value) < 0.05f, true) { vm.changeRowScale(value) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeveloperPreviewPage(vm: MusicViewModel, onBack: () -> Unit) {
+    val sample = remember {
+        Track(-999L, "/preview/sample.mp3", "A Very Long Song Title for UI Preview", "Sample Artist", "Sample Artist", "Sample Album", 0L, 272000L, 0L, 0L, albumName = "Sample Album")
+    }
+    val inert = remember {
+        TrackActions(
+            onPlayNext = {}, onAddToQueue = {}, onAddToPlaylist = {}, onAssignArtist = {}, onDelete = {},
+            onAddManyToPlaylist = {}, onDeleteMany = {}, onToggleFavorite = {}, isFavorite = { false }, onBlock = {}
+        )
+    }
+    Column(Modifier.fillMaxSize()) {
+        PageHeader("UI Preview", onBack)
+        Text("Actual song row · current UI scale", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        androidx.compose.runtime.CompositionLocalProvider(LocalRowScale provides vm.rowScale) {
+            TrackRow(sample, inert, compact = false, swipe = false, onClick = {})
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
+        Text("Preview uses the same component as song lists. Actions are inert.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
     }
 }
 

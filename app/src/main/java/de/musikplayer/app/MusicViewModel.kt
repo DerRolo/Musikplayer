@@ -386,7 +386,24 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         if (c.isPlaying) c.pause() else c.play()
     }
 
-    fun next() { controller?.seekToNextMediaItem() }
+    fun next() {
+        val c = controller ?: return
+        if (c.mediaItemCount == 0 || c.currentMediaItemIndex < 0) return
+        when (repeatFor(keyOf(playingContext))) {
+            RepeatMode.One -> {
+                c.seekTo(c.currentMediaItemIndex, 0L)
+                c.play()
+            }
+            else -> {
+                if (c.hasNextMediaItem()) c.seekToNextMediaItem()
+                else {
+                    c.pause()
+                    if (c.currentMediaItemIndex >= 0) c.seekTo(c.currentMediaItemIndex, 0L)
+                    positionMs = 0L
+                }
+            }
+        }
+    }
     /** Swipe ist ein echter Trackwechsel und darf nicht wie der Zurück-Button zum Songanfang springen. */
     fun previousFromSwipe() { controller?.seekToPreviousMediaItem() }
     fun previous() {
