@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -62,6 +63,7 @@ fun MusicApp(vm: MusicViewModel) {
     var newAudioList by remember { mutableStateOf(false) }
     var coverFor by remember { mutableStateOf<Track?>(null) }
     var coverMany by remember { mutableStateOf<List<Track>?>(null) }
+    var normalizeFor by remember { mutableStateOf<List<Track>?>(null) }
     var coverQuery by remember { mutableStateOf<String?>(null) }
     var stagedCoverUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var stagedCoverUrl by remember { mutableStateOf<String?>(null) }
@@ -119,7 +121,8 @@ fun MusicApp(vm: MusicViewModel) {
         onAssignMany = { assignMany = it },
         onCover = { coverFor = it },
         onOpenArtist = { backTo = tab to showPlayer; artistToOpen = it; tab = 0; showPlayer = false },
-        onCoverMany = { coverMany = it }
+        onCoverMany = { coverMany = it },
+        onNormalize = { normalizeFor = it }
     )
 
     androidx.compose.runtime.CompositionLocalProvider(LocalIsPlaying provides vm.isPlaying, LocalRowScale provides vm.rowScale, LocalPlayingId provides vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()) {
@@ -166,6 +169,15 @@ fun MusicApp(vm: MusicViewModel) {
         },
         bottomBar = {
             Column {
+                vm.normProgress?.let { txt ->
+                    // Fortschritt beim Angleichen mehrerer Lieder
+                    androidx.compose.material3.Surface(color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                            Text(txt, style = androidx.compose.material3.MaterialTheme.typography.labelMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                        }
+                    }
+                }
                 JamBar(onOpen = openJam)
                 if (!showPlayer) MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }, onEdit = { stagedCoverUri = null; stagedCoverUrl = null; stagedCoverReset = false; renameTrack = it }) { showPlayer = true }
                 NavigationBar {
@@ -236,6 +248,7 @@ fun MusicApp(vm: MusicViewModel) {
     }
 
     // ---------- Dialoge ----------
+    normalizeFor?.let { list -> NormalizeDialog(vm, list) { normalizeFor = null } }
     JamDialogs(onOpenJam = openJam)
     vm.pickerRequest?.let { list -> AddToPlaylistDialog(vm, list, onDismiss = { vm.pickerRequest = null }) }
     addToPlaylist?.let { list ->

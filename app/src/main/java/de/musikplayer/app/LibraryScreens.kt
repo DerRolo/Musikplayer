@@ -139,6 +139,7 @@ fun TrackSelectionBar(vm: MusicViewModel, list: List<Track>, actions: TrackActio
         onBlock = { actions.onBlockMany(chosen()); done() },
         onAssign = { actions.onAssignMany(chosen()); done() },
         onCover = { actions.onCoverMany(chosen()); done() },
+        onNormalize = actions.onNormalize?.let { nz -> { nz(chosen()); done() } },
         removeLabel = removeLabel,
         onRemove = { onRemove(); done() }
     )

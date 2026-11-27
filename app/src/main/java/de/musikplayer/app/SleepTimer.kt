@@ -41,6 +41,8 @@ object SleepTimer {
     private val _volumePercent = MutableStateFlow(100)
     /** Aktuelle Player-Lautstärke in Prozent (nur sinnvoll, solange eine Funktion aktiv ist). */
     val volumePercent: StateFlow<Int> = _volumePercent
+    /** Aktueller Ausblend-Faktor (1 = kein Ausblenden). */
+    val fadeFactor: Float get() = _volumePercent.value / 100f
 
     private var sleepEndAt = 0L          // Systemzeit, 0 = aus
     private var fadeTotalMs = 0L         // 0 = aus
@@ -84,7 +86,8 @@ object SleepTimer {
             }
 
             factor = factor.coerceIn(0f, 1f)
-            p.volume = factor
+            // Lautstärke-Angleichung des Liedes (beim Abspielen) bleibt beim Ausblenden erhalten
+            p.volume = factor * Normalize.playFactor
             _volumePercent.value = (factor * 100f).toInt()
             handler.postDelayed(this, 250L)
         }
@@ -110,7 +113,7 @@ object SleepTimer {
         _sleepRemainingMs.value = 0L
         _fadeRemainingMs.value = 0L
         _volumePercent.value = 100
-        player?.volume = 1f
+        player?.volume = Normalize.playFactor
     }
 
     // ---------- Sleep-Timer ----------

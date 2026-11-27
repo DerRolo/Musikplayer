@@ -116,6 +116,9 @@ object Store {
     /** Eigene Geräte-Kennung für den Jam (zufällig, bleibt erhalten). */
     var deviceId: String = ""
         private set
+    /** Lautstärke angeglichen: Pfad → „Methode:dB“ (Gesamtänderung gegenüber dem Original, für das Zurücknehmen). */
+    var normInfo: Map<String, String> = emptyMap()
+        private set
     /** Papierkorb: gelöschte Lieder (30 Tage wiederherstellbar). */
     var trash: List<TrashItem> = emptyList()
         private set
@@ -168,6 +171,7 @@ object Store {
             resumePosMs = o.optLong("resumePos", 0L)
             deviceId = o.optString("deviceId", "")
             jamVisible = o.optBoolean("jamVisible", true)
+            normInfo = o.optJSONObject("normInfo").toMap()
             trash = o.optJSONArray("trash")?.let { a -> List(a.length()) { TrashItem.from(a.getJSONObject(it)) } }.orEmpty()
             Names.extraStrip = stripStrings
             skipSilence = o.optBoolean("skipSilence", true)
@@ -269,6 +273,7 @@ object Store {
         o.put("resumePos", resumePosMs)
         o.put("deviceId", deviceId)
         o.put("jamVisible", jamVisible)
+        o.put("normInfo", JSONObject(normInfo))
         o.put("trash", JSONArray().also { a -> trash.forEach { a.put(it.toJson()) } })
         o.put("known", JSONArray().also { a -> knownPaths.forEach { a.put(it) } })
         val tmp = File(ctx.filesDir, "$FILE.tmp")
@@ -382,6 +387,14 @@ object Store {
     /** Ohne sofortiges Speichern (für den Hintergrund-Abgleich); danach [flushTrims] aufrufen. */
     fun setTrimLazy(path: String, value: String) { trims = trims + (path to value) }
     fun flushTrims(ctx: Context) = save(ctx)
+
+    /** Stille-Messung eines Liedes verwerfen (z. B. nach Lautstärkeänderung der Datei). */
+    fun clearTrim(ctx: Context, path: String) { if (path in trims) { trims = trims - path; save(ctx) } }
+
+    fun setNormInfo(ctx: Context, path: String, value: String?) {
+        normInfo = if (value == null) normInfo - path else normInfo + (path to value)
+        save(ctx)
+    }
 
     fun setTrim(ctx: Context, path: String, value: String) {
         trims = trims + (path to value)
@@ -525,6 +538,7 @@ object Store {
         trackAlbums = trackAlbums.mapKeys { map[it.key] ?: it.key }
         trackCovers = trackCovers.mapKeys { map[it.key] ?: it.key }
         trims = trims.mapKeys { map[it.key] ?: it.key }
+        normInfo = normInfo.mapKeys { map[it.key] ?: it.key }
         userNamed = userNamed.map { map[it] ?: it }.toHashSet() + map.values
         playCounts = playCounts.mapKeys { map[it.key] ?: it.key }
         save(ctx)

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PlaylistPlay
@@ -98,7 +99,9 @@ data class TrackActions(
     /** Tippen auf den Interpreten-Namen in einer Zeile: zur Interpreten-Seite springen. */
     val onOpenArtist: ((String) -> Unit)? = null,
     /** Ein gemeinsames Cover für alle ausgewählten Lieder. */
-    val onCoverMany: (List<Track>) -> Unit = {}
+    val onCoverMany: (List<Track>) -> Unit = {},
+    /** Lautstärke angleichen (ein oder mehrere Lieder); null = in dieser Ansicht nicht angeboten. */
+    val onNormalize: ((List<Track>) -> Unit)? = null
 )
 
 /** Orange = ändert Dateien auf dem Handy (Umbenennen, Verschieben); Rot ist nur für Löschen. */
@@ -309,6 +312,7 @@ fun TrackRow(
                             MenuItem(actions.removeLabel, Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
                         }
                         MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                        actions.onNormalize?.let { nz -> MenuItem("Lautstärke angleichen …", Icons.Filled.GraphicEq, warn = true) { menu = false; nz(listOf(track)) } }
                         MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }
                         MenuItem("Datei im Ordner zeigen", Icons.Filled.FolderOpen) { menu = false; actions.onShowFile(track) }
                         MenuItem("Sperren", Icons.Filled.Lock, warn = true) { menu = false; actions.onBlock(track) }

@@ -32,6 +32,23 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
+## Update 11 – Lautstärke angleichen (Normalisieren) *(umgesetzt, Gerätetest offen)*
+
+- [~] Neue Aktion „Lautstärke angleichen …“ (orange). Sie steht überall gleich zur Verfügung: im Aktionsmenü jedes Liedes (Bibliothek, Interpret, Album, Playlist, Suche usw.), im großen Player und in der Mehrfachauswahl.
+- [~] Messung über das ganze Lied nach EBU R128 (LUFS), Ziel −14 LUFS wie bei Spotify und YouTube. Gleichmäßige Änderung, kein Kompressor, mit Schutz vor Übersteuern (Spitze höchstens −1 dBFS).
+- [~] Ein Lied: Erst wird gemessen und angezeigt (zum Beispiel „Gemessen −8,3 LUFS – zu laut, Änderung −6,0 dB“), dann bestätigst du. Mehrere Lieder laufen im Hintergrund, mit Fortschrittsleiste.
+- [~] MP3: verlustfrei in der Datei (mp3gain-Verfahren, 1,5-dB-Schritte), exakt umkehrbar.
+- [~] WAV: in der Datei umgerechnet.
+- [~] Andere Formate: Angleichen beim Abspielen, die Datei bleibt unverändert. Leiser über die Player-Lautstärke, lauter über Androids LoudnessEnhancer. Der Sleep-Timer berücksichtigt das beim Ausblenden.
+- [~] „Original wiederherstellen“ im selben Dialog.
+- [~] Die Datei wird sicher ersetzt: erst eine Kopie schreiben, dann tauschen. Bei einem Fehler bleibt das Original unberührt. Danach wird die Stille-Erkennung des Liedes neu gemessen.
+- Lieder anderer im Jam lassen sich nicht angleichen, weil sie nicht bearbeitet werden dürfen.
+
+**Auf dem Gerät zu prüfen**
+1. Ein deutlich zu lautes und ein zu leises MP3 angleichen. Danach sollen beide ähnlich laut sein, auch in einem anderen Player.
+2. „Original wiederherstellen“ → die Lautstärke ist wieder wie vorher.
+3. Eine M4A oder FLAC angleichen → beim Abspielen in der App angepasst, die Datei bleibt unverändert.
+
 ## Bugfix – Shuffle aus stellt die Listen-Reihenfolge wieder her *(umgesetzt, Gerätetest offen)*
 
 - [~] Fehler: Wurde ein Lied aus der Mitte einer Liste mit Shuffle gestartet, blieb nach „Shuffle aus“ die gemischte Reihenfolge stehen. Beim ersten Lied der Liste ging es, deshalb klappte es nur manchmal.

@@ -1212,6 +1212,60 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---------- Lautstärke angleichen (Normalisieren) ----------
+
+    /** Fortschritt beim Angleichen mehrerer Lieder (null = nichts läuft). */
+    var normProgress by mutableStateOf<String?>(null)
+        private set
+    var normTick by mutableStateOf(0)
+        private set
+
+    fun normalizedInfo(t: Track): Pair<Normalize.Method, Double>? { normTick; return Normalize.info(t.path) }
+
+    /** Ein Lied messen (für die Vorschau im Dialog). */
+    suspend fun planNormalize(t: Track): Normalize.Plan? = withContext(Dispatchers.IO) { Normalize.plan(t) }
+
+    private fun refreshPlayGain() {
+        (Jam.player as? androidx.media3.exoplayer.ExoPlayer)?.let { Normalize.onTrack(it, it.currentMediaItem, it.audioSessionId) }
+    }
+
+    /** Gemessene Änderung anwenden (ein Lied). */
+    fun applyNormalize(p: Normalize.Plan) {
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { Normalize.apply(app, p) }
+            normTick++
+            refreshPlayGain()
+            message = if (!ok) "Datei konnte nicht geändert werden" else if (kotlin.math.abs(p.gainDb) < 0.05) "Lautstärke passt schon" else "Lautstärke angeglichen (" + "%+.1f dB".format(p.gainDb) + ")"
+        }
+    }
+
+    /** Mehrere Lieder nacheinander messen und angleichen (im Hintergrund, mit Fortschritt). */
+    fun normalizeMany(list: List<Track>) {
+        if (list.isEmpty() || normProgress != null) return
+        viewModelScope.launch {
+            var done = 0; var failed = 0
+            for ((i, t) in list.withIndex()) {
+                normProgress = "Lautstärke angleichen ${i + 1}/${list.size}: ${t.title}"
+                val ok = withContext(Dispatchers.IO) { Normalize.plan(t)?.let { Normalize.apply(app, it) } ?: false }
+                if (ok) done++ else failed++
+            }
+            normProgress = null
+            normTick++
+            refreshPlayGain()
+            message = "$done Lieder angeglichen" + if (failed > 0) ", $failed nicht möglich" else ""
+        }
+    }
+
+    /** Zurück zur Original-Lautstärke. */
+    fun undoNormalize(t: Track) {
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { Normalize.undo(app, t.path) }
+            normTick++
+            refreshPlayGain()
+            message = if (ok) "Original-Lautstärke wiederhergestellt" else "Datei konnte nicht geändert werden"
+        }
+    }
+
     // ---------- Papierkorb ----------
 
     var trashTick by mutableStateOf(0)

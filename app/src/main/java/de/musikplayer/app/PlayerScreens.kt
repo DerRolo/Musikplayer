@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -433,6 +434,7 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                         ) { menu = false; actions.onToggleFavorite(track) }
                         MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
                         MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                        actions.onNormalize?.let { nz -> MenuItem("Lautstärke angleichen …", Icons.Filled.GraphicEq, warn = true) { menu = false; nz(listOf(track)) } }
                         MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }
                         MenuItem("Datei im Ordner zeigen", Icons.Filled.FolderOpen) { menu = false; actions.onShowFile(track) }
                         MenuItem("Sperren", Icons.Filled.Block, danger = true) { menu = false; actions.onBlock(track) }

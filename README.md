@@ -89,6 +89,15 @@ Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im 
 - Interpret kommt aus dem Tag, sonst aus dem Ordnernamen. Ordner ohne Interpret prüfst du in den Einstellungen.
 - Ähnliche Schreibweisen (Tippfehler, `X feat. Y`, andere Schreibung) werden vorgeschlagen, damit ein Interpret nicht doppelt auftaucht.
 
+### Lautstärke angleichen (Normalisieren)
+
+- Im Aktionsmenü jedes Liedes, im großen Player und in der Mehrfachauswahl: **„Lautstärke angleichen …“**. Das Symbol ist orange, weil die Datei geändert wird.
+- Gemessen wird die Lautheit über das ganze Lied nach EBU R128 (LUFS), so wie bei Spotify, YouTube und Apple Music. Angepasst wird gleichmäßig auf **−14 LUFS**, mit Schutz vor Übersteuern.
+- **MP3:** verlustfrei in der Datei, wie mp3gain. Nur der Lautstärkewert jedes Frames wird geändert, in Schritten von 1,5 dB. Nichts wird neu kodiert, Tags bleiben, und andere Player spielen das Lied danach ebenfalls angeglichen.
+- **WAV:** Die Samples in der Datei werden umgerechnet.
+- **FLAC, M4A, OGG, OPUS:** Diese Formate lassen sich auf dem Handy nicht ohne Qualitätsverlust ändern. Die App gleicht sie beim Abspielen an, die Datei bleibt unverändert.
+- Über denselben Menüpunkt lässt sich jederzeit die **Original-Lautstärke wiederherstellen**.
+
 ### Stille überspringen (internes „Schnittprogramm“)
 
 - Die App liest jedes Lied einmal durch und sucht den ersten und den letzten Ton, der lauter als eine einstellbare Schwelle ist.

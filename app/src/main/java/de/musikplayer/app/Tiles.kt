@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Delete
@@ -194,7 +195,8 @@ fun SelectionBar(
     onAssign: () -> Unit = {},
     onCover: (() -> Unit)? = null,
     removeLabel: String? = null,
-    onRemove: () -> Unit = {}
+    onRemove: () -> Unit = {},
+    onNormalize: (() -> Unit)? = null
 ) {
     var more by remember { mutableStateOf(false) }
     Surface(tonalElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
@@ -212,6 +214,7 @@ fun SelectionBar(
                     MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { more = false; onPlayNext() }
                     MenuItem("Interpret zuordnen …", Icons.Filled.Person) { more = false; onAssign() }
                     if (onCover != null) MenuItem("Cover ändern …", Icons.Filled.Image) { more = false; onCover() }
+                    if (onNormalize != null) MenuItem("Lautstärke angleichen …", Icons.Filled.GraphicEq, warn = true) { more = false; onNormalize() }
                     MenuItem("Sperren", Icons.Filled.Lock, warn = true) { more = false; onBlock() }
                     MenuItem(if (removeLabel != null) "Datei löschen …" else "Löschen …", Icons.Filled.Delete, danger = true) { more = false; onDelete() }
                 }

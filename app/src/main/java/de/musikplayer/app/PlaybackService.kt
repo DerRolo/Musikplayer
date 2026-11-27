@@ -48,6 +48,11 @@ class PlaybackService : MediaLibraryService() {
         Jam.player = player
         player.addListener(Jam.errorSkipper)
         Output.start(this)
+        // Lautstärke-Angleichung beim Abspielen (für Formate, die nicht in der Datei geändert werden können)
+        player.addListener(object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = Normalize.onTrack(player, mediaItem, player.audioSessionId)
+            override fun onAudioSessionIdChanged(audioSessionId: Int) = Normalize.onTrack(player, player.currentMediaItem, audioSessionId)
+        })
         Spectrum.sessionIdProvider = { player.audioSessionId }
         // Tippen auf die Benachrichtigung / Mediensteuerung öffnet die App
         val open = PendingIntent.getActivity(
@@ -75,6 +80,7 @@ class PlaybackService : MediaLibraryService() {
         session?.player?.removeListener(Jam.errorSkipper)
         if (Jam.player === session?.player) Jam.player = null
         SleepTimer.cancel()
+        Normalize.release()
         SleepTimer.player = null
         Spectrum.stop()
         Spectrum.sessionIdProvider = null
