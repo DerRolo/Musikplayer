@@ -1229,6 +1229,34 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         (Jam.player as? androidx.media3.exoplayer.ExoPlayer)?.let { Normalize.onTrack(it, it.currentMediaItem, it.audioSessionId) }
     }
 
+    /**
+     * Vorhören: [t] mit [db] Änderung spielen (null = Vorhören beenden). Läuft das Lied noch nicht, wird es direkt
+     * als Nächstes eingeschoben und gestartet (ab einem Drittel, damit man gleich Musik hört) – die Warteschlange bleibt.
+     * Beim Umschalten läuft es an derselben Stelle weiter, nur die Lautstärke wechselt.
+     */
+    fun previewNormalize(t: Track, db: Double?) {
+        if (db == null) {
+            val was = Normalize.previewDb != null
+            Normalize.previewDb = null; Normalize.previewPath = null
+            if (was) refreshPlayGain()
+            return
+        }
+        if (jamRemote) { message = "Im Jam nur auf dem Handy möglich, das gerade abspielt"; return }
+        Normalize.previewPath = t.path
+        Normalize.previewDb = db
+        val c = controller ?: return
+        val playingThis = Library.trackOf(c.currentMediaItem ?: MediaItem.EMPTY)?.path == t.path
+        if (!playingThis) {
+            val item = Library.mediaItem(t, "q")
+            if (c.mediaItemCount == 0) c.setMediaItem(item) else c.addMediaItem(c.currentMediaItemIndex + 1, item)
+            if (c.mediaItemCount > 1 && c.currentMediaItem?.mediaId != item.mediaId) c.seekToNextMediaItem()
+            c.prepare()
+            c.seekTo(t.durationMs / 3)
+        }
+        c.play()
+        refreshPlayGain()
+    }
+
     /** Gemessene Änderung anwenden (ein Lied). */
     fun applyNormalize(p: Normalize.Plan) {
         viewModelScope.launch {

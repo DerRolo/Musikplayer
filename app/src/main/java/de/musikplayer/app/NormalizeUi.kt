@@ -10,6 +10,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -50,6 +58,9 @@ fun NormalizeDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -> Un
     }
     val t = tracks.firstOrNull() ?: return
     val prev = vm.normalizedInfo(t)
+    // 0 = Original, 1 = angeglichen, -1 = kein Vorhören; beim Schließen wieder normale Lautstärke
+    var listening by remember { mutableStateOf(-1) }
+    DisposableEffect(t.path) { onDispose { vm.previewNormalize(t, null) } }
     // first = Messung fertig, second = Ergebnis (null = nicht lesbar)
     val plan by produceState<Pair<Boolean, Normalize.Plan?>>(false to null, t.path) { value = true to vm.planNormalize(t) }
     AlertDialog(
@@ -79,6 +90,20 @@ fun NormalizeDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -> Un
                         Text("Ziel: ${lufs(Normalize.TARGET_LUFS)} (Standard bei Spotify und YouTube)", style = MaterialTheme.typography.bodySmall)
                         Text("Änderung: ${db(p.gainDb)}" + if (p.limited) " (begrenzt, damit nichts übersteuert)" else "", style = MaterialTheme.typography.bodyMedium)
                         Text(methodText(p.method), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        // Vorhören: gleiche Stelle, nur die Lautstärke wechselt
+                        val inFile = prev != null && prev.first != Normalize.Method.Playback
+                        val origDb = if (inFile) -prev!!.second else 0.0
+                        Text("Vorhören", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val sel = listening
+                            if (sel == 0) Button(onClick = {}) { Text("Original") } else OutlinedButton(onClick = { listening = 0; vm.previewNormalize(t, origDb) }) { Text("Original") }
+                            if (sel == 1) Button(onClick = {}) { Text("Angeglichen") } else OutlinedButton(onClick = { listening = 1; vm.previewNormalize(t, p.gainDb) }) { Text("Angeglichen") }
+                        }
+                        Text(
+                            "Das Lied läuft dabei weiter, nur die Lautstärke wechselt. Die Datei wird erst mit „Angleichen“ geändert." +
+                                if (p.gainDb > 0.05) " (Beim Vorhören wird das Anheben über Android simuliert, das Ergebnis in der Datei ist sehr ähnlich.)" else "",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }

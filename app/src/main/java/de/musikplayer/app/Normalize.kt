@@ -106,11 +106,17 @@ object Normalize {
     private var enhancer: LoudnessEnhancer? = null
     private var enhancerSession = 0
 
-    /** Bei jedem Liedwechsel im Wiedergabe-Dienst aufrufen. */
+    /** Vorhören im Dialog: dieses Lied mit dieser Änderung (dB) spielen, ohne die Datei zu ändern. */
+    @Volatile var previewPath: String? = null
+    @Volatile var previewDb: Double? = null
+
+    /** Bei jedem Liedwechsel im Wiedergabe-Dienst aufrufen (und beim Umschalten im Vorhören). */
     fun onTrack(p: Player, item: MediaItem?, sessionId: Int) {
         val t = item?.let { Library.trackOf(it) }
         val i = t?.let { info(it.path) }
-        val db = if (i != null && i.first == Method.Playback) i.second else 0.0
+        val pv = previewDb
+        val db = if (pv != null && t != null && t.path == previewPath) pv
+            else if (i != null && i.first == Method.Playback) i.second else 0.0
         playFactor = if (db < 0) 10.0.pow(db / 20.0).toFloat() else 1f
         p.volume = SleepTimer.fadeFactor * playFactor
         // Lauter als 100 %: Androids LoudnessEnhancer (mit eingebautem Begrenzer)

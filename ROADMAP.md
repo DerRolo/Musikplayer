@@ -41,6 +41,7 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 - [~] WAV: in der Datei umgerechnet.
 - [~] Andere Formate: Angleichen beim Abspielen, die Datei bleibt unverändert. Leiser über die Player-Lautstärke, lauter über Androids LoudnessEnhancer. Der Sleep-Timer berücksichtigt das beim Ausblenden.
 - [~] „Original wiederherstellen“ im selben Dialog.
+- [~] **Vorhören:** Im Dialog wechselst du zwischen „Original“ und „Angeglichen“. Das Lied läuft an derselben Stelle weiter, nur die Lautstärke wechselt. Läuft das Lied noch nicht, wird es als Nächstes eingeschoben und ab einem Drittel gestartet, die Warteschlange bleibt. Die Datei ändert sich erst mit „Angleichen“. Beim Schließen des Dialogs gilt wieder die normale Lautstärke.
 - [~] Die Datei wird sicher ersetzt: erst eine Kopie schreiben, dann tauschen. Bei einem Fehler bleibt das Original unberührt. Danach wird die Stille-Erkennung des Liedes neu gemessen.
 - Lieder anderer im Jam lassen sich nicht angleichen, weil sie nicht bearbeitet werden dürfen.
 
