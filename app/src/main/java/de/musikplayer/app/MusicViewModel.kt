@@ -128,6 +128,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
                 controller = f.get().also { it.addListener(listener) }
                 syncFromPlayer()
                 applyMode(keyOf(playingContext))
+                // Wurde die App über „Öffnen mit“ gestartet, bevor der Dienst verbunden war: jetzt abspielen
+                pendingExternal?.let { pendingExternal = null; playExternal(it) }
             } catch (e: Exception) {
                 message = "Wiedergabe-Dienst nicht erreichbar"
             }
@@ -258,7 +260,13 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Kontext des laufenden Titels: „p:<id>“ für Playlists/Hörbücher, sonst z. B. „all“. */
     val playContextKey: String get() = current?.mediaId?.removePrefix("t:")?.substringBeforeLast(':') ?: ""
 
-    private fun keyOf(context: String?) = if (context != null && context.startsWith("p:")) context else "all"
+    private fun keyOf(context: String?) = when {
+        context == null -> "all"
+        context.startsWith("p:") -> context
+        // Von außen geöffnete Lieder haben eigene Shuffle-/Wiederholen-Einstellungen (Fremdtitel und Bibliothekstitel gleich)
+        context == External.CONTEXT || context.startsWith(External.PREFIX) -> External.CONTEXT
+        else -> "all"
+    }
 
     fun shuffleFor(key: String): Boolean { modeVersion; return Store.modeOf(key).first }
     fun repeatFor(key: String): RepeatMode {
@@ -498,6 +506,27 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun clearQueue() { controller?.let { it.stop(); it.clearMediaItems() } }
+
+    // ---------- Von außen geöffnete Dateien („Öffnen mit“) ----------
+
+    private var pendingExternal: android.net.Uri? = null
+    /** true = Vollbild-Player öffnen (wird von der Oberfläche zurückgesetzt). */
+    var openPlayerRequest by mutableStateOf(false)
+
+    /**
+     * Spielt genau diese eine Datei. Liegt sie in der Bibliothek, läuft der Bibliothekstitel (mit Herz, Playlist usw.),
+     * sonst ein Fremdtitel, der nirgends gespeichert wird. Die bisherige Warteschlange wird ersetzt.
+     */
+    fun playExternal(uri: android.net.Uri) {
+        if (controller == null) { pendingExternal = uri; return }
+        viewModelScope.launch {
+            val item = try { withContext(Dispatchers.IO) { External.itemFor(app, uri) } } catch (e: Exception) { null }
+            if (item == null) { message = "Datei kann nicht geöffnet werden"; return@launch }
+            applyMode(External.CONTEXT)
+            if (Library.trackOf(item) != null) startItems(listOf(item), 0) else doStart(listOf(item), 0)
+            openPlayerRequest = true
+        }
+    }
 
     // ---------- Playlists (nur in der App, keine Dateikopien) ----------
 

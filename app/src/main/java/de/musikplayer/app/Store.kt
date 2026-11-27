@@ -106,6 +106,13 @@ object Store {
     /** Höhe/Größe der Listenzeilen. */
     var rowScale: Float = 1.0f
         private set
+    /** Zuletzt gespieltes Bibliothekslied (für „Wiedergabe fortsetzen“ per Kopfhörer-/System-Taste). */
+    var resumePath: String = ""
+        private set
+    var resumeContext: String = ""
+        private set
+    var resumePosMs: Long = 0L
+        private set
 
     private var loaded = false
 
@@ -147,6 +154,9 @@ object Store {
             recentSearches = o.optJSONArray("recent").strings()
             favArtists = o.optJSONArray("favArtists").strings()
             rowScale = o.optDouble("rowScale2", 1.0).toFloat()
+            resumePath = o.optString("resumePath", "")
+            resumeContext = o.optString("resumeCtx", "")
+            resumePosMs = o.optLong("resumePos", 0L)
             Names.extraStrip = stripStrings
             skipSilence = o.optBoolean("skipSilence", true)
             modes = o.optJSONObject("modes").toMap()
@@ -242,6 +252,9 @@ object Store {
         o.put("recent", JSONArray(recentSearches))
         o.put("favArtists", JSONArray(favArtists))
         o.put("rowScale2", rowScale.toDouble())
+        o.put("resumePath", resumePath)
+        o.put("resumeCtx", resumeContext)
+        o.put("resumePos", resumePosMs)
         o.put("known", JSONArray().also { a -> knownPaths.forEach { a.put(it) } })
         val tmp = File(ctx.filesDir, "$FILE.tmp")
         tmp.writeText(o.toString())
@@ -364,6 +377,15 @@ object Store {
     fun modeOf(key: String): Pair<Boolean, Int> {
         val p = modes[key]?.split(":") ?: return false to 0
         return (p.getOrNull(0) == "1") to (p.getOrNull(1)?.toIntOrNull() ?: 0)
+    }
+
+    /** Merkt sich, wo die Wiedergabe zuletzt stand. Fremdtitel (nicht in der Bibliothek) werden nie gespeichert. */
+    fun setResume(ctx: Context, path: String, context: String, posMs: Long) {
+        if (path == resumePath && context == resumeContext && kotlin.math.abs(posMs - resumePosMs) < 1000) return
+        resumePath = path
+        resumeContext = context
+        resumePosMs = posMs
+        save(ctx)
     }
 
     fun setMode(ctx: Context, key: String, shuffle: Boolean, repeat: Int) {

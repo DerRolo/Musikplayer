@@ -92,6 +92,10 @@ fun MusicApp(vm: MusicViewModel) {
     }
     LaunchedEffect(tab) { sel.clear() }
     BackHandler(enabled = showPlayer) { showPlayer = false }
+    // Lied über „Öffnen mit“ gestartet: Vollbild-Player zeigen, Zurück führt in den bisherigen Reiter
+    LaunchedEffect(vm.openPlayerRequest) {
+        if (vm.openPlayerRequest) { vm.openPlayerRequest = false; showPlayer = true }
+    }
 
     val actions = TrackActions(
         onPlayNext = { vm.playNext(listOf(it)) },

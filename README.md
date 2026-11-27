@@ -22,6 +22,13 @@ Die App ist nicht nur ein Player, sondern auch ein Aufräumwerkzeug für eine un
 - **Sleep-Timer:** stoppt nach X Minuten und blendet die letzten 20 Sekunden immer aus.
 - **Ausfaden:** getrennt davon. Die Lautstärke sinkt linear über 5 Minuten bis 8 Stunden auf null, auch über Liedwechsel hinweg. Die Zeit läuft nur, solange Musik spielt.
 
+## Als Standard-Musikplayer
+
+- **Öffnen mit:** Tippst du im Dateimanager, in den Downloads oder in einem Messenger auf eine Audio-Datei (MP3, FLAC, WAV, M4A, AAC, OGG, OPUS), bietet Android den Musikplayer an. Mit „Immer“ öffnen solche Dateien künftig direkt hier.
+- **Nur dieses eine Lied:** Eine von außen geöffnete Datei spielt allein, ohne Ordner-Warteschlange. Liegt sie in deiner Bibliothek, hast du alle Aktionen wie Herz und Playlist. Sonst wird sie nur abgespielt und nirgends gespeichert („Nicht in deiner Bibliothek“). Titel, Interpret und Cover kommen dann aus der Datei.
+- **Fortsetzen:** Die Play-Taste an Kopfhörer, Bluetooth oder im Auto startet das zuletzt gespielte Lied an der gemerkten Stelle, auch wenn die App gerade nicht läuft.
+- Android selbst hat keinen eigenen Schalter „Standard-Musik-App“ wie beim Browser. Die bevorzugte App wird über „Öffnen mit → Immer“ festgelegt. Manche Hersteller bieten zusätzliche Auswahlmöglichkeiten.
+
 ## Bibliothek und Ordnung
 
 - **Reiter:** Bibliothek, Interpreten (Liste oder Kacheln, mit A–Z-Leiste), Playlists, Suche, Einstellungen.
@@ -108,4 +115,4 @@ Die App meldet sich als Medien-App. Weil sie nicht aus dem Play Store kommt, mus
 
 ## Für Entwickler und KI-Helfer
 
-Die verbindlichen Arbeitsregeln stehen in [`AI_RULES.md`](AI_RULES.md). Kurzfassung: Änderungen gelten app-weit für vergleichbare Stellen, Funktionen und Navigation sollen einheitlich sein, und Build-Status wird ehrlich gemeldet.
+Die verbindlichen Arbeitsregeln stehen in [`AI_RULES.md`](AI_RULES.md). Erledigte und anstehende Updates stehen in [`ROADMAP.md`](ROADMAP.md). Kurzfassung: Änderungen gelten app-weit für vergleichbare Stellen, Funktionen und Navigation sollen einheitlich sein, und Build-Status wird ehrlich gemeldet.

@@ -163,7 +163,12 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Tr
     ) {
         Column {
             Row(Modifier.padding(start = 10.dp, end = 2.dp, top = 8.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Cover(listOfNotNull(track), title, Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)), sizePx = 120)
+                // Von außen geöffnete Datei (nicht in der Bibliothek): eingebettetes Cover aus der Datei
+                val foreignArt = remember(item.mediaId) { if (track == null) External.artwork(item)?.asImageBitmap() else null }
+                if (foreignArt != null) androidx.compose.foundation.Image(
+                    foreignArt, null, Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                ) else Cover(listOfNotNull(track), title, Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)), sizePx = 120)
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                     MarqueeText(title, MaterialTheme.typography.titleSmall, Modifier.fillMaxWidth(), align = TextAlign.Start)
                     MarqueeText(
@@ -218,10 +223,10 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier, 
     val ver = Art.version
     val coverTag = t?.let { Store.trackCovers[it.path] }
     val art by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
-        initialValue = t?.let { Art.peekLarge(it)?.asImageBitmap() }, item?.mediaId, ver, coverTag
+        initialValue = t?.let { Art.peekLarge(it)?.asImageBitmap() } ?: External.artwork(item)?.asImageBitmap(), item?.mediaId, ver, coverTag
     ) {
-        // altes Bild bleibt stehen, bis das neue geladen ist (kein Aufblitzen/Leerlauf)
-        t?.let { Art.large(ctx, it)?.asImageBitmap() }?.let { value = it } ?: run { if (t == null) value = null }
+        // altes Bild bleibt stehen, bis das neue geladen ist (kein Aufblitzen/Leerlauf); Fremdtitel: Cover aus der Datei
+        t?.let { Art.large(ctx, it)?.asImageBitmap() }?.let { value = it } ?: run { if (t == null) value = External.artwork(item)?.asImageBitmap() }
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         val a = art
@@ -290,6 +295,11 @@ private fun PlayerFullPage(
                         IconButton(onClick = { vm.quickRename(track, proposed) }) { Icon(Icons.Filled.Save, "Dateinamen übernehmen", tint = ORANGE) }
                     }
                 }
+            }
+        } else if (External.isExternal(item)) {
+            // Fremdtitel: Bibliotheksaktionen (Herz, Playlist, Sperren, Umbenennen) gibt es hier bewusst nicht
+            Box(Modifier.fillMaxWidth().height(42.dp), contentAlignment = Alignment.Center) {
+                Text("Nicht in deiner Bibliothek", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else Spacer(Modifier.height(42.dp))
     }

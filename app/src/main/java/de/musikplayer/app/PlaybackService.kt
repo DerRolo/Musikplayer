@@ -6,6 +6,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
@@ -43,6 +44,7 @@ class PlaybackService : MediaLibraryService() {
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
         SleepTimer.player = player
+        player.addListener(resumeSaver)
         Spectrum.sessionIdProvider = { player.audioSessionId }
         // Tippen auf die Benachrichtigung / Mediensteuerung öffnet die App
         val open = PendingIntent.getActivity(
@@ -65,6 +67,7 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onDestroy() {
         silenceTick?.let { handler.removeCallbacks(it) }
+        session?.player?.removeListener(resumeSaver)
         SleepTimer.cancel()
         SleepTimer.player = null
         Spectrum.stop()
@@ -103,9 +106,47 @@ class PlaybackService : MediaLibraryService() {
 
     private fun resolve(item: MediaItem): MediaItem {
         if (item.localConfiguration != null) return item
+        // Fremdtitel („Öffnen mit“): Abspiel-URI steckt in den Anfrage-Daten
+        if (External.isExternal(item)) {
+            val uri = item.requestMetadata.mediaUri ?: return item
+            return item.buildUpon().setUri(uri).build()
+        }
         val (ctx, tid) = parseId(item.mediaId) ?: return item
         val t = Library.tracks.firstOrNull { it.id == tid } ?: return item
         return Library.mediaItem(t, ctx)
+    }
+
+    // ---------- Wiedergabe fortsetzen (Kopfhörer-/Bluetooth-Taste, System-Mediensteuerung) ----------
+
+    /** Speichert Lied, Kontext und Position bei jedem Liedwechsel und jeder Pause. Fremdtitel werden übersprungen. */
+    private val resumeSaver = object : Player.Listener {
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = save(0L)
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (!isPlaying) save(session?.player?.currentPosition ?: 0L)
+        }
+        private fun save(pos: Long) {
+            val item = session?.player?.currentMediaItem ?: return
+            val (ctx, tid) = parseId(item.mediaId) ?: return
+            val t = Library.tracks.firstOrNull { it.id == tid } ?: return
+            Store.setResume(this@PlaybackService, t.path, ctx, pos.coerceAtLeast(0L))
+        }
+    }
+
+    /** Zuletzt gespieltes Lied samt seiner Liste; ohne gespeicherten Stand: alle Titel ab dem ersten. */
+    private fun resumeItems(): MediaSession.MediaItemsWithStartPosition? {
+        Library.ensureLoaded(applicationContext)
+        val path = Store.resolve(Store.resumePath)
+        val ctx = Store.resumeContext
+        val track = Library.tracks.firstOrNull { it.path == path }
+        if (track != null) {
+            val list = Library.tracksFor(ctx).takeIf { l -> l.any { it.id == track.id } } ?: listOf(track)
+            val idx = list.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
+            val useCtx = ctx.ifEmpty { "all" }
+            return MediaSession.MediaItemsWithStartPosition(list.map { Library.mediaItem(it, useCtx) }, idx, Store.resumePosMs)
+        }
+        val all = Library.tracksFor("all")
+        if (all.isEmpty()) return null
+        return MediaSession.MediaItemsWithStartPosition(all.map { Library.mediaItem(it, "all") }, 0, 0L)
     }
 
     // ---------- Browsing (Android Auto) ----------
@@ -117,7 +158,18 @@ class PlaybackService : MediaLibraryService() {
             browser: MediaSession.ControllerInfo,
             params: LibraryParams?
         ): ListenableFuture<LibraryResult<MediaItem>> =
-            Futures.immediateFuture(LibraryResult.ofItem(folderItem("root", "Musik"), params))
+            // System-Mediensteuerung fragt beim Fortsetzen nach dem „zuletzt gespielt“-Stamm
+            if (params?.isRecent == true) Futures.immediateFuture(LibraryResult.ofItem(folderItem("recent", "Zuletzt gespielt"), params))
+            else Futures.immediateFuture(LibraryResult.ofItem(folderItem("root", "Musik"), params))
+
+        /** Play-Taste am Kopfhörer/Auto oder in der System-Mediensteuerung, obwohl nichts geladen ist. */
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> =
+            exec.submit(Callable<MediaSession.MediaItemsWithStartPosition> {
+                resumeItems() ?: throw UnsupportedOperationException("Keine Lieder zum Fortsetzen")
+            })
 
         override fun onGetChildren(
             session: MediaLibrarySession,
@@ -137,6 +189,7 @@ class PlaybackService : MediaLibraryService() {
                         folderItem("playlists", "Playlists")
                     )
                     parentId == "songs" -> Library.tracksFor("all").map { Library.mediaItem(it, "all") }
+                    parentId == "recent" -> resumeItems()?.let { r -> listOfNotNull(r.mediaItems.getOrNull(r.startIndex)) }.orEmpty()
                     parentId == "artists" -> Library.byArtist().keys.map { folderItem("a:$it", it) }
                     parentId == "playlists" -> Store.playlists.map { folderItem("p:${it.id}", it.name) }
                     parentId.startsWith("a:") || parentId.startsWith("p:") ->
@@ -160,6 +213,7 @@ class PlaybackService : MediaLibraryService() {
                 when {
                     parsed != null && track != null -> LibraryResult.ofItem(Library.mediaItem(track, parsed.first), null)
                     mediaId == "root" -> LibraryResult.ofItem(folderItem("root", "Musik"), null)
+                    mediaId == "recent" -> LibraryResult.ofItem(folderItem("recent", "Zuletzt gespielt"), null)
                     mediaId == "songs" -> LibraryResult.ofItem(folderItem("songs", "Alle Titel"), null)
                     mediaId == "artists" -> LibraryResult.ofItem(folderItem("artists", "Interpreten"), null)
                     mediaId == "playlists" -> LibraryResult.ofItem(folderItem("playlists", "Playlists"), null)
