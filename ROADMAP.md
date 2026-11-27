@@ -32,6 +32,14 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
+## Bugfix – Shuffle aus stellt die Listen-Reihenfolge wieder her *(umgesetzt, Gerätetest offen)*
+
+- [~] Fehler: Wurde ein Lied aus der Mitte einer Liste mit Shuffle gestartet, blieb nach „Shuffle aus“ die gemischte Reihenfolge stehen. Beim ersten Lied der Liste ging es, deshalb klappte es nur manchmal.
+- [~] Jetzt gilt nach „Shuffle aus“ wieder die Reihenfolge der Liste, ausgehend vom laufenden Lied: weiter = das Lied, das in der Liste danach kommt, zurück = das davor.
+- [~] „Shuffle an“ mischt alle übrigen Lieder neu, auch die, die in der Liste vor dem laufenden standen.
+- [~] Eingereihte Lieder („Als Nächstes“) bleiben in beiden Fällen direkt hinter dem laufenden Lied.
+- [~] Die Regel gilt überall gleich: Mini-Leiste, großer Player und Shuffle-Knöpfe auf Listen- und Playlist-Seiten.
+
 ## Update 08 – Jam, Teil A: Bibliotheken teilen *(umgesetzt, Gerätetest offen)*
 
 - [~] Andere Handys mit der App im selben WLAN werden automatisch gefunden. Das geht nur, solange die App offen ist.

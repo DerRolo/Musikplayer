@@ -459,16 +459,36 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         if (!isLive(k)) return
         shuffle = on
         c.shuffleModeEnabled = false
-        val from = c.currentMediaItemIndex + 1 + queuedCount
+        val cur = c.currentMediaItemIndex
+        if (cur < 0 || c.mediaItemCount == 0) return
+        // Das laufende Lied und direkt Eingereihtes („Als Nächstes“) bleiben immer, wo sie sind
         val count = c.mediaItemCount
-        if (from >= count) return
+        val from = (cur + 1 + queuedCount).coerceAtMost(count)
+        val head = (0 until cur).map { c.getMediaItemAt(it) }
         val tail = (from until count).map { c.getMediaItemAt(it) }
-        val newTail = if (on) tail.shuffled() else {
+        if (on) {
+            // Alles andere neu mischen – auch Lieder, die in der Liste vor dem laufenden standen
+            val pool = (head + tail).shuffled()
+            if (pool.isEmpty()) return
+            c.replaceMediaItems(from, count, pool)
+            if (head.isNotEmpty()) c.removeMediaItems(0, cur)
+        } else {
+            // Zurück zur Reihenfolge der Liste, ausgehend vom laufenden Lied: davor, was davor stand, danach, was danach kommt
             val curId = c.currentMediaItem?.mediaId
             val pos = baseList.indexOfFirst { it.mediaId == curId }
-            if (pos >= 0) baseList.drop(pos + 1).filter { b -> tail.any { it.mediaId == b.mediaId } } else tail
+            if (pos < 0) return
+            // vorhandene Einträge nehmen (mit ihrem Stille-Schnitt); Lieder können mehrfach vorkommen
+            val left = LinkedHashMap<String, ArrayDeque<MediaItem>>()
+            for (m in head + tail) left.getOrPut(m.mediaId) { ArrayDeque() }.addLast(m)
+            fun take(b: MediaItem): MediaItem? = left[b.mediaId]?.removeFirstOrNull()
+            val before = baseList.take(pos).mapNotNull { take(it) }
+            val after = baseList.drop(pos + 1).mapNotNull { take(it) }
+            // Was nicht aus der Liste stammt (z. B. später eingereiht und schon gespielt), kommt hinten dran
+            val rest = left.values.flatten()
+            // erst hinten, dann vorne ersetzen (so verschieben sich die Positionen nicht dazwischen)
+            c.replaceMediaItems(from, count, after + rest)
+            c.replaceMediaItems(0, cur, before)
         }
-        if (newTail.size == tail.size) c.replaceMediaItems(from, count, newTail)
     }
 
     fun cycleRepeat(key: String? = null) {
