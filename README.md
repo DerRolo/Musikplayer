@@ -1,49 +1,111 @@
-# Musikplayer (werbefrei, nur lokale Lieder)
+# Musikplayer
 
-Android-Musikplayer für die Lieder auf dem Handy und der SD-Karte.
+Werbefreier Android-Musikplayer für Lieder, die auf dem Handy oder der SD-Karte liegen. Er sieht aus und bedient sich ähnlich wie Spotify, braucht aber kein Konto und kein Internet. Nur die Cover-Suche greift auf das Netz zu.
 
-- Liest Musik wie der Dateimanager-Reiter „Musik“ (Sprachnachrichten, Aufnahmen, Klingeltöne werden ausgeblendet)
-- Reiter: Titel, Interpreten (Kachel- oder Listenansicht), Playlists, Suche, Einstellungen
-- Suche in Titeln und Interpreten (ohne Akzente/Groß-Kleinschreibung) plus globale Suche über alles
-- Gedrückt-halten auf einen Titel startet die Mehrfachauswahl; auf einen Interpreten oder eine Playlist öffnet es ein Menü
-  (alle abspielen, zufällig, als Nächstes, zur Warteschlange, zu Playlist)
-- Playlists nur in der App – es werden keine Dateien kopiert; beim Hinzufügen bereits vorhandener Lieder
-  kommt eine Warnung („Doppelte überspringen“ / „Trotzdem alle hinzufügen“)
-- Warteschlange, Shuffle, Wiederholen; Tippen auf die Benachrichtigung öffnet die App
-- Vollbild-Player: drehende Schallplatte mit Cover, echter Equalizer (Spektrum der gespielten Musik; Android verlangt dafür die Berechtigung „Audio aufnehmen“, es wird aber nicht das Mikrofon abgehört und nichts aufgenommen; ohne Berechtigung läuft eine Animation), Wischen links = nächstes, rechts = voriges Lied
-- **Sleep-Timer:** stoppt nach X Minuten; die letzten 20 Sekunden blendet er immer automatisch aus
-- **Ausfaden:** getrennt davon – die Lautstärke sinkt linear über 5 Min. bis 8 Std. auf 0 % (auch über Liedwechsel),
-  danach stoppt die Musik; die Zeit läuft nur, solange Musik spielt
-- Namen werden nur für Anzeige und Sortierung bereinigt: führende Tracknummern (01, 01., 01 -, 01_) und Unterstriche
-  verschwinden, Namen wie 2Pac, 50 Cent, 10cc, 3 Doors Down bleiben; Dateien werden nie umbenannt
-- Android Auto (Alle Titel / Interpreten / Playlists)
-- Einstellungen:
-  - **Interpreten & Ordner:** Ordner ohne Interpret im Tag prüfen, Ordnername als Interpret übernehmen oder eingeben
-  - **Nach Interpret einsortieren:** verschiebt zugeordnete Lieder nach `<Speicher>/Music/<Interpret>` (SD-Karte bleibt SD-Karte)
-  - **Duplikate:** ähnlicher Name + ähnliche Größe + gleiche Länge, „Rest markieren“, Löschen mit Bestätigung
-- Löschen einzelner Dateien über das Titel-Menü, immer mit Bestätigung (kein Papierkorb)
+Gebaut mit Kotlin, Jetpack Compose und Media3. Die APK baut GitHub Actions.
+
+## Was die App besonders macht
+
+Die App ist nicht nur ein Player, sondern auch ein Aufräumwerkzeug für eine unordentliche lokale Sammlung. Sie erkennt, was in den Dateien steckt, und hilft dir beim Ordnen.
+
+- Namen, Interpreten, Alben und Duplikate werden erkannt und bereinigt.
+- Dateien lassen sich auf Wunsch umbenennen und in Interpreten-Ordner einsortieren.
+- Stille am Anfang und Ende eines Liedes wird übersprungen, ohne die Datei zu verändern.
+- Wiedergabe, Listen und Bedienung sind in der ganzen App gleich.
+
+## Wiedergabe
+
+- Hintergrundwiedergabe mit Benachrichtigung, Warteschlange, Shuffle, Wiederholen (aus, alle, eines).
+- Vollbild-Player mit drehender Schallplatte, echtem Equalizer und Wischen für nächstes und voriges Lied.
+- Der Equalizer zeigt das Spektrum der gespielten Musik. Dafür verlangt Android die Berechtigung „Audio aufnehmen“. Das Mikrofon wird nicht abgehört, ohne die Berechtigung läuft eine Animation.
+- Mini-Leiste, Android Auto (Alle Titel, Interpreten, Playlists) und Cover in der Auto-Anzeige.
+- **Sleep-Timer:** stoppt nach X Minuten und blendet die letzten 20 Sekunden immer aus.
+- **Ausfaden:** getrennt davon. Die Lautstärke sinkt linear über 5 Minuten bis 8 Stunden auf null, auch über Liedwechsel hinweg. Die Zeit läuft nur, solange Musik spielt.
+
+## Bibliothek und Ordnung
+
+- **Reiter:** Bibliothek, Interpreten (Liste oder Kacheln, mit A–Z-Leiste), Playlists, Suche, Einstellungen.
+- **Interpreten:** eigene Seite mit Profilbild, „Alle Songs abspielen“, Shuffle, Meistgehört und Alben. Mit einem Stern markierst du Favoriten-Interpreten und kannst die Liste darauf filtern.
+- **Playlists und Hörbücher/Podcasts:** getrennte Listen, ineinander umwandelbar. Alles liegt nur in der App, es werden keine Dateien kopiert. Lieblingssongs sind eine eigene Liste mit Herz.
+- **Suche:** sucht live in Titeln, Interpreten und Playlists, ohne Rücksicht auf Akzente und Groß- oder Kleinschreibung.
+- **Sperrliste mit zwei Stufen:** Orange sperrt nur aus Bibliothek und Shuffle, Rot (Vollsperre) auch aus der Suche. Gesperrt werden können Lieder, Interpreten und Ordner.
+- **Zuletzt hinzugefügt:** neue Lieder werden erkannt und separat gezeigt, damit du sie einsortieren kannst.
+
+## Bedienung
+
+Überall dieselbe Logik, in jeder Liedliste:
+
+- Nach rechts wischen = Lieblingssong, nach links wischen = Warteschlange.
+- Lange drücken = Mehrfachauswahl.
+- Schnellsymbole in der Zeile: Wiedergaben, Herz, Zu Playlist, Sperren, dazu ein Menü.
+- Tippen auf den Interpreten öffnet ihn, die Zurück-Taste führt dorthin zurück, wo du warst.
+- Tippen auf eine Meldung wie „Zu Lieblingssongs hinzugefügt“ öffnet das Ziel.
+- Löschen und Entfernen sind farblich getrennt (Rot für Löschen, Orange für Änderungen an Dateien). In Playlists und Hörbüchern heißt die Aktion „Aus Playlist entfernen“.
+- Listengröße Small, Medium und Large mit echter Dichte.
+
+## Was die App intern macht
+
+### Namen bereinigen (nur Anzeige und Sortierung)
+
+- Führende Tracknummern werden entfernt (`01 - Song`, `1. Song`, `01_Song`, `(01) Song`).
+- Namen wie `2Pac`, `50 Cent`, `10cc`, `3 Doors Down` und `1979` bleiben unangetastet. Bei Dateien ohne Trennzeichen wie `1 Song` greift die Regel nur, wenn die Mehrheit der Dateien im Ordner so aufgebaut ist.
+- Unterstriche werden zu Leerzeichen, Dateiendungen im Namen (`Song.mp3.mp3`) verschwinden.
+- Steht der Interpret schon im Titel (`Ice Cube - Titel`), wird er herausgenommen. Das funktioniert auch bei Schreibvarianten wie `AC/DC`, `AC-DC` und `ACDC`.
+- Doppelte Titelteile (`Titel - Titel`) werden zusammengefasst, eigene Wörter wie „(Official Video)“ kannst du in den Einstellungen als Filter pflegen.
+
+### Dateien umbenennen und sortieren (nur auf deinen Wunsch)
+
+- **Datei bearbeiten:** Name und Interpret ändern, Dateinamen aus den bereinigten Namen übernehmen. Der orange Speichern-Knopf im Player macht das mit einem Tipp.
+- **Interpret zuordnen:** für einzelne Lieder oder viele auf einmal. Optional werden die Dateien in `<Speicher>/Music/<Interpret>` verschoben. Eine SD-Karte bleibt dabei eine SD-Karte.
+- **Schutz vor Chaos:** Lieder, die schon in einem Interpreten- oder Album-Ordner liegen, werden nie herausgezogen. Du kannst einstellen, ob Schnell-Speichern verschieben soll.
+- **Pfade nachziehen:** Nach jedem Verschieben oder Umbenennen werden Playlists, Favoriten, Sperren, Wiedergabezähler und Zuordnungen auf den neuen Pfad umgestellt. Nichts geht verloren.
+- **Datei zeigen:** öffnet den Ordner im Dateimanager.
+- Verändert wird nichts ohne Bestätigung. Löschen von Dateien gibt es immer mit Rückfrage und ohne Papierkorb.
+
+### Interpreten erkennen und zuordnen
+
+- Interpret kommt aus dem Tag, sonst aus dem Ordnernamen. Ordner ohne Interpret prüfst du in den Einstellungen.
+- Ähnliche Schreibweisen (Tippfehler, `X feat. Y`, andere Schreibung) werden vorgeschlagen, damit ein Interpret nicht doppelt auftaucht.
+
+### Stille überspringen (internes „Schnittprogramm“)
+
+- Die App liest jedes Lied einmal durch und sucht den ersten und den letzten Ton, der lauter als eine einstellbare Schwelle ist.
+- Gespielt wird nur von „erster Ton minus Vorlauf“ bis „letzter Ton plus Nachlauf“. Der Hall bleibt dabei stehen. Pausen mitten im Lied bleiben unberührt.
+- Die Datei selbst wird nie verändert. Das Ergebnis wird pro Lied gespeichert und gilt nur für die aktuelle Schwelle.
+- Beim ersten Abspielen wird zuerst nur der Anfang untersucht, damit das Lied sofort startet. Die vollständige Analyse läuft im Hintergrund nach.
+- Schwelle, Vorlauf und Nachlauf stellst du in den Einstellungen ein.
+
+### Duplikate
+
+- Verglichen werden ähnlicher Name, ähnliche Dateigröße und gleiche Länge, nur über Metadaten.
+- Die Seite hilft mit „Rest markieren“ und Löschen mit Bestätigung, außerdem mit Dateinamen übernehmen und Aufräumen.
+
+### Cover
+
+- Lieder, Interpreten, Playlists und Alben haben Cover. Fehlt eines, wird automatisch ein Bild aus den enthaltenen Liedern zusammengesetzt. Eigene Bilder gehen vor.
+- **Cover-Suche:** sucht live über iTunes und Deezer, mit dem aktuellen Namen und Interpreten. Das ist der einzige Teil der App, der das Internet nutzt.
+- Cover lassen sich einzeln und für mehrere Lieder gleichzeitig ändern.
+- Ein interner Cover-Dienst reicht die Bilder auch an Android Auto weiter.
+
+### Speicher
+
+- Alles, was die App selbst speichert (Playlists, Favoriten, Sperren, Zuordnungen, Einstellungen, Schnitt-Ergebnisse), liegt in einer JSON-Datei in den App-Daten. Deine Musikdateien bleiben unberührt, solange du nichts ausdrücklich änderst.
+- Playlist-Einträge sind Pfade, keine Kopien. Beim Hinzufügen bereits vorhandener Lieder kommt eine Warnung mit „Doppelte überspringen“.
 
 ## APK über GitHub bauen
-1. Neues GitHub-Repository anlegen und den Inhalt dieses Ordners hochladen
-   (auch den versteckten Ordner `.github` und die Datei `debug.keystore`).
-2. Unter **Actions** startet der Bau automatisch (ca. 3–5 Min.).
-3. Fertige APK: Reiter **Releases → „Musikplayer (neueste Version)“ → Musikplayer.apk**
-   (oder unter Actions → Lauf → Artifacts).
+
+1. Neues GitHub-Repository anlegen und den Inhalt dieses Ordners hochladen, auch den versteckten Ordner `.github` und die Datei `debug.keystore`.
+2. Unter **Actions** startet der Bau automatisch (ca. 3–5 Minuten).
+3. Fertige APK: **Releases → „Musikplayer (neueste Version)“ → Musikplayer.apk**, oder unter Actions → Lauf → Artifacts.
 4. APK auf dem Handy öffnen, „Installation aus unbekannten Quellen“ erlauben, installieren.
 5. Beim ersten Start „Zugriff auf alle Dateien“ erlauben.
 
 Updates: Code ändern, hochladen, neue APK laden und drüberinstallieren (gleiche Signatur).
 
 ## Android Auto
-Die App meldet sich als Medien-App. Weil sie nicht aus dem Play Store kommt, muss in der
-Android-Auto-App auf dem Handy die Entwicklereinstellung **„Unbekannte Quellen“** aktiviert sein:
-Android Auto → Einstellungen → Version mehrfach antippen → Entwicklereinstellungen → Unbekannte Quellen.
 
+Die App meldet sich als Medien-App. Weil sie nicht aus dem Play Store kommt, muss in der Android-Auto-App auf dem Handy die Entwicklereinstellung **„Unbekannte Quellen“** aktiviert sein: Android Auto → Einstellungen → Version mehrfach antippen → Entwicklereinstellungen → Unbekannte Quellen.
 
-## Neu
-- Interpreten: Buchstaben-Filter (A–Z, #)
-- Herz (Lieblingssongs) und „+“ (zu Playlist) in Zeilen, Player und Mini-Player
-- Mini-Player farbig mit Cover und Fortschritt
-- Player: Wischen mit Vorschau des nächsten/vorigen Liedes, ruckelfreier Regler und Equalizer, neue Schallplatte
-- Einstellungen → Dateinamen übernehmen (einzeln, pro Interpret, alle; immer mit Bestätigung), Datei umbenennen im Titelmenü
-- Duplikate: Grund der Erkennung, „Dateinamen übernehmen“
+## Für Entwickler und KI-Helfer
+
+Die verbindlichen Arbeitsregeln stehen in [`AI_RULES.md`](AI_RULES.md). Kurzfassung: Änderungen gelten app-weit für vergleichbare Stellen, Funktionen und Navigation sollen einheitlich sein, und Build-Status wird ehrlich gemeldet.
