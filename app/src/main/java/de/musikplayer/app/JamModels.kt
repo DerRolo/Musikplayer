@@ -113,7 +113,14 @@ data class JamState(
     /** Host-Uhrzeit beim Beantworten der Anfrage (für den Uhren-Abgleich). */
     val hostTime: Long,
     val shuffle: Boolean,
-    val repeat: Int
+    val repeat: Int,
+    /** Welches Mitglied gerade abspielt (die eine gemeinsame Ausgabe). */
+    val speaker: String = "",
+    /** Alle verbundenen Ausgabegeräte aller Mitglieder – eines davon ist die gemeinsame Ausgabe. */
+    val outputs: List<JamOutput> = emptyList(),
+    /** „<Mitglied>/<Geräte-ID>“ der gewählten bzw. tatsächlich genutzten Ausgabe. */
+    val outSelected: String = "",
+    val outActive: String = ""
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("jam", jamId).put("host", hostId).put("hostName", hostName)
@@ -122,17 +129,24 @@ data class JamState(
         .put("next", JamEntry.array(upcoming))
         .put("playing", playing).put("pos", positionMs).put("snap", snapTime).put("now", hostTime)
         .put("shuffle", shuffle).put("repeat", repeat)
+        .put("speaker", speaker)
+        .put("outs", JSONArray().also { a -> outputs.forEach { a.put(it.toJson()) } })
+        .put("outSel", outSelected).put("outAct", outActive)
 
     companion object {
         fun from(o: JSONObject): JamState {
             val m = o.optJSONArray("members") ?: JSONArray()
+            val outs = o.optJSONArray("outs") ?: JSONArray()
             return JamState(
                 o.optString("jam"), o.optString("host"), o.optString("hostName"),
                 List(m.length()) { JamMember.from(m.getJSONObject(it)) },
                 o.optJSONObject("cur")?.let { JamEntry.from(it) },
                 JamEntry.list(o.optJSONArray("next")),
                 o.optBoolean("playing"), o.optLong("pos"), o.optLong("snap"), o.optLong("now"),
-                o.optBoolean("shuffle"), o.optInt("repeat")
+                o.optBoolean("shuffle"), o.optInt("repeat"),
+                o.optString("speaker"),
+                List(outs.length()) { i -> JamOutput.from(outs.getJSONObject(i)) },
+                o.optString("outSel"), o.optString("outAct")
             )
         }
     }
@@ -141,5 +155,47 @@ data class JamState(
 /** Ein anderes Gerät mit der App im selben WLAN. */
 data class JamPeer(val id: String, val name: String, val url: String, val hostingJam: String?)
 
-/** Beitrittsanfrage an den Host. */
-data class JamRequest(val id: String, val name: String, val url: String)
+
+/** Ein Ausgabegerät irgendeines Mitglieds (Handy-Lautsprecher, Bluetooth-Box …). */
+data class JamOutput(val member: String, val memberName: String, val id: Int, val name: String, val kind: String) {
+    val key: String get() = "$member/$id"
+    fun toJson(): JSONObject = JSONObject().put("m", member).put("mn", memberName).put("id", id).put("n", name).put("k", kind)
+    companion object {
+        fun from(o: JSONObject) = JamOutput(o.getString("m"), o.optString("mn"), o.getInt("id"), o.optString("n"), o.optString("k"))
+        fun of(member: String, memberName: String, d: OutputDev) = JamOutput(member, memberName, d.id, d.name, d.kind)
+    }
+}
+
+/** Wiedergabe-Stand eines Geräts („Engine“): was es spielt und welche Ausgabegeräte es hat. */
+data class EngineInfo(
+    val outputs: List<OutputDev>,
+    val selected: Int,
+    val active: Int,
+    val current: JamEntry?,
+    val upcoming: List<JamEntry>,
+    val playing: Boolean,
+    /** Position im ganzen Lied (ohne Stille-Schnitt). */
+    val positionMs: Long,
+    val shuffle: Boolean,
+    val repeat: Int,
+    /** Host-Uhrzeit, zu der [positionMs] galt (wird vom Host beim Empfang gesetzt). */
+    val snapTime: Long = 0L
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("outs", JSONArray().also { a -> outputs.forEach { a.put(JSONObject().put("id", it.id).put("n", it.name).put("k", it.kind)) } })
+        .put("sel", selected).put("act", active)
+        .put("cur", current?.toJson() ?: JSONObject.NULL).put("next", JamEntry.array(upcoming))
+        .put("playing", playing).put("pos", positionMs).put("shuffle", shuffle).put("repeat", repeat)
+
+    companion object {
+        fun from(o: JSONObject, snapTime: Long): EngineInfo {
+            val outs = o.optJSONArray("outs") ?: JSONArray()
+            return EngineInfo(
+                List(outs.length()) { i -> outs.getJSONObject(i).let { OutputDev(it.getInt("id"), it.optString("n"), it.optString("k")) } },
+                o.optInt("sel", Output.AUTO), o.optInt("act", Output.AUTO),
+                o.optJSONObject("cur")?.let { JamEntry.from(it) }, JamEntry.list(o.optJSONArray("next")),
+                o.optBoolean("playing"), o.optLong("pos"), o.optBoolean("shuffle"), o.optInt("repeat"), snapTime
+            )
+        }
+    }
+}

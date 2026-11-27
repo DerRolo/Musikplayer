@@ -417,11 +417,9 @@ object Library {
         return RenameResult(map.size, failed, skipped)
     }
 
-    /** Löscht Dateien endgültig. Gibt die Anzahl der gelöschten Dateien zurück. */
-    fun deleteFiles(ctx: Context, list: List<Track>): Int {
-        val done = ArrayList<String>()
-        for (t in list) if (File(t.path).delete()) done += t.path
-        rescan(ctx, done)
-        return done.size
-    }
+    /**
+     * „Löschen“ in der App: Dateien kommen in den Papierkorb (30 Tage wiederherstellbar, siehe [Trash]).
+     * Gibt die Anzahl der verschobenen Dateien zurück.
+     */
+    fun deleteFiles(ctx: Context, list: List<Track>): Int = Trash.moveToTrash(ctx, list).size
 }

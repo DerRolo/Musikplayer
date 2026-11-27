@@ -38,38 +38,49 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 - [~] Pop-up überall in der App:
   - Ist jemand in der Nähe → „Jam erstellen“.
   - Hat jemand einen Jam gestartet → „Jam beitreten“.
-  - „Später“ blendet das Pop-up für diese Lage aus.
-- [~] Jam erstellen (Host) und beitreten (Gast). Der Host muss jede Beitrittsanfrage annehmen.
-- [~] Schalter „Im WLAN sichtbar“ (Optionen → Jam). Ist er aus, wird man nicht gefunden und sucht auch selbst nicht.
+- [~] **Beitreten ohne Bestätigung:** Jeder im WLAN kann einem laufenden Jam beitreten.
+- [~] Der Host sieht auf der Jam-Seite, wer im Jam ist und wer sonst im WLAN ist. Er kann Leute entfernen, die dann diesem Jam nicht wieder beitreten können. Ein neuer Jam beginnt frisch.
+- [~] Schalter „Im WLAN sichtbar“ (Optionen → Jam).
 - [~] Die Bibliothek jedes anderen Mitglieds ansehen: Lieder, Alben, Interpreten, Playlists und Hörbücher, mit Suche und Covern.
-- [~] Übernehmen von einzelnen Liedern, ganzen Alben, ganzen Interpreten und ganzen Playlists (auch Hörbuch-Listen), auch direkt aus dem Player.
-  - Die Dateien kommen nach `<Speicher>/Music/<Interpret>/`, wie beim Einsortieren.
-  - Interpret, Album und eigenes Cover werden mit übernommen.
-  - Playlists werden angelegt oder ergänzt, wenn es schon eine mit dem Namen gibt. Die Lieblingssongs des anderen werden zu „Lieblingssongs von <Name>“.
-- [~] Duplikate werden vorher erkannt, mit denselben Regeln wie die Duplikat-Suche. Grüner Haken = hast du schon. Vorhandene Lieder werden nicht neu geladen, Playlists verweisen dann auf das eigene Exemplar.
-- [~] Übernommene Lieder erscheinen in „Neue Lieder“. Dort kannst du sie wie gewohnt bearbeiten, einsortieren und als gesehen markieren.
-- [~] Fortschritt in der Jam-Leiste und auf der Jam-Seite. Am Ende kommt eine Meldung wie „12 übernommen, 3 schon vorhanden“.
-- Hinweis: „Abonnieren“ ist ein einmaliges Übernehmen. Ändert der andere später seine Playlist, wird das nicht automatisch nachgezogen. Nochmal übernehmen ergänzt die neuen Lieder.
+- [~] **Komplett übernehmen** (Lied, Album, Interpret, Playlist, auch direkt aus dem Player):
+  - Die Dateien kommen gleich an den richtigen Ort: `Music/<Interpret>/<Album>/`, ohne Album nach `Music/<Interpret>/`.
+  - Interpret, Album, eigenes Cover und Playlist werden mit übernommen.
+  - Lieblingssongs des anderen werden zu „Lieblingssongs von <Name>“.
+  - Die Lieder stehen danach zusätzlich in „Neue Lieder“, sind dort aber schon fertig einsortiert.
+- [~] Duplikate werden vorher erkannt: grüner Haken, nicht doppelt geladen, Playlists verweisen auf das eigene Exemplar.
+- [~] Lieder anderer lassen sich im Jam nur anhören und übernehmen, nicht bearbeiten oder löschen.
 
 ## Update 09 – Jam, Teil B: gemeinsam hören *(umgesetzt, Gerätetest offen)*
 
-- [~] Alle im Jam hören, was der Host spielt, synchron auf dem eigenen Handy. Das klappt auch bei Liedern, die man selbst nicht hat, per Streaming im WLAN. Eigene Lieder spielt jeder direkt von der eigenen Datei.
-- [~] Jeder darf steuern: Play/Pause, weiter, zurück, spulen, Shuffle, Wiederholen. Die Bedienung ist die normale App-Bedienung, als Gast geht sie automatisch an den Host.
-- [~] Jeder kann Lieder, Alben und Playlists starten oder einreihen: aus der eigenen Bibliothek mit den gewohnten Gesten und Menüs, aus der Bibliothek der anderen über die Jam-Seite. Der Host spielt dann auch Lieder, die nur ein Gast hat.
-- [~] Die Jam-Seite zeigt: läuft gerade, als Nächstes, wer dabei ist, von wem welches Lied kommt.
-- [~] Gast: Player wegwischen oder „Jam verlassen“ beendet die Teilnahme. Host: „Jam beenden“. Wer die App aus den letzten Apps wischt, verlässt den Jam ebenfalls.
+- [~] **Eine gemeinsame Ausgabe** für den ganzen Jam: Wählbar sind alle verbundenen Ausgabegeräte aller Mitglieder, also das Handy des Hosts oder seine Bluetooth-Box, das Handy eines Gasts oder dessen Box. Jeder darf wählen.
+- [~] Beim Wechsel auf ein anderes Handy zieht die Wiedergabe mit Warteschlange (bis 300 Lieder), Stelle und Play/Pause dorthin um, am alten Gerät wird gestoppt.
+- [~] Alle anderen Handys sind Fernbedienung: Der Player zeigt, was an der Ausgabe läuft, und alle Tasten, Gesten und Menüs wirken dort.
+- [~] Jeder kann Lieder, Alben und Playlists starten oder einreihen, aus der eigenen Bibliothek oder der der anderen. Lieder, die das abspielende Handy nicht hat, werden im WLAN gestreamt.
+- [~] Ausgabe-Knopf im großen Player: Warteschlange öffnen, dann rechts oben. Er funktioniert auch ohne Jam, dann für die Geräte des eigenen Handys.
+- [~] Verlässt das abspielende Mitglied den Jam (oder wird entfernt), geht die Ausgabe zurück ans Host-Handy.
 - Bekannte Grenzen:
-  - Gleichlauf im WLAN meist auf etwa eine halbe Sekunde genau. Beim Liedwechsel ist der Gast bis zu einer Sekunde später dran.
-  - Verlässt ein Gast den Jam, springt der Host bei dessen Liedern zum nächsten.
-  - Gäste sehen die Jam-Warteschlange auf der Jam-Seite, nicht in der normalen Warteschlange.
-  - Dateien, die der Host von außen geöffnet hat („Öffnen mit“), lassen sich nicht teilen.
+  - Beim Ausgabe-Wechsel entsteht eine kurze Pause.
+  - Lieder eines Mitglieds, das den Jam verlässt, werden übersprungen.
+  - Dateien von außen („Öffnen mit“) lassen sich während eines Jams nicht abspielen.
 
-**Auf dem Gerät zu prüfen (zwei Handys im selben WLAN)**
-1. Beide Apps öffnen → bei einem kommt das Pop-up „Jam erstellen“ → erstellen → beim anderen „Jam beitreten“ → Host nimmt an.
-2. Host spielt ein Lied → Gast hört es mit, Pause und Spulen auf beiden Seiten.
-3. Gast startet ein eigenes Lied → läuft bei beiden.
-4. Gast öffnet Optionen → Jam → Bibliothek des Hosts → ein Album übernehmen → Lieder liegen danach unter `Music/<Interpret>` und stehen in „Neue Lieder“. Grüne Haken bei Liedern, die schon da waren.
-5. Eine Playlist übernehmen → Playlist ist danach beim Gast vorhanden, mit Cover und richtigen Interpreten.
+## Update 10 – Papierkorb *(umgesetzt, Gerätetest offen)*
+
+- [~] Alles, was die App löscht (einzelne Lieder, Mehrfachauswahl, Duplikate, Aufräumen), kommt in den Papierkorb statt sofort weg.
+- [~] Nach 30 Tagen wird endgültig gelöscht. Das passiert beim Start der App.
+- [~] Optionen → Papierkorb:
+  - Antippen spielt das Lied (wie überall), langes Drücken startet die Mehrfachauswahl.
+  - Wiederherstellen geht einzeln, mehrfach oder komplett, endgültig löschen geht einzeln, mehrfach oder als „Leeren“.
+- [~] Wiederherstellen an den alten Ort: Playlists, Favoriten, Interpret, Album, Cover und Wiedergabezähler sind wieder da. Ist der alte Name belegt, kommt „(2)“ dazu und alles wird umgestellt.
+- [~] Direkt nach dem Löschen gibt es „Rückgängig“ in der Meldung. Im Player steht bei Papierkorb-Liedern „Im Papierkorb · Wiederherstellen“.
+- Die Dateien liegen im App-Ordner auf demselben Speicher (SD-Karte bleibt SD-Karte) und erscheinen nicht in anderen Musik-Apps. Achtung: Wird die App deinstalliert, ist auch der Papierkorb weg.
+
+**Auf dem Gerät zu prüfen (Handy + Tablet)**
+1. Tablet öffnet die App → Pop-up „Jam beitreten“, sobald das Handy einen Jam erstellt hat → Beitritt ohne Bestätigung.
+2. Handy hat die Bluetooth-Box verbunden. Das Tablet startet ein Lied → es läuft auf der Box.
+3. Ausgabe auf „Dieses Handy“ bzw. „Handy von Tablet“ wechseln → die Musik zieht um und läuft an derselben Stelle weiter.
+4. Tablet: Bibliothek des Handys → Album übernehmen → liegt danach unter `Music/<Interpret>/<Album>`, mit Cover und richtigem Interpreten.
+5. Host entfernt das Tablet → das Tablet bekommt eine Meldung und kann nicht wieder beitreten.
+6. Ein Lied löschen → Rückgängig. Ein Lied löschen → Optionen → Papierkorb → antippen (spielt) → Wiederherstellen → wieder in Bibliothek und Playlists.
 
 ## Später – Download-Funktion
 

@@ -305,6 +305,13 @@ private fun PlayerFullPage(
                 Text("Im Jam · von ${e?.let { Jam.memberName(it.owner) } ?: "…"}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (e != null) TextButton(onClick = { Jam.importEntry(e) }) { Text("Übernehmen", color = ORANGE) }
             }
+        } else if (External.isExternal(item) && Trash.isInTrash(item?.localConfiguration?.uri?.path ?: item?.requestMetadata?.mediaUri?.path)) {
+            // Lied aus dem Papierkorb: direkt wiederherstellen können
+            val path = item?.localConfiguration?.uri?.path ?: item?.requestMetadata?.mediaUri?.path
+            Row(Modifier.fillMaxWidth().height(42.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                Text("Im Papierkorb", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { vm.clearQueue(); vm.restoreTrash(Store.trash.filter { it.file == path }) }) { Text("Wiederherstellen", color = ORANGE) }
+            }
         } else if (External.isExternal(item)) {
             // Fremdtitel: Bibliotheksaktionen (Herz, Playlist, Sperren, Umbenennen) gibt es hier bewusst nicht
             Box(Modifier.fillMaxWidth().height(42.dp), contentAlignment = Alignment.Center) {
@@ -444,8 +451,14 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
             }
         }
         if (showQueue) {
-            Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-            Text(artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            // Warteschlangen-Ansicht: links das laufende Lied, rechts die Wahl des Ausgabegeräts (nur verbundene Geräte)
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                }
+                OutputChip(Modifier.padding(start = 8.dp))
+            }
             QueueList(vm, Modifier.weight(1f))
         } else {
             Box(

@@ -367,18 +367,17 @@ fun ConfirmDialog(
 }
 
 /**
- * Löschen mit extra Bestätigung: Erst Liste der Dateien anzeigen, dann Haken „Ich weiß, dass das endgültig ist“
- * setzen – erst dann wird der Löschen-Knopf aktiv. Es gibt keinen Papierkorb.
+ * Löschen mit Bestätigung: Liste der Dateien anzeigen. Gelöschtes kommt in den Papierkorb
+ * (Optionen → Papierkorb) und ist dort 30 Tage wiederherstellbar.
  */
 @Composable
 fun DeleteDialog(tracks: List<Track>, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    var sure by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (tracks.size == 1) "Datei löschen?" else "${tracks.size} Dateien löschen?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Die Dateien werden endgültig vom Handy gelöscht – nicht nur aus der App.")
+                Text("Die Dateien kommen in den Papierkorb (Optionen → Papierkorb). Dort kannst du sie ${Trash.DAYS} Tage lang wiederherstellen, danach werden sie endgültig gelöscht.")
                 LazyColumn(Modifier.padding(vertical = 4.dp)) {
                     items(tracks.take(8)) { t ->
                         Text(
@@ -390,14 +389,10 @@ fun DeleteDialog(tracks: List<Track>, onDismiss: () -> Unit, onConfirm: () -> Un
                     }
                     if (tracks.size > 8) item { Text("… und ${tracks.size - 8} weitere", style = MaterialTheme.typography.bodySmall) }
                 }
-                Row(Modifier.clickable { sure = !sure }, verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = sure, onCheckedChange = { sure = it })
-                    Text("Ja, endgültig löschen")
-                }
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, enabled = sure) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+            TextButton(onClick = onConfirm) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )

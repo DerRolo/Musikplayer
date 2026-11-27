@@ -143,25 +143,21 @@ fun CleanupPage(vm: MusicViewModel, onBack: () -> Unit) {
         )
     }
     if (confirm) {
-        var sure by remember { mutableStateOf(false) }
+        // Gelöschtes kommt in den Papierkorb (30 Tage wiederherstellbar) – daher keine zusätzliche „endgültig“-Bestätigung
         val needSure = toDelete.isNotEmpty()
         AlertDialog(
             onDismissRequest = { confirm = false },
             title = { Text("Aufräumen ausführen?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (toDelete.isNotEmpty()) Text("${toDelete.size} Dateien werden endgültig vom Handy gelöscht (kein Papierkorb).")
+                    if (toDelete.isNotEmpty()) Text("${toDelete.size} Dateien kommen in den Papierkorb (Optionen → Papierkorb). Dort sind sie ${Trash.DAYS} Tage wiederherstellbar.")
                     if (toRename.isNotEmpty()) Text("${toRename.size} Dateien werden umbenannt. Playlists und Favoriten bleiben erhalten.")
-                    if (needSure) Row(Modifier.clickable { sure = !sure }, verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = sure, onCheckedChange = { sure = it })
-                        Text("Ja, endgültig löschen")
-                    }
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = { confirm = false; vm.cleanup(toDelete, toRename); choice.clear() },
-                    enabled = !needSure || sure
+                    enabled = true
                 ) { Text("Ausführen", color = if (needSure) MaterialTheme.colorScheme.error else ORANGE) }
             },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Abbrechen") } }

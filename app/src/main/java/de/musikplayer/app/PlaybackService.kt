@@ -47,6 +47,7 @@ class PlaybackService : MediaLibraryService() {
         player.addListener(resumeSaver)
         Jam.player = player
         player.addListener(Jam.errorSkipper)
+        Output.start(this)
         Spectrum.sessionIdProvider = { player.audioSessionId }
         // Tippen auf die Benachrichtigung / Mediensteuerung öffnet die App
         val open = PendingIntent.getActivity(

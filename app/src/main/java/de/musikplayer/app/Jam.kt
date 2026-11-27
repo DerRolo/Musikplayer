@@ -51,6 +51,8 @@ interface JamHost {
     fun jamAdd(items: List<MediaItem>)
     fun jamShuffle()
     fun jamRepeat()
+    /** Warteschlange übernehmen (Ausgabe wechselt auf dieses Gerät): ab [index] an Stelle [posMs], spielend oder pausiert. */
+    fun jamLoad(items: List<MediaItem>, index: Int, posMs: Long, play: Boolean)
     val jamShuffleOn: Boolean
 }
 
@@ -80,10 +82,7 @@ object Jam {
         private set
     var peers by mutableStateOf<List<JamPeer>>(emptyList())
         private set
-    /** Host: offene Beitrittsanfragen. */
-    var requests by mutableStateOf<List<JamRequest>>(emptyList())
-        private set
-    /** Gast: Name des Hosts, solange auf Bestätigung gewartet wird. */
+    /** Gast: Name des Hosts, solange die Verbindung aufgebaut wird. */
     var waitingFor by mutableStateOf<String?>(null)
         private set
     /** Pop-up: jemand in der Nähe. */
@@ -105,6 +104,11 @@ object Jam {
     @Volatile var player: Player? = null
     @Volatile var host: JamHost? = null
     var onLibraryChanged: (() -> Unit)? = null
+    /**
+     * Neuer Jam-Stand für die Player-Anzeige, wenn dieses Gerät gerade NICHT die Ausgabe ist (null = selbst Ausgabe
+     * bzw. kein Jam: dann zeigt der Player wieder den eigenen Player).
+     */
+    var onRemoteState: ((JamState?) -> Unit)? = null
 
     private val main = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -119,9 +123,16 @@ object Jam {
     private var jamId: String = ""
     @Volatile private var key: String? = null
     private val members = ConcurrentHashMap<String, JamMember>()
-    private val declined = ConcurrentHashMap.newKeySet<String>()
+    /** Vom Host rausgeworfen: können diesem Jam nicht wieder beitreten (ein neuer Jam beginnt frisch). */
+    private val kicked = ConcurrentHashMap.newKeySet<String>()
     @Volatile private var snapshot: JamState? = null
     private var ticker: Runnable? = null
+    /** Host: welches Mitglied die gemeinsame Ausgabe ist. */
+    @Volatile private var speakerId: String = ""
+    /** Host: zuletzt gemeldeter Wiedergabe-Stand jedes Mitglieds (Ausgabegeräte, und beim Abspielenden: was läuft). */
+    private val engines = ConcurrentHashMap<String, EngineInfo>()
+    private var enginePoll: Job? = null
+    @Volatile private var switching = false
 
     // Gast
     @Volatile private var hostUrl: String = ""
@@ -129,15 +140,13 @@ object Jam {
     private var joinJob: Job? = null
     @Volatile private var clockOffset = 0L
     private var bestRtt = Long.MAX_VALUE
-    private var lastSeek = 0L
 
     /** Host: Lied eines Gasts nicht erreichbar (z. B. Gast hat den Jam verlassen) → zum nächsten springen statt hängen bleiben. */
     val errorSkipper = object : Player.Listener {
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             val p = player ?: return
             if (!isJamItem(p.currentMediaItem)) return
-            if (role == Role.Host && p.hasNextMediaItem()) { p.seekToNextMediaItem(); p.prepare(); p.play() }
-            else if (role == Role.Guest) { p.prepare() }
+            if (active && isSpeaker && p.hasNextMediaItem()) { p.seekToNextMediaItem(); p.prepare(); p.play() }
         }
     }
 
@@ -145,6 +154,12 @@ object Jam {
     /** Jam-Lied von einem anderen Gerät oder eigenes Lied, das im Jam gestartet wurde. */
     private fun isJamContext(item: MediaItem?): Boolean = isJamItem(item) || item?.mediaId?.startsWith("t:jam:") == true
     val active: Boolean get() = role != Role.None
+    /** Spielt dieses Gerät gerade für den Jam ab (ist es die gemeinsame Ausgabe)? */
+    val isSpeaker: Boolean get() = when (role) {
+        Role.Host -> speakerId == myId || speakerId.isEmpty()
+        Role.Guest -> state?.speaker == myId
+        Role.None -> false
+    }
 
     // ---------- Start / Sichtbarkeit ----------
 
@@ -323,9 +338,12 @@ object Jam {
         if (role != Role.None) return
         jamId = UUID.randomUUID().toString().take(8)
         key = UUID.randomUUID().toString().replace("-", "")
-        members.clear(); declined.clear()
+        members.clear(); kicked.clear()
         role = Role.Host
         invite = null
+        speakerId = myId
+        engines.clear()
+        startEnginePoll()
         val t = object : Runnable {
             override fun run() { takeSnapshot(); main.postDelayed(this, 500) }
         }
@@ -334,28 +352,31 @@ object Jam {
         message = "Jam gestartet – andere im WLAN können jetzt beitreten"
     }
 
-    fun accept(r: JamRequest) {
-        members[r.id] = JamMember(r.id, r.name, r.url)
-        requests = requests.filter { it.id != r.id }
-        message = "${r.name} ist dem Jam beigetreten"
-    }
-
-    fun decline(r: JamRequest) {
-        declined += r.id
-        requests = requests.filter { it.id != r.id }
+    /** Host: Mitglied aus dem Jam entfernen. */
+    fun kick(id: String) {
+        val m = members.remove(id) ?: return
+        kicked += id
+        memberGone(id)
+        takeSnapshot()
+        message = "${m.name} wurde aus dem Jam entfernt"
     }
 
     fun endJam() {
         if (role != Role.Host) return
         ticker?.let { main.removeCallbacks(it) }
         ticker = null
+        enginePoll?.cancel()
+        engines.clear()
+        // War die Ausgabe woanders, läuft hier nichts – sonst spielt das eigene Handy einfach weiter
+        val wasRemote = speakerId != myId
+        speakerId = ""
         key = null
         members.clear()
-        requests = emptyList()
         snapshot = null
         state = null
         role = Role.None
         libraries.clear()
+        if (wasRemote) onRemoteState?.invoke(null)
         message = "Jam beendet"
     }
 
@@ -380,27 +401,73 @@ object Jam {
         return JamEntry.of(myId, t)
     }
 
-    private fun takeSnapshot() {
+    /** Was der eigene Player gerade spielt, samt eigener Ausgabegeräte (nur Haupt-Thread). */
+    private fun localEngine(maxNext: Int): EngineInfo {
         val p = player
         val cur = p?.currentMediaItem
         val upcoming = ArrayList<JamEntry>()
         if (p != null) {
             var i = p.currentMediaItemIndex + 1
-            while (i < p.mediaItemCount && upcoming.size < 30) { entryOf(p.getMediaItemAt(i))?.let { upcoming += it }; i++ }
+            while (i < p.mediaItemCount && upcoming.size < maxNext) { entryOf(p.getMediaItemAt(i))?.let { upcoming += it }; i++ }
         }
         val playing = p != null && p.playWhenReady && p.playbackState != Player.STATE_ENDED && p.playbackState != Player.STATE_IDLE
+        return EngineInfo(
+            Output.devices, Output.selected, Output.active, entryOf(cur), upcoming, playing,
+            (p?.currentPosition ?: 0L) + clipStart(cur), host?.jamShuffleOn ?: false, p?.repeatMode ?: Player.REPEAT_MODE_OFF,
+            System.currentTimeMillis()
+        )
+    }
+
+    /** Wiedergabe-Stand auf dem Haupt-Thread abfragen (für Anfragen aus dem Netz). */
+    private fun localEngineBlocking(maxNext: Int): EngineInfo? {
+        var out: EngineInfo? = null
+        val done = CountDownLatch(1)
+        main.post { try { out = localEngine(maxNext) } finally { done.countDown() } }
+        done.await(1500, TimeUnit.MILLISECONDS)
+        return out
+    }
+
+    /** Host: Stand aller Mitglieder abfragen (Ausgabegeräte; beim Abspielenden zusätzlich, was läuft). */
+    private fun startEnginePoll() {
+        enginePoll?.cancel()
+        enginePoll = scope.launch {
+            while (isActive && role == Role.Host) {
+                for (m in members.values.toList()) {
+                    try {
+                        val t0 = System.currentTimeMillis()
+                        val text = http("${m.url}/engine/state?k=${q(key ?: "")}&id=$myId", timeout = 2500)
+                        val t1 = System.currentTimeMillis()
+                        engines[m.id] = EngineInfo.from(JSONObject(text), (t0 + t1) / 2)
+                    } catch (e: Exception) {
+                        // Nicht erreichbar: alter Stand bleibt kurz stehen
+                    }
+                }
+                delay(600)
+            }
+        }
+    }
+
+    private fun takeSnapshot() {
         val now = System.currentTimeMillis()
         val all = listOf(JamMember(myId, myName, "")) + members.values.sortedBy { it.name }
+        val sp = speakerId.ifEmpty { myId }
+        val e = if (sp == myId) localEngine(30) else engines[sp]
+        val outs = ArrayList<JamOutput>()
+        Output.devices.forEach { outs += JamOutput.of(myId, myName, it) }
+        for (m in members.values.sortedBy { it.name }) engines[m.id]?.outputs?.forEach { outs += JamOutput.of(m.id, m.name, it) }
         val s = JamState(
-            jamId, myId, myName, all, entryOf(cur), upcoming, playing,
-            (p?.currentPosition ?: 0L) + clipStart(cur), now, now,
-            host?.jamShuffleOn ?: false, p?.repeatMode ?: Player.REPEAT_MODE_OFF
+            jamId, myId, myName, all, e?.current, e?.upcoming.orEmpty(), e?.playing == true,
+            e?.positionMs ?: 0L, e?.snapTime ?: now, now,
+            e?.shuffle ?: false, e?.repeat ?: Player.REPEAT_MODE_OFF,
+            sp, outs, "$sp/${e?.selected ?: Output.AUTO}", "$sp/${e?.active ?: Output.AUTO}"
         )
         snapshot = s
         if (s != state) state = s
+        // Ist die Ausgabe bei jemand anderem, zeigt der eigene Player den gemeinsamen Stand an
+        if (sp != myId) onRemoteState?.invoke(s)
     }
 
-    /** Befehl eines Mitglieds (oder des Hosts selbst) auf dem Host-Player ausführen. */
+    /** Befehl auf dem EIGENEN Player ausführen (dieses Gerät ist die Ausgabe). */
     private fun runCommand(o: JSONObject) {
         val h = host ?: return
         when (o.optString("cmd")) {
@@ -412,6 +479,8 @@ object Jam {
             "seek" -> h.jamSeek((o.optLong("ms") - clipStart(player?.currentMediaItem)).coerceAtLeast(0L))
             "shuffle" -> h.jamShuffle()
             "repeat" -> h.jamRepeat()
+            "output" -> Output.select(o.optInt("id", Output.AUTO))
+            "stop" -> player?.let { it.pause(); it.clearMediaItems() }
             "playNow" -> {
                 val items = JamEntry.list(o.optJSONArray("items")).mapNotNull { itemFor(it) }
                 if (items.isNotEmpty()) h.jamPlay(items, o.optInt("index").coerceIn(0, items.lastIndex))
@@ -420,12 +489,96 @@ object Jam {
                 val items = JamEntry.list(o.optJSONArray("items")).mapNotNull { itemFor(it) }
                 if (items.isNotEmpty()) h.jamAdd(items)
             }
+            "load" -> {
+                val items = JamEntry.list(o.optJSONArray("items")).mapNotNull { itemFor(it) }
+                if (items.isNotEmpty()) {
+                    val i = o.optInt("index").coerceIn(0, items.lastIndex)
+                    h.jamLoad(items, i, (o.optLong("pos") - clipStart(items[i])).coerceAtLeast(0L), o.optBoolean("play"))
+                }
+            }
         }
-        takeSnapshot()
+        if (role == Role.Host) takeSnapshot()
+    }
+
+    /** Host: Befehl dorthin leiten, wo gespielt wird (eigener Player oder Handy eines Mitglieds). */
+    private fun dispatch(o: JSONObject) {
+        if (o.optString("cmd") == "output") { selectOutput(o.optString("member", myId), o.optInt("id", Output.AUTO)); return }
+        val sp = speakerId.ifEmpty { myId }
+        if (sp == myId) { runCommand(o); return }
+        val url = members[sp]?.url ?: run { speakerId = myId; runCommand(o); return }
+        scope.launch {
+            try { http("$url/engine/cmd?k=${q(key ?: "")}&id=$myId", o.toString()) }
+            catch (e: Exception) { withContext(Dispatchers.Main) { message = "${memberName(sp)} ist gerade nicht erreichbar" } }
+        }
+    }
+
+    private fun engineCmd(member: String, o: JSONObject) {
+        if (member == myId) { val done = CountDownLatch(1); main.post { try { runCommand(o) } finally { done.countDown() } }; done.await(3, TimeUnit.SECONDS); return }
+        val url = members[member]?.url ?: return
+        http("$url/engine/cmd?k=${q(key ?: "")}&id=$myId", o.toString(), timeout = 6000)
+    }
+
+    /**
+     * Host: gemeinsame Ausgabe wählen. Liegt das Gerät bei einem anderen Mitglied, zieht die Wiedergabe dorthin um:
+     * Warteschlange + Stelle + Play/Pause werden übergeben, beim bisherigen Gerät wird gestoppt.
+     */
+    private fun selectOutput(member: String, devId: Int) {
+        val sp = speakerId.ifEmpty { myId }
+        if (member == sp) {
+            scope.launch { try { engineCmd(member, JSONObject().put("cmd", "output").put("id", devId)) } catch (e: Exception) { } }
+            return
+        }
+        if (switching) return
+        if (member != myId && !members.containsKey(member)) return
+        switching = true
+        scope.launch {
+            try {
+                // 1. Stand beim bisherigen Gerät holen (bis zu 300 Lieder Warteschlange)
+                val e: EngineInfo? = if (sp == myId) localEngineBlocking(300) else {
+                    val url = members[sp]?.url
+                    if (url == null) null else try {
+                        val t0 = System.currentTimeMillis()
+                        val text = http("$url/engine/state?k=${q(key ?: "")}&id=$myId&full=1", timeout = 4000)
+                        EngineInfo.from(JSONObject(text), (t0 + System.currentTimeMillis()) / 2)
+                    } catch (x: Exception) { null }
+                }
+                // 2. dort anhalten
+                try { engineCmd(sp, JSONObject().put("cmd", "stop")) } catch (x: Exception) { }
+                // 3. beim neuen Gerät an derselben Stelle weitermachen
+                val cur = e?.current
+                if (e != null && cur != null) {
+                    val elapsed = if (e.playing) System.currentTimeMillis() - e.snapTime else 0L
+                    val load = JSONObject().put("cmd", "load")
+                        .put("items", JamEntry.array(listOf(cur) + e.upcoming)).put("index", 0)
+                        .put("pos", e.positionMs + elapsed).put("play", e.playing)
+                    engineCmd(member, load)
+                }
+                engineCmd(member, JSONObject().put("cmd", "output").put("id", devId))
+                withContext(Dispatchers.Main) {
+                    speakerId = member
+                    takeSnapshot()
+                    if (member == myId) onRemoteState?.invoke(null)
+                    message = "Ausgabe: " + (if (member == myId) "dieses Handy" else memberName(member))
+                }
+            } catch (x: Exception) {
+                withContext(Dispatchers.Main) { message = "Ausgabe konnte nicht gewechselt werden" }
+            } finally { switching = false }
+        }
+    }
+
+    /** Mitglied weg (verlassen/rausgeworfen): War es die Ausgabe, wieder auf dem Host-Handy. */
+    private fun memberGone(id: String) {
+        engines.remove(id)
+        if (speakerId == id) {
+            speakerId = myId
+            onRemoteState?.invoke(null)
+            message = "Die Ausgabe war bei ${memberName(id)} – jetzt wieder auf diesem Handy"
+        }
     }
 
     // ---------- Gast ----------
 
+    /** Einem Jam beitreten – ohne Bestätigung, jeder im WLAN darf (der Host kann später rauswerfen). */
     fun join(peer: JamPeer) {
         if (role != Role.None || peer.hostingJam == null) return
         invite = null
@@ -434,31 +587,24 @@ object Jam {
         joinJob = scope.launch {
             try {
                 val body = JSONObject().put("id", myId).put("name", myName).put("port", server?.port ?: 0)
-                http("${peer.url}/jam/join", body.toString())
-                var tries = 0
-                while (isActive && tries++ < 120) {
-                    val o = JSONObject(http("${peer.url}/jam/status?id=$myId"))
-                    when (o.optString("status")) {
-                        "accepted" -> {
-                            key = o.getString("key")
-                            hostUrl = peer.url
-                            bestRtt = Long.MAX_VALUE
-                            withContext(Dispatchers.Main) {
-                                waitingFor = null
-                                role = Role.Guest
-                                message = "Du bist im Jam von ${peer.name}"
-                                // eigene Warteschlange anhalten, ab jetzt läuft, was der Host spielt
-                                player?.let { it.pause(); it.clearMediaItems() }
-                            }
-                            startSync()
-                            return@launch
+                val o = JSONObject(http("${peer.url}/jam/join", body.toString()))
+                when (o.optString("status")) {
+                    "accepted" -> {
+                        key = o.getString("key")
+                        hostUrl = peer.url
+                        bestRtt = Long.MAX_VALUE
+                        withContext(Dispatchers.Main) {
+                            waitingFor = null
+                            role = Role.Guest
+                            message = "Du bist im Jam von ${peer.name}"
+                            // Es gibt nur eine Ausgabe (beim Host): die eigene Wiedergabe anhalten
+                            player?.let { it.pause(); it.clearMediaItems() }
                         }
-                        "declined" -> { withContext(Dispatchers.Main) { waitingFor = null; message = "${peer.name} hat die Anfrage abgelehnt" }; return@launch }
-                        "closed" -> { withContext(Dispatchers.Main) { waitingFor = null; message = "Der Jam ist schon beendet" }; return@launch }
+                        startSync()
                     }
-                    delay(1000)
+                    "kicked" -> withContext(Dispatchers.Main) { waitingFor = null; message = "${peer.name} hat dich aus diesem Jam entfernt" }
+                    else -> withContext(Dispatchers.Main) { waitingFor = null; message = "Der Jam ist schon beendet" }
                 }
-                withContext(Dispatchers.Main) { waitingFor = null; message = "Keine Antwort von ${peer.name}" }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -480,7 +626,9 @@ object Jam {
         state = null
         role = Role.None
         libraries.clear()
-        player?.let { p -> if (isJamContext(p.currentMediaItem)) { p.stop(); p.clearMediaItems() } }
+        // War dieses Handy die Ausgabe, endet die gemeinsame Wiedergabe hier
+        player?.let { p -> if (isJamContext(p.currentMediaItem)) p.pause() }
+        onRemoteState?.invoke(null)
         if (!silent) message = "Jam verlassen"
     }
 
@@ -498,9 +646,12 @@ object Jam {
                     // Uhren-Abgleich: die schnellste Antwort ist die genaueste
                     if (rtt <= bestRtt + 20) { bestRtt = minOf(bestRtt, rtt); clockOffset = s.hostTime - (t0 + t1) / 2 }
                     fails = 0
-                    withContext(Dispatchers.Main) { state = s; follow(s) }
+                    withContext(Dispatchers.Main) {
+                        state = s
+                        onRemoteState?.invoke(if (s.speaker == myId) null else s)
+                    }
                 } catch (e: HttpError) {
-                    if (e.code == 403 || e.code == 410) { withContext(Dispatchers.Main) { leave(silent = true); message = "Der Jam wurde beendet" }; return@launch }
+                    if (e.code == 403 || e.code == 410) { withContext(Dispatchers.Main) { leave(silent = true); message = "Der Jam ist für dich beendet" }; return@launch }
                     fails++
                 } catch (e: Exception) { fails++ }
                 if (fails >= 8) { withContext(Dispatchers.Main) { leave(silent = true); message = "Verbindung zum Jam verloren" }; return@launch }
@@ -509,43 +660,26 @@ object Jam {
         }
     }
 
-    private fun entryKey(item: MediaItem?): String? = entryOf(item)?.key
-
-    /** Gast spielt synchron mit dem Host: gleiches Lied, gleiche Stelle, gleicher Pause-Zustand. */
-    private fun follow(s: JamState) {
-        val p = player ?: return
-        val cur = s.current
-        if (cur == null) { if (p.playWhenReady) p.pause(); return }
-        val now = System.currentTimeMillis()
-        val targetAbs = if (s.playing) s.positionMs + (now + clockOffset - s.snapTime) else s.positionMs
-        p.repeatMode = Player.REPEAT_MODE_OFF
-        if (entryKey(p.currentMediaItem) != cur.key) {
-            val item = itemFor(cur) ?: return
-            p.setMediaItem(item, (targetAbs - clipStart(item)).coerceAtLeast(0L))
-            p.prepare()
-            p.playWhenReady = s.playing
-            lastSeek = now
-            return
-        }
-        val localAbs = p.currentPosition + clipStart(p.currentMediaItem)
-        if (p.playWhenReady != s.playing) {
-            p.playWhenReady = s.playing
-            if (abs(localAbs - targetAbs) > 300) { p.seekTo((targetAbs - clipStart(p.currentMediaItem)).coerceAtLeast(0L)); lastSeek = now }
-            return
-        }
-        if (now - lastSeek < 2500) return
-        val drift = localAbs - targetAbs
-        val limit = if (s.playing) 450 else 1000
-        if (p.playbackState == Player.STATE_READY && abs(drift) > limit) {
-            p.seekTo((targetAbs - clipStart(p.currentMediaItem)).coerceAtLeast(0L))
-            lastSeek = now
-        }
+    /** Gast: geschätzte Position beim Host (Uhren-Abgleich), in ms im ganzen Lied. */
+    fun estimatedPosition(): Long {
+        val s = state ?: return 0L
+        if (!s.playing) return s.positionMs
+        val pos = s.positionMs + (System.currentTimeMillis() + clockOffset - s.snapTime)
+        val d = s.current?.durationMs ?: 0L
+        return if (d > 0) pos.coerceIn(0L, d) else pos.coerceAtLeast(0L)
     }
+
+    /** Anzeige-Eintrag für den Gast-Player (Lied läuft beim Host, nicht hier). */
+    fun displayItem(e: JamEntry): MediaItem = itemFor(e) ?: MediaItem.Builder()
+        .setMediaId("$ITEM_PREFIX${e.owner}:${e.trackId}:x")
+        .setMediaMetadata(MediaMetadata.Builder().setTitle(e.title).setArtist(e.artist)
+            .setExtras(Bundle().apply { putString("jam", e.toJson().toString()) }).build())
+        .build()
 
     /** Befehl an den Host schicken (Gast) bzw. direkt ausführen (Host). */
     fun command(o: JSONObject) {
         when (role) {
-            Role.Host -> runCommand(o)
+            Role.Host -> dispatch(o)
             Role.Guest -> {
                 val url = hostUrl; val k = key ?: return
                 scope.launch {
@@ -560,7 +694,7 @@ object Jam {
     fun cmd(name: String, ms: Long? = null) = command(JSONObject().put("cmd", name).also { if (ms != null) it.put("ms", ms) })
 
     /** Gast: Spul-Befehl mit Position im ganzen Lied (unabhängig vom Stille-Schnitt). */
-    fun seekAbs(relMs: Long) = cmd("seek", relMs + clipStart(player?.currentMediaItem))
+    fun seekAbs(absMs: Long) = cmd("seek", absMs)
 
     fun playEntries(entries: List<JamEntry>, index: Int) {
         if (entries.isEmpty()) return
@@ -598,8 +732,8 @@ object Jam {
 
     private fun q(s: String) = URLEncoder.encode(s, "UTF-8")
 
-    fun fileUrl(owner: String, id: Long): String? = urlOf(owner)?.let { "$it/file/$id?k=${q(key ?: "")}" }
-    fun coverUrl(owner: String, id: Long, size: Int = 300): String? = urlOf(owner)?.let { "$it/cover/$id?k=${q(key ?: "")}&s=$size" }
+    fun fileUrl(owner: String, id: Long): String? = urlOf(owner)?.let { "$it/file/$id?k=${q(key ?: "")}&id=$myId" }
+    fun coverUrl(owner: String, id: Long, size: Int = 300): String? = urlOf(owner)?.let { "$it/cover/$id?k=${q(key ?: "")}&id=$myId&s=$size" }
 
     /** Player-Eintrag für ein Jam-Lied: eigenes Lied lokal, fremdes per Streaming vom Besitzer. */
     fun itemFor(e: JamEntry): MediaItem? {
@@ -639,7 +773,7 @@ object Jam {
         if (!refresh) libraries[owner]?.let { return@withContext it }
         val base = urlOf(owner) ?: return@withContext null
         try {
-            val lib = RemoteLibrary.from(JSONObject(http("$base/library?k=${q(key ?: "")}", timeout = 20000)))
+            val lib = RemoteLibrary.from(JSONObject(http("$base/library?k=${q(key ?: "")}&id=$myId", timeout = 20000)))
             libraries[owner] = lib
             lib
         } catch (e: Exception) { null }
@@ -761,7 +895,9 @@ object Jam {
     /** Lädt die Datei nach „<Speicher>/Music/<Interpret>/“ (wie beim Einsortieren). */
     private fun download(url: String, rt: RemoteTrack): File? {
         val root = File(Environment.getExternalStorageDirectory(), "Music")
-        val dir = if (rt.artist.isNotBlank() && rt.artist != UNKNOWN_ARTIST) File(root, safe(rt.artist)) else root
+        // Gleich richtig einsortiert: Music/<Interpret>/<Album>/ (ohne Album: Music/<Interpret>/)
+        val artistDir = if (rt.artist.isNotBlank() && rt.artist != UNKNOWN_ARTIST) File(root, safe(rt.artist)) else root
+        val dir = if (rt.albumName.isNotBlank() && artistDir != root) File(artistDir, safe(rt.albumName)) else artistDir
         dir.mkdirs()
         val name = safe(rt.fileName.ifBlank { rt.title + ".mp3" })
         var target = File(dir, name)
@@ -807,27 +943,22 @@ object Jam {
                 JSONObject().put("id", myId).put("name", myName).put("jam", if (role == Role.Host) jamId else "").toString()
             )
             p == "/jam/join" && r.method == "POST" -> {
-                if (role != Role.Host) return JamServer.Response.error(409, "kein Jam")
+                val k = key
+                if (role != Role.Host || k == null) return JamServer.Response.json("{\"status\":\"closed\"}")
                 val o = JSONObject(r.bodyText())
                 val id = o.getString("id")
-                val req = JamRequest(id, o.optString("name", "Gast"), "http://${r.remote}:${o.optInt("port")}")
-                declined.remove(id)
-                if (members.containsKey(id)) members[id] = JamMember(id, req.name, req.url)
-                else main.post { requests = requests.filter { it.id != id } + req }
-                JamServer.Response.json("{\"status\":\"pending\"}")
-            }
-            p == "/jam/status" -> {
-                val id = r.query["id"].orEmpty()
-                val k = key
-                val s = when {
-                    role != Role.Host || k == null -> JSONObject().put("status", "closed")
-                    members.containsKey(id) -> JSONObject().put("status", "accepted").put("key", k).put("jam", jamId)
-                    id in declined -> JSONObject().put("status", "declined")
-                    else -> JSONObject().put("status", "pending")
-                }
-                JamServer.Response.json(s.toString())
+                if (id in kicked) return JamServer.Response.json("{\"status\":\"kicked\"}")
+                val m = JamMember(id, o.optString("name", "Gast"), "http://${r.remote}:${o.optInt("port")}")
+                val isNew = members.put(id, m) == null
+                if (isNew) main.post { message = "${m.name} ist dem Jam beigetreten"; takeSnapshot() }
+                JamServer.Response.json(JSONObject().put("status", "accepted").put("key", k).put("jam", jamId).toString())
             }
             !authed(r) -> JamServer.Response.error(403, "kein Zugriff")
+            // Beim Host: nur aktuelle Mitglieder (Rausgeworfene kommen nicht mehr an die Musik)
+            role == Role.Host && (p == "/library" || p.startsWith("/file/") || p.startsWith("/cover/") || p.startsWith("/engine/")) &&
+                !members.containsKey(r.query["id"].orEmpty()) -> JamServer.Response.error(403, "kein Mitglied")
+            // Beim Gast darf nur der Host die Wiedergabe steuern
+            role == Role.Guest && p.startsWith("/engine/") && r.query["id"] != state?.hostId -> JamServer.Response.error(403, "nur Host")
             p == "/jam/state" -> {
                 if (role != Role.Host) return JamServer.Response.error(410, "beendet")
                 val id = r.query["id"].orEmpty()
@@ -840,14 +971,26 @@ object Jam {
                 val o = JSONObject(r.bodyText())
                 // Lied-Einträge brauchen die Bibliothek (Host-Thread), daher auf dem Haupt-Thread ausführen und kurz warten
                 val done = CountDownLatch(1)
-                main.post { try { runCommand(o) } finally { done.countDown() } }
+                main.post { try { dispatch(o) } finally { done.countDown() } }
                 done.await(3, TimeUnit.SECONDS)
                 JamServer.Response.json("{\"ok\":true}")
             }
             p == "/jam/leave" -> {
                 val id = r.query["id"].orEmpty()
                 val m = members.remove(id)
-                if (m != null) main.post { message = "${m.name} hat den Jam verlassen" }
+                if (m != null) main.post { memberGone(id); message = "${m.name} hat den Jam verlassen"; takeSnapshot() }
+                JamServer.Response.json("{\"ok\":true}")
+            }
+            // Wiedergabe-Schnittstelle jedes Geräts (der Host steuert darüber die gemeinsame Ausgabe)
+            p == "/engine/state" -> {
+                val e = localEngineBlocking(if (r.query["full"] == "1") 300 else 30) ?: return JamServer.Response.error(500, "kein Player")
+                JamServer.Response.json(e.toJson().toString())
+            }
+            p == "/engine/cmd" && r.method == "POST" -> {
+                val o = JSONObject(r.bodyText())
+                val done = CountDownLatch(1)
+                main.post { try { runCommand(o) } finally { done.countDown() } }
+                done.await(3, TimeUnit.SECONDS)
                 JamServer.Response.json("{\"ok\":true}")
             }
             p == "/library" -> JamServer.Response.json(myLibrary().toJson().toString())

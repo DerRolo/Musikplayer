@@ -15,6 +15,8 @@ Die App ist nicht nur ein Player, sondern auch ein Aufräumwerkzeug für eine un
 
 ## Wiedergabe
 
+- **Ausgabegerät wählen:** Im großen Player bei der Warteschlange rechts oben. Angezeigt werden nur verbundene Geräte (Handy, Bluetooth, Kopfhörer, USB). „Automatisch“ überlässt Android die Wahl.
+
 - Hintergrundwiedergabe mit Benachrichtigung, Warteschlange, Shuffle, Wiederholen (aus, alle, eines).
 - Vollbild-Player mit drehender Schallplatte, echtem Equalizer und Wischen für nächstes und voriges Lied.
 - Der Equalizer zeigt das Spektrum der gespielten Musik. Dafür verlangt Android die Berechtigung „Audio aufnehmen“. Das Mikrofon wird nicht abgehört, ohne die Berechtigung läuft eine Animation.
@@ -33,8 +35,10 @@ Die App ist nicht nur ein Player, sondern auch ein Aufräumwerkzeug für eine un
 
 Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im selben WLAN ist.
 
-- **Jam erstellen oder beitreten** wie bei Spotify. Der Host nimmt jede Anfrage an, ohne Bestätigung kommt niemand an deine Musik.
-- **Zusammen hören:** Alle hören synchron, was der Host spielt, auch Lieder, die sie selbst nicht haben (Streaming im WLAN). Jeder kann starten, pausieren, spulen, weiterspringen und Lieder oder Playlists einreihen, mit der ganz normalen Bedienung der App.
+- **Jam erstellen oder beitreten** wie bei Spotify. Jeder im WLAN kann einem Jam ohne Bestätigung beitreten. Der Host sieht, wer dabei ist (und wer sonst noch im WLAN ist), und kann Leute wieder entfernen.
+- **Eine gemeinsame Ausgabe:** Gespielt wird an genau einer Stelle, zum Beispiel am Handy des Hosts, an der Bluetooth-Box des Hosts oder am Handy bzw. der Box eines Gasts. Jeder im Jam kann sie wählen (großer Player → Warteschlange → Ausgabe-Knopf rechts oben, oder auf der Jam-Seite). Beim Wechsel zieht die Wiedergabe samt Warteschlange und Stelle auf das neue Gerät um.
+- **Mitbestimmen:** Jeder kann mit der ganz normalen Bedienung der App starten, pausieren, spulen, weiterspringen und Lieder oder Playlists einreihen, auch Lieder, die das abspielende Handy selbst nicht hat (Streaming im WLAN).
+- **Fremde Lieder** kann man im Jam anhören und übernehmen, aber nicht bearbeiten oder löschen. Das geht nur mit den eigenen Liedern.
 - **Musik übernehmen:** Die Bibliothek der anderen ansehen und Lieder, Alben, Interpreten oder ganze Playlists aufs eigene Handy holen. Interpret, Album, Cover und Playlist-Zuordnung kommen mit, die Dateien landen in `Music/<Interpret>`. Lieder, die du schon hast (gleiche Regeln wie die Duplikat-Suche), werden nicht doppelt geladen. Neues erscheint in „Neue Lieder“.
 - **Sichtbarkeit:** Mit „Im WLAN sichtbar“ schaltest du das Finden und die Pop-ups ab.
 - Für das Streaming im lokalen Netz erlaubt die App unverschlüsselte Verbindungen (`http`). Das betrifft nur Verbindungen zwischen den Handys im WLAN, der Zugang ist durch einen Jam-Schlüssel geschützt.
@@ -77,7 +81,8 @@ Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im 
 - **Schutz vor Chaos:** Lieder, die schon in einem Interpreten- oder Album-Ordner liegen, werden nie herausgezogen. Du kannst einstellen, ob Schnell-Speichern verschieben soll.
 - **Pfade nachziehen:** Nach jedem Verschieben oder Umbenennen werden Playlists, Favoriten, Sperren, Wiedergabezähler und Zuordnungen auf den neuen Pfad umgestellt. Nichts geht verloren.
 - **Datei zeigen:** öffnet den Ordner im Dateimanager.
-- Verändert wird nichts ohne Bestätigung. Löschen von Dateien gibt es immer mit Rückfrage und ohne Papierkorb.
+- Verändert wird nichts ohne Bestätigung. Löschen gibt es immer mit Rückfrage.
+- **Papierkorb:** Gelöschte Lieder kommen zuerst in den Papierkorb (Optionen → Papierkorb) und werden nach 30 Tagen endgültig gelöscht. Dort kannst du sie anhören (antippen), wiederherstellen (einzeln, mehrere per langem Drücken oder alle) oder endgültig löschen bzw. den Papierkorb leeren. Wiederhergestellt wird an den alten Ort, mit Playlists, Favoriten und Zuordnungen. Direkt nach dem Löschen geht auch „Rückgängig“ in der Meldung.
 
 ### Interpreten erkennen und zuordnen
 

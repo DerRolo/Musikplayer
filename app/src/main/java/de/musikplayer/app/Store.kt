@@ -116,6 +116,9 @@ object Store {
     /** Eigene Geräte-Kennung für den Jam (zufällig, bleibt erhalten). */
     var deviceId: String = ""
         private set
+    /** Papierkorb: gelöschte Lieder (30 Tage wiederherstellbar). */
+    var trash: List<TrashItem> = emptyList()
+        private set
     /** Für andere im WLAN sichtbar (Jam-Einladungen). */
     var jamVisible: Boolean = true
         private set
@@ -165,6 +168,7 @@ object Store {
             resumePosMs = o.optLong("resumePos", 0L)
             deviceId = o.optString("deviceId", "")
             jamVisible = o.optBoolean("jamVisible", true)
+            trash = o.optJSONArray("trash")?.let { a -> List(a.length()) { TrashItem.from(a.getJSONObject(it)) } }.orEmpty()
             Names.extraStrip = stripStrings
             skipSilence = o.optBoolean("skipSilence", true)
             modes = o.optJSONObject("modes").toMap()
@@ -265,6 +269,7 @@ object Store {
         o.put("resumePos", resumePosMs)
         o.put("deviceId", deviceId)
         o.put("jamVisible", jamVisible)
+        o.put("trash", JSONArray().also { a -> trash.forEach { a.put(it.toJson()) } })
         o.put("known", JSONArray().also { a -> knownPaths.forEach { a.put(it) } })
         val tmp = File(ctx.filesDir, "$FILE.tmp")
         tmp.writeText(o.toString())
@@ -398,6 +403,12 @@ object Store {
     }
 
     fun setJamVisible(ctx: Context, on: Boolean) { jamVisible = on; save(ctx) }
+
+    @Synchronized
+    fun addTrash(ctx: Context, items: List<TrashItem>) { trash = items + trash; save(ctx) }
+
+    @Synchronized
+    fun removeTrash(ctx: Context, ids: Set<String>) { trash = trash.filter { it.id !in ids }; save(ctx) }
 
     /** Merkt sich, wo die Wiedergabe zuletzt stand. Fremdtitel (nicht in der Bibliothek) werden nie gespeichert. */
     fun setResume(ctx: Context, path: String, context: String, posMs: Long) {

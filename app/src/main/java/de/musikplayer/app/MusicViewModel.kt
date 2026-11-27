@@ -122,6 +122,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         audiobookGrid = Store.audiobookGrid
         syncPlaylists()
         Jam.onLibraryChanged = { refresh() }
+        Jam.onRemoteState = { s -> if (s != null) syncFromJam(s) else syncFromPlayer() }
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         val f = MediaController.Builder(app, token).buildAsync()
         f.addListener({
@@ -139,7 +140,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }, MoreExecutors.directExecutor())
         viewModelScope.launch {
             while (true) {
-                controller?.let {
+                if (jamRemote) { if (isPlaying) positionMs = Jam.estimatedPosition() }
+                else controller?.let {
                     if (it.isPlaying) positionMs = it.currentPosition
                 }
                 kotlinx.coroutines.delay(250)
@@ -148,6 +150,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     private fun syncFromPlayer() {
+        // Als Gast im Jam zeigt der Player, was beim Host läuft (die einzige Ausgabe ist das Host-Handy)
+        if (jamRemote) { syncFromJam(Jam.state); return }
         val c = controller ?: return
         current = c.currentMediaItem
         isPlaying = c.isPlaying
@@ -174,7 +178,11 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         if (loading) return
         loading = true
         viewModelScope.launch {
-            withContext(Dispatchers.IO) { Library.load(app) }
+            withContext(Dispatchers.IO) {
+                // Papierkorb: was älter als 30 Tage ist, endgültig löschen
+                if (Trash.purgeOld(app) > 0) trashTick++
+                Library.load(app)
+            }
             Store.initKnown(app, Library.tracks.map { it.path })
             refreshFromLibrary()
             loading = false
@@ -304,7 +312,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
      */
     fun play(list: List<Track>, index: Int, context: String) {
         if (list.isEmpty()) return
-        if (jamGuest) { Jam.playOwn(list, index.coerceIn(0, list.lastIndex)); return }
+        if (jamRemote) { Jam.playOwn(list, index.coerceIn(0, list.lastIndex)); return }
         applyMode(keyOf(context))
         startItems(list.map { Library.mediaItem(it, context) }, index.coerceIn(0, list.lastIndex))
     }
@@ -372,7 +380,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun playShuffled(list: List<Track>, context: String) {
         val c = controller ?: return
         if (list.isEmpty()) return
-        if (jamGuest) { Jam.playOwn(list.shuffled(), 0); return }
+        if (jamRemote) { Jam.playOwn(list.shuffled(), 0); return }
         shuffle = true
         Store.setMode(app, keyOf(context), true, Store.modeOf(keyOf(context)).second); modeVersion++
         c.shuffleModeEnabled = false
@@ -393,16 +401,16 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Aktuelle Abspielposition, direkt vom Player (für ruckelfreie Anzeige, jedes Bild neu abgefragt). */
-    fun livePositionMs(): Long = controller?.currentPosition ?: positionMs
+    fun livePositionMs(): Long = if (jamRemote) Jam.estimatedPosition() else controller?.currentPosition ?: positionMs
 
     fun togglePlay() {
         val c = controller ?: return
-        if (jamGuest) Jam.cmd(if (c.playWhenReady) "pause" else "play")
+        if (jamRemote) { Jam.cmd(if (isPlaying) "pause" else "play"); isPlaying = !isPlaying; return }
         if (c.isPlaying) c.pause() else c.play()
     }
 
     fun next() {
-        if (jamGuest) { Jam.cmd("next"); return }
+        if (jamRemote) { Jam.cmd("next"); return }
         val c = controller ?: return
         if (c.mediaItemCount == 0 || c.currentMediaItemIndex < 0) return
         when (repeatFor(keyOf(playingContext))) {
@@ -421,15 +429,15 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
     /** Swipe ist ein echter Trackwechsel und darf nicht wie der Zurück-Button zum Songanfang springen. */
-    fun previousFromSwipe() { if (jamGuest) Jam.cmd("prev") else controller?.seekToPreviousMediaItem() }
+    fun previousFromSwipe() { if (jamRemote) Jam.cmd("prev") else controller?.seekToPreviousMediaItem() }
     fun previous() {
-        if (jamGuest) { Jam.cmd("prev"); return }
+        if (jamRemote) { Jam.cmd("prev"); return }
         val c = controller ?: return
         if (c.currentPosition > 3000) c.seekTo(0) else c.seekToPreviousMediaItem()
     }
 
     fun seekTo(ms: Long) {
-        if (jamGuest) Jam.seekAbs(ms)
+        if (jamRemote) { Jam.seekAbs(ms); positionMs = ms; return }
         controller?.seekTo(ms)
         positionMs = ms
     }
@@ -441,7 +449,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Shuffle umschalten. [key] = Kontext einer Playlist-Seite; ohne Angabe gilt das, was gerade läuft. */
     fun toggleShuffle(key: String? = null) {
-        if (jamGuest && key == null) { Jam.cmd("shuffle"); return }
+        if (jamRemote && key == null) { Jam.cmd("shuffle"); return }
         val c = controller ?: return
         val k = key ?: keyOf(playingContext)
         val on = !Store.modeOf(k).first
@@ -464,7 +472,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun cycleRepeat(key: String? = null) {
-        if (jamGuest && key == null) { Jam.cmd("repeat"); return }
+        if (jamRemote && key == null) { Jam.cmd("repeat"); return }
         val c = controller ?: return
         val k = key ?: keyOf(playingContext)
         val (s, r) = Store.modeOf(k)
@@ -490,7 +498,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Direkt nach dem aktuellen Lied (vor schon eingereihten). */
     fun playNext(list: List<Track>) {
-        if (jamGuest) { Jam.addOwn(list); return }
+        if (jamRemote) { Jam.addOwn(list); return }
         val c = controller ?: return
         if (c.mediaItemCount == 0) { play(list, 0, "q"); return }
         c.addMediaItems(c.currentMediaItemIndex + 1, itemsOf(list))
@@ -499,22 +507,23 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Hinten an die Warteschlange: nach dem aktuellen Lied und nach allem, was schon eingereiht ist. */
     fun addToQueue(list: List<Track>) {
-        if (jamGuest) { Jam.addOwn(list); return }
+        if (jamRemote) { Jam.addOwn(list); return }
         val c = controller ?: return
         if (c.mediaItemCount == 0) { play(list, 0, "q"); return }
         c.addMediaItems(c.currentMediaItemIndex + 1 + queuedCount, itemsOf(list))
         message = "Zur Warteschlange hinzugefügt"
     }
 
-    fun removeFromQueue(index: Int) { controller?.removeMediaItem(index) }
+    fun removeFromQueue(index: Int) { if (!jamRemote) controller?.removeMediaItem(index) }
 
     fun moveInQueue(from: Int, to: Int) {
+        if (jamRemote) return
         val c = controller ?: return
         if (from in 0 until c.mediaItemCount && to in 0 until c.mediaItemCount) c.moveMediaItem(from, to)
     }
 
     fun jumpTo(index: Int) {
-        if (jamGuest) return
+        if (jamRemote) return
         val c = controller ?: return
         c.seekToDefaultPosition(index)
         c.play()
@@ -522,14 +531,39 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun clearQueue() {
         // Im Jam als Gast: Player wegwischen = Jam verlassen
-        if (jamGuest) { Jam.leave(); return }
+        if (jamRemote) { if (Jam.role == Jam.Role.Guest) Jam.leave() else Jam.cmd("pause"); return }
         controller?.let { it.stop(); it.clearMediaItems() }
     }
 
     // ---------- Jam ----------
 
-    /** Als Gast im Jam: Bedienung geht an den Host, der eigene Player spielt synchron mit. */
-    private val jamGuest: Boolean get() = Jam.role == Jam.Role.Guest
+    /** Gast-Anzeige: Einträge je Lied zwischenspeichern, damit sich Cover und Anzeige nicht ständig neu aufbauen. */
+    private val jamItems = HashMap<String, MediaItem>()
+    private fun jamItem(e: JamEntry): MediaItem = jamItems.getOrPut(e.key) { Jam.displayItem(e) }
+
+    /** Player-Anzeige aus dem Stand des Hosts (Titel, Position, Pause, Warteschlange, Shuffle/Wiederholen). */
+    private fun syncFromJam(s: JamState?) {
+        if (jamItems.size > 300) jamItems.clear()
+        val cur = s?.current?.let { jamItem(it) }
+        current = cur
+        isPlaying = s?.playing == true && cur != null
+        positionMs = Jam.estimatedPosition()
+        durationMs = s?.current?.durationMs ?: 0L
+        shuffle = s?.shuffle == true
+        repeat = when (s?.repeat) { Player.REPEAT_MODE_ALL -> RepeatMode.All; Player.REPEAT_MODE_ONE -> RepeatMode.One; else -> RepeatMode.Off }
+        val next = s?.upcoming.orEmpty().map { jamItem(it) }
+        queue = listOfNotNull(cur) + next
+        currentIndex = 0
+        nextItem = next.firstOrNull()
+        prevItem = null
+        queuedCount = 0
+    }
+
+    /**
+     * Im Jam, aber dieses Handy ist nicht die gemeinsame Ausgabe: Der Player zeigt, was dort läuft,
+     * und alle Bedienung geht dorthin. Ist dieses Handy die Ausgabe, läuft alles wie gewohnt hier.
+     */
+    private val jamRemote: Boolean get() = Jam.active && !Jam.isSpeaker
 
     /** Als Host: Befehle der Gäste laufen über dieselben Funktionen wie die eigene Bedienung. */
     private val jamHost = object : JamHost {
@@ -545,6 +579,15 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
             val c = controller ?: return
             if (c.mediaItemCount == 0) { doStart(items, 0); return }
             c.addMediaItems(c.currentMediaItemIndex + 1 + queuedCount, items.map { asQueued(it) })
+        }
+        override fun jamLoad(items: List<MediaItem>, index: Int, posMs: Long, play: Boolean) {
+            val c = controller ?: return
+            applyMode("all")
+            baseList = items
+            c.shuffleModeEnabled = false
+            c.setMediaItems(items, index.coerceIn(0, items.lastIndex), posMs)
+            c.prepare()
+            c.playWhenReady = play
         }
         override fun jamShuffle() = toggleShuffle()
         override fun jamRepeat() = cycleRepeat()
@@ -563,8 +606,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
      */
     fun playExternal(uri: android.net.Uri) {
         if (controller == null) { pendingExternal = uri; return }
-        // Eine Datei von außen lässt sich nicht im Jam teilen: als Gast erst den Jam verlassen
-        if (jamGuest) Jam.leave()
+        // Eine Datei von außen lässt sich im Jam nicht mit den anderen teilen
+        if (Jam.active) { message = "Während eines Jams lassen sich Dateien von außen nicht abspielen"; return }
         viewModelScope.launch {
             val item = try { withContext(Dispatchers.IO) { External.itemFor(app, uri) } } catch (e: Exception) { null }
             if (item == null) { message = "Datei kann nicht geöffnet werden"; return@launch }
@@ -1134,8 +1177,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         if (list.isEmpty()) return
         loading = true
         viewModelScope.launch {
-            val n = withContext(Dispatchers.IO) {
-                val c = Library.deleteFiles(app, list)
+            val moved = withContext(Dispatchers.IO) {
+                val c = Trash.moveToTrash(app, list)
                 Library.load(app)
                 c
             }
@@ -1143,9 +1186,41 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
             dupes = dupes?.map { g -> g.copy(tracks = g.tracks.filter { t -> tracks.any { it.path == t.path } }) }
                 ?.filter { it.tracks.size >= 2 }
             loading = false
-            message = "$n Dateien gelöscht"
+            trashTick++
+            message = if (moved.size == 1) "In den Papierkorb verschoben" else "${moved.size} Dateien in den Papierkorb verschoben"
+            undo = { restoreTrash(moved) }
         }
     }
+
+    // ---------- Papierkorb ----------
+
+    var trashTick by mutableStateOf(0)
+        private set
+
+    /** Inhalt des Papierkorbs, neueste zuerst. */
+    fun trashItems(): List<TrashItem> { trashTick; return Store.trash.sortedByDescending { it.deletedAt } }
+
+    fun restoreTrash(items: List<TrashItem>) {
+        if (items.isEmpty()) return
+        viewModelScope.launch {
+            val n = withContext(Dispatchers.IO) { val r = Trash.restore(app, items); Library.load(app); r }
+            refreshFromLibrary()
+            trashTick++
+            message = if (n == 1) "Wiederhergestellt" else "$n Dateien wiederhergestellt"
+        }
+    }
+
+    fun deleteTrashForever(items: List<TrashItem>) {
+        if (items.isEmpty()) return
+        viewModelScope.launch {
+            val n = withContext(Dispatchers.IO) { Trash.deleteForever(app, items) }
+            trashTick++
+            message = if (n == 1) "Endgültig gelöscht" else "$n Dateien endgültig gelöscht"
+        }
+    }
+
+    /** Lied aus dem Papierkorb anhören (wie eine Datei von außen: einzeln, ohne Bibliothek). */
+    fun playTrash(item: TrashItem) = playExternal(android.net.Uri.fromFile(java.io.File(item.file)))
 
     /** Aufräumen (erweitert): erst löschen, dann umbenennen (vermeidet Namenskonflikte). Nur nach Bestätigung aufrufen. */
     fun cleanup(delete: List<Track>, rename: List<Pair<Track, String>>) {
@@ -1153,7 +1228,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         loading = true
         viewModelScope.launch {
             val (d, r) = withContext(Dispatchers.IO) {
-                val d = if (delete.isNotEmpty()) Library.deleteFiles(app, delete) else 0
+                val d = if (delete.isNotEmpty()) Library.deleteFiles(app, delete).also { if (it > 0) trashTick++ } else 0
                 val r = if (rename.isNotEmpty()) Library.renameFiles(app, rename).renamed else 0
                 Library.load(app)
                 d to r
@@ -1161,7 +1236,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
             refreshFromLibrary()
             dupes = withContext(Dispatchers.Default) { Dupes.find(Library.tracks) }
             loading = false
-            message = "$d gelöscht, $r umbenannt"
+            message = "$d in den Papierkorb, $r umbenannt"
         }
     }
 
@@ -1197,6 +1272,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         if (Jam.host === jamHost) Jam.host = null
         Jam.onLibraryChanged = null
+        Jam.onRemoteState = null
         controller?.removeListener(listener)
         controller?.release()
         super.onCleared()

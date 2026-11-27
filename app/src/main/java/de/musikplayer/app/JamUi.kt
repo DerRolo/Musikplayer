@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -29,6 +30,14 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PersonRemove
+import androidx.compose.material.icons.filled.Speaker
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Usb
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
@@ -122,21 +131,9 @@ private fun personen(n: Int) = if (n == 1) "1 Person" else "$n Personen"
 
 // ---------- Pop-ups (überall in der App) ----------
 
-/** Jemand in der Nähe / Beitrittsanfrage an den Host. [onOpenJam] öffnet die Jam-Seite. */
+/** Pop-up „Jemand in der Nähe“ bzw. „Jam beitreten“. [onOpenJam] öffnet die Jam-Seite. */
 @Composable
 fun JamDialogs(onOpenJam: () -> Unit) {
-    val req = Jam.requests.firstOrNull()
-    if (req != null && Jam.role == Jam.Role.Host) {
-        AlertDialog(
-            onDismissRequest = {},
-            icon = { Icon(Icons.Filled.Groups, null) },
-            title = { Text("Beitrittsanfrage") },
-            text = { Text("${req.name} möchte deinem Jam beitreten. Danach hört ${req.name} mit, kann Lieder starten und einreihen und deine Bibliothek ansehen.") },
-            confirmButton = { TextButton(onClick = { Jam.accept(req) }) { Text("Annehmen") } },
-            dismissButton = { TextButton(onClick = { Jam.decline(req) }) { Text("Ablehnen") } }
-        )
-        return
-    }
     val p = Jam.invite ?: return
     if (Jam.role != Jam.Role.None) return
     val hosting = p.hostingJam != null
@@ -146,7 +143,7 @@ fun JamDialogs(onOpenJam: () -> Unit) {
         title = { Text(if (hosting) "Jam in der Nähe" else "Jemand in der Nähe") },
         text = {
             Text(
-                if (hosting) "${p.name} hat einen Jam gestartet. Beitreten und zusammen hören?"
+                if (hosting) "${p.name} hat einen Jam gestartet. Beitreten? Ihr hört über eine gemeinsame Ausgabe und jeder kann mitbestimmen, was läuft."
                 else "${p.name} ist im selben WLAN und hat auch den Musikplayer. Jam erstellen? Dann kann ${p.name} beitreten."
             )
         },
@@ -175,8 +172,10 @@ fun JamPage(vm: MusicViewModel, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         PageHeader("Jam", onBack)
         Text(
-            "Zusammen Musik hören mit Handys im selben WLAN – wie bei Spotify. Alle hören, was der Host spielt, " +
-                "jeder kann Lieder starten und einreihen. Außerdem könnt ihr Lieder, Alben, Interpreten und Playlists voneinander übernehmen.",
+            "Zusammen Musik hören mit Handys im selben WLAN – wie bei Spotify. Es gibt eine gemeinsame Ausgabe: ein Handy oder " +
+                "eine verbundene Box von irgendwem im Jam. Jeder kann Lieder starten, einreihen und die Ausgabe wechseln. " +
+                "Jeder im WLAN kann einem Jam beitreten, der Host kann Leute wieder entfernen. " +
+                "Außerdem könnt ihr Lieder, Alben, Interpreten und Playlists voneinander übernehmen.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
         )
@@ -185,7 +184,7 @@ fun JamPage(vm: MusicViewModel, onBack: () -> Unit) {
             Icon(Icons.Filled.Wifi, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 16.dp))
             Column(Modifier.weight(1f)) {
                 Text("Im WLAN sichtbar", style = MaterialTheme.typography.titleMedium)
-                Text("Andere mit der App sehen dich und bekommen ein Pop-up zum Jam. Ohne Bestätigung kommt niemand an deine Musik.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Andere mit der App sehen dich und bekommen ein Pop-up zum Jam. An deine Musik kommt nur, wer in deinem Jam ist.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Switch(checked = visible, onCheckedChange = { visible = it; Jam.setVisible(ctx, it) })
         }
@@ -226,8 +225,7 @@ private fun NotInJam() {
     if (waiting != null) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Warte auf $waiting …", style = MaterialTheme.typography.titleMedium)
-                Text("$waiting muss die Anfrage auf dem eigenen Handy annehmen.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Verbinde mit $waiting …", style = MaterialTheme.typography.titleMedium)
             }
             TextButton(onClick = { Jam.cancelJoin() }) { Text("Abbrechen") }
         }
@@ -260,6 +258,7 @@ private fun NotInJam() {
 @Composable
 private fun InJam(vm: MusicViewModel, onBrowse: (String) -> Unit) {
     val s = Jam.state
+    var kick by remember { mutableStateOf<JamMember?>(null) }
     val host = Jam.role == Jam.Role.Host
     // Läuft gerade
     SectionTitle(if (host) "Du bist der Host" else "Jam von ${s?.hostName ?: "…"}")
@@ -277,6 +276,10 @@ private fun InJam(vm: MusicViewModel, onBrowse: (String) -> Unit) {
             "Gerade läuft nichts. Starte ein Lied – aus deiner Bibliothek oder der eines anderen.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Ausgabe", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        OutputChip()
     }
     val next = s?.upcoming.orEmpty()
     if (next.isNotEmpty()) {
@@ -299,12 +302,33 @@ private fun InJam(vm: MusicViewModel, onBrowse: (String) -> Unit) {
         Row(Modifier.fillMaxWidth().then(if (me) Modifier else Modifier.clickable { onBrowse(m.id) }).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(m.name + if (me) " (du)" else "", style = MaterialTheme.typography.titleMedium)
-                Text(if (m.id == s?.hostId) "Host" else "Gast", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text((if (m.id == s?.hostId) "Host" else "Gast") + if (m.id == s?.speaker) " · spielt gerade ab" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (!me) OutlinedButton(onClick = { onBrowse(m.id) }) {
                 Icon(Icons.Filled.LibraryMusic, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Bibliothek")
             }
+            // Host kann Gäste aus dem Jam entfernen
+            if (host && !me) IconButton(onClick = { kick = m }) { Icon(Icons.Filled.PersonRemove, "Entfernen", tint = ORANGE) }
         }
+    }
+    kick?.let { m ->
+        AlertDialog(
+            onDismissRequest = { kick = null },
+            title = { Text("${m.name} entfernen?") },
+            text = { Text("${m.name} fliegt aus dem Jam und kann diesem Jam nicht wieder beitreten. Bei einem neuen Jam geht es wieder.") },
+            confirmButton = { TextButton(onClick = { Jam.kick(m.id); kick = null }) { Text("Entfernen", color = ORANGE) } },
+            dismissButton = { TextButton(onClick = { kick = null }) { Text("Abbrechen") } }
+        )
+    }
+    // Wer sonst noch im WLAN ist (mit der App), aber nicht im Jam
+    val inJam = s?.members.orEmpty().map { it.id }.toSet()
+    val around = Jam.peers.filter { it.id !in inJam }
+    if (around.isNotEmpty()) {
+        SectionTitle("Im WLAN, nicht im Jam")
+        for (p in around) Text(
+            p.name + if (p.hostingJam != null) " · hat einen eigenen Jam" else "",
+            style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        )
     }
     if (host && (s?.members?.size ?: 1) <= 1) Text(
         "Noch niemand dabei. Andere im WLAN bekommen jetzt ein Pop-up „Jam beitreten“.",
@@ -471,4 +495,79 @@ private fun RemoteTrackRow(owner: String, t: RemoteTrack, have: Boolean, onPlay:
         if (have) Icon(Icons.Filled.CheckCircle, "Hast du schon", tint = OWNED, modifier = Modifier.padding(12.dp))
         else IconButton(onClick = { Jam.takeOver(owner, listOf(t)) }) { Icon(Icons.Filled.Download, "Übernehmen") }
     }
+}
+
+// ---------- Ausgabegerät ----------
+
+/**
+ * Auswahl des Ausgabegeräts (nur verbundene Geräte).
+ * Ohne Jam: die Geräte dieses Handys (plus „Automatisch“).
+ * Im Jam: EINE gemeinsame Ausgabe – wählbar sind alle verbundenen Geräte aller Mitglieder (Handy oder Box, egal bei wem).
+ * Jeder im Jam darf wählen; die Wiedergabe zieht dann samt Warteschlange und Stelle auf dieses Gerät um.
+ */
+@Composable
+fun OutputChip(modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current.applicationContext
+    LaunchedEffect(Unit) { Output.start(ctx); Output.refresh() }
+    val inJam = Jam.active
+    val s = Jam.state
+    var open by remember { mutableStateOf(false) }
+    // Anzeige-Liste vereinheitlichen: (Schlüssel, Name, Art, Besitzer-Name)
+    data class Choice(val key: String, val member: String, val id: Int, val name: String, val kind: String)
+    val choices: List<Choice> = if (inJam) s?.outputs.orEmpty().map { o ->
+        val who = if (o.member == Jam.myId) "dieses Handy" else o.memberName
+        val label = if (o.kind == "speaker") (if (o.member == Jam.myId) "Dieses Handy" else "Handy von ${o.memberName}") else "${o.name} · $who"
+        Choice(o.key, o.member, o.id, label, o.kind)
+    } else listOf(Choice("auto", "", Output.AUTO, "Automatisch", "auto")) + Output.devices.map { Choice("${it.id}", "", it.id, it.name, it.kind) }
+    val selKey = if (inJam) s?.outSelected.orEmpty() else (if (Output.selected == Output.AUTO) "auto" else "${Output.selected}")
+    val actKey = if (inJam) s?.outActive.orEmpty() else "${Output.active}"
+    // Gewählt; bei „Automatisch“ das Gerät, auf das Android tatsächlich ausgibt
+    val cur = choices.firstOrNull { it.key == selKey && it.id != Output.AUTO } ?: choices.firstOrNull { it.key == actKey }
+        ?: if (inJam) choices.firstOrNull { it.member == s?.speaker && it.kind == "speaker" } else null
+    Box(modifier) {
+        Surface(
+            shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.clip(RoundedCornerShape(50)).clickable { Output.refresh(); open = true }
+        ) {
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(outputIcon(cur?.kind), null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                Text(
+                    cur?.name ?: "Automatisch",
+                    style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 6.dp).widthIn(max = 180.dp)
+                )
+            }
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Text(
+                if (inJam) "Gemeinsame Ausgabe für den ganzen Jam" else "Ausgabe auf diesem Handy",
+                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+            )
+            for (c in choices) {
+                val on = c.key == cur?.key
+                DropdownMenuItem(
+                    text = { Text(c.name + if (c.id == Output.AUTO && !inJam && cur != null && cur.id != Output.AUTO && selKey == "auto") " (${cur.name})" else "") },
+                    leadingIcon = { Icon(outputIcon(c.kind), null) },
+                    trailingIcon = { if (on) Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary) },
+                    onClick = {
+                        open = false
+                        if (inJam) Jam.command(org.json.JSONObject().put("cmd", "output").put("member", c.member).put("id", c.id))
+                        else Output.select(c.id)
+                    }
+                )
+            }
+            if (choices.size <= 1) Text(
+                "Keine weiteren Geräte verbunden. Bluetooth-Geräte erst in den Android-Einstellungen verbinden.",
+                style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).widthIn(max = 260.dp)
+            )
+        }
+    }
+}
+
+private fun outputIcon(kind: String?) = when (kind) {
+    "bt" -> Icons.Filled.Bluetooth
+    "wired" -> Icons.Filled.Headphones
+    "usb" -> Icons.Filled.Usb
+    else -> Icons.Filled.Speaker
 }

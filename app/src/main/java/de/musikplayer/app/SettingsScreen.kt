@@ -6,6 +6,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Folder
@@ -70,7 +71,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Jam }
+private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Jam, Trash }
 
 @Composable
 fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset: Int) {
@@ -79,6 +80,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
     LaunchedEffect(vm.settingsPageRequest) {
         if (vm.settingsPageRequest == "blocked") { page = Page.Blocked; vm.settingsPageRequest = null }
         if (vm.settingsPageRequest == "jam") { page = Page.Jam; vm.settingsPageRequest = null }
+        if (vm.settingsPageRequest == "trash") { page = Page.Trash; vm.settingsPageRequest = null }
     }
     BackHandler(enabled = page != Page.Menu) { page = if (page == Page.DeveloperPreview) Page.Developer else Page.Menu }
     when (page) {
@@ -92,6 +94,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
             MenuEntry(Icons.Filled.ContentCopy, "Duplikate", "Ähnliche Lieder finden und aufräumen") { page = Page.Dupes }
             MenuEntry(Icons.Filled.Build, "Aufräumen", "Duplikate und Dateinamen zusammen: pro Version behalten, säubern oder löschen") { page = Page.Cleanup }
             MenuEntry(Icons.Filled.FilterAlt, "Namen-Filter", "Texte, die aus Titeln entfernt werden (z. B. „Official Video“)") { page = Page.Strip }
+            MenuEntry(Icons.Filled.DeleteOutline, "Papierkorb", "Gelöschte Lieder ${Trash.DAYS} Tage lang wiederherstellen, anhören oder endgültig löschen") { page = Page.Trash }
             MenuEntry(Icons.Filled.Lock, "Gesperrt", "Gesperrte Lieder, Interpreten und Ordner ansehen und entsperren") { page = Page.Blocked }
             MenuEntry(Icons.Filled.Tune, "Developer Options", "Developer tools and UI settings") { page = Page.Developer }
             var silence by remember { mutableStateOf(Store.skipSilence) }
@@ -136,6 +139,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
         Page.Developer -> DeveloperOptionsPage(vm, onOpenPreview = { page = Page.DeveloperPreview }) { page = Page.Menu }
         Page.DeveloperPreview -> DeveloperPreviewPage(vm) { page = Page.Developer }
         Page.Jam -> JamPage(vm) { page = Page.Menu }
+        Page.Trash -> TrashPage(vm) { page = Page.Menu }
     }
 }
 
