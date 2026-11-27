@@ -9,7 +9,7 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
-## Update 07 – Android-Standard-Musikplayer *(umgesetzt, Gerätetest offen)*
+## Update 07 – Android-Standard-Musikplayer *(umgesetzt, Gerätetest läuft)*
 
 - [~] Die App erscheint bei „Öffnen mit“ für Audio-Dateien (MP3, FLAC, WAV, M4A, AAC, OGG, OPUS usw.) und kann dort mit „Immer“ als bevorzugte App gesetzt werden.
 - [~] Die App meldet sich bei Android als Musik-App (`CATEGORY_APP_MUSIC`).
@@ -32,33 +32,51 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
-## Update 08 – Jam, Teil A: Bibliotheken teilen *(als Nächstes)*
+## Update 08 – Jam, Teil A: Bibliotheken teilen *(umgesetzt, Gerätetest offen)*
 
-Ziel: Zwei Handys mit der App im selben WLAN finden sich und können Musik untereinander übernehmen.
+- [~] Andere Handys mit der App im selben WLAN werden automatisch gefunden. Das geht nur, solange die App offen ist.
+- [~] Pop-up überall in der App:
+  - Ist jemand in der Nähe → „Jam erstellen“.
+  - Hat jemand einen Jam gestartet → „Jam beitreten“.
+  - „Später“ blendet das Pop-up für diese Lage aus.
+- [~] Jam erstellen (Host) und beitreten (Gast). Der Host muss jede Beitrittsanfrage annehmen.
+- [~] Schalter „Im WLAN sichtbar“ (Optionen → Jam). Ist er aus, wird man nicht gefunden und sucht auch selbst nicht.
+- [~] Die Bibliothek jedes anderen Mitglieds ansehen: Lieder, Alben, Interpreten, Playlists und Hörbücher, mit Suche und Covern.
+- [~] Übernehmen von einzelnen Liedern, ganzen Alben, ganzen Interpreten und ganzen Playlists (auch Hörbuch-Listen), auch direkt aus dem Player.
+  - Die Dateien kommen nach `<Speicher>/Music/<Interpret>/`, wie beim Einsortieren.
+  - Interpret, Album und eigenes Cover werden mit übernommen.
+  - Playlists werden angelegt oder ergänzt, wenn es schon eine mit dem Namen gibt. Die Lieblingssongs des anderen werden zu „Lieblingssongs von <Name>“.
+- [~] Duplikate werden vorher erkannt, mit denselben Regeln wie die Duplikat-Suche. Grüner Haken = hast du schon. Vorhandene Lieder werden nicht neu geladen, Playlists verweisen dann auf das eigene Exemplar.
+- [~] Übernommene Lieder erscheinen in „Neue Lieder“. Dort kannst du sie wie gewohnt bearbeiten, einsortieren und als gesehen markieren.
+- [~] Fortschritt in der Jam-Leiste und auf der Jam-Seite. Am Ende kommt eine Meldung wie „12 übernommen, 3 schon vorhanden“.
+- Hinweis: „Abonnieren“ ist ein einmaliges Übernehmen. Ändert der andere später seine Playlist, wird das nicht automatisch nachgezogen. Nochmal übernehmen ergänzt die neuen Lieder.
 
-- [ ] Andere Geräte mit der App im selben Netz automatisch finden. Pop-up: „Jemand in der Nähe – Jam erstellen / Jam beitreten“.
-- [ ] Jam erstellen (Host) und beitreten (Gast), mit Bestätigung durch den Host.
-- [ ] Die Bibliothek des anderen ansehen: Lieder, Alben, Interpreten, Playlists.
-- [ ] Übernehmen („abonnieren“): einzelne Lieder, ganze Alben, ganze Interpreten, ganze Playlists.
-  - Die Dateien werden vom anderen Handy heruntergeladen.
-  - Metadaten und Zuordnungen kommen mit: Interpret, Album, Cover, Playlist-Zugehörigkeit.
-  - Auf dem eigenen Handy wird alles nach den eigenen Regeln einsortiert.
-- [ ] Duplikate werden **vor** dem Herunterladen erkannt, mit der vorhandenen Duplikat-Logik (Name, Größe, Länge). Bereits vorhandene Lieder werden nicht doppelt geladen, Playlists verweisen dann auf das eigene Exemplar.
-- [ ] Übernommene Lieder erscheinen in einer eigenen, bearbeitbaren Liste, so wie „Neue Lieder“.
-- [ ] Offene Punkte vor dem Start: Zielordner auf dem Handy, Sicherheit (nur nach Bestätigung, nur im lokalen Netz), Verhalten bei Abbruch.
+## Update 09 – Jam, Teil B: gemeinsam hören *(umgesetzt, Gerätetest offen)*
 
-## Update 09 – Jam, Teil B: gemeinsam hören *(später)*
+- [~] Alle im Jam hören, was der Host spielt, synchron auf dem eigenen Handy. Das klappt auch bei Liedern, die man selbst nicht hat, per Streaming im WLAN. Eigene Lieder spielt jeder direkt von der eigenen Datei.
+- [~] Jeder darf steuern: Play/Pause, weiter, zurück, spulen, Shuffle, Wiederholen. Die Bedienung ist die normale App-Bedienung, als Gast geht sie automatisch an den Host.
+- [~] Jeder kann Lieder, Alben und Playlists starten oder einreihen: aus der eigenen Bibliothek mit den gewohnten Gesten und Menüs, aus der Bibliothek der anderen über die Jam-Seite. Der Host spielt dann auch Lieder, die nur ein Gast hat.
+- [~] Die Jam-Seite zeigt: läuft gerade, als Nächstes, wer dabei ist, von wem welches Lied kommt.
+- [~] Gast: Player wegwischen oder „Jam verlassen“ beendet die Teilnahme. Host: „Jam beenden“. Wer die App aus den letzten Apps wischt, verlässt den Jam ebenfalls.
+- Bekannte Grenzen:
+  - Gleichlauf im WLAN meist auf etwa eine halbe Sekunde genau. Beim Liedwechsel ist der Gast bis zu einer Sekunde später dran.
+  - Verlässt ein Gast den Jam, springt der Host bei dessen Liedern zum nächsten.
+  - Gäste sehen die Jam-Warteschlange auf der Jam-Seite, nicht in der normalen Warteschlange.
+  - Dateien, die der Host von außen geöffnet hat („Öffnen mit“), lassen sich nicht teilen.
 
-- [ ] Der Gast hört, was der Host spielt, auch Lieder, die er selbst nicht besitzt (Streaming im WLAN).
-- [ ] Gemeinsame Warteschlange: Jeder kann Lieder hinzufügen, starten und stoppen, Playlists starten und stoppen.
-- [ ] Offene Entscheidung: Spielt nur der Host ab, oder spielen alle Handys synchron? Synchron ist deutlich aufwendiger und hat im WLAN immer etwas Versatz.
+**Auf dem Gerät zu prüfen (zwei Handys im selben WLAN)**
+1. Beide Apps öffnen → bei einem kommt das Pop-up „Jam erstellen“ → erstellen → beim anderen „Jam beitreten“ → Host nimmt an.
+2. Host spielt ein Lied → Gast hört es mit, Pause und Spulen auf beiden Seiten.
+3. Gast startet ein eigenes Lied → läuft bei beiden.
+4. Gast öffnet Optionen → Jam → Bibliothek des Hosts → ein Album übernehmen → Lieder liegen danach unter `Music/<Interpret>` und stehen in „Neue Lieder“. Grüne Haken bei Liedern, die schon da waren.
+5. Eine Playlist übernehmen → Playlist ist danach beim Gast vorhanden, mit Cover und richtigen Interpreten.
 
 ## Später – Download-Funktion
 
-- [ ] Eigene Download-Liste in der App, bearbeitbar wie „Neue Lieder“.
-- [ ] Download von Webseiten bzw. YouTube als MP3/WAV.
-  - Hinweis: Das verstößt gegen die YouTube-Nutzungsbedingungen und ist in Deutschland rechtlich heikel (§ 95a UrhG, Umgehen technischer Schutzmaßnahmen). Vor der Umsetzung bewusst entscheiden.
-  - Technik: Für MP3 braucht es einen eigenen Encoder (FFmpeg/LAME), der die APK vergrößert. WAV geht ohne Zusatz.
+- [ ] Download von Webseiten bzw. YouTube als MP3/WAV, mit eigener Download-Liste. **Bewusst noch nicht gebaut.**
+  - Das Herunterladen von YouTube verstößt gegen die YouTube-Nutzungsbedingungen. In Deutschland hat das LG Hamburg 2021 entschieden, dass ein YouTube-Downloader eine wirksame technische Schutzmaßnahme umgeht (§ 95a UrhG).
+  - Technik: Für MP3 braucht es einen eigenen Encoder (FFmpeg/LAME), der die APK vergrößert. WAV ginge ohne.
+  - Für Musik aus dem Jam ist die Download-Liste schon gelöst: Übernommene Lieder landen in „Neue Lieder“.
 
 ---
 

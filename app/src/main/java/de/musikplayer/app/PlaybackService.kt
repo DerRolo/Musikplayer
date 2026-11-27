@@ -45,6 +45,8 @@ class PlaybackService : MediaLibraryService() {
             .build()
         SleepTimer.player = player
         player.addListener(resumeSaver)
+        Jam.player = player
+        player.addListener(Jam.errorSkipper)
         Spectrum.sessionIdProvider = { player.audioSessionId }
         // Tippen auf die Benachrichtigung / Mediensteuerung öffnet die App
         val open = PendingIntent.getActivity(
@@ -60,7 +62,8 @@ class PlaybackService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // App aus der Übersicht weggewischt = Programm beenden, auch die Wiedergabe
+        // App aus der Übersicht weggewischt = Programm beenden, auch die Wiedergabe (und ein laufender Jam)
+        Jam.shutdown()
         session?.player?.let { it.pause(); it.stop(); it.clearMediaItems() }
         stopSelf()
     }
@@ -68,6 +71,8 @@ class PlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         silenceTick?.let { handler.removeCallbacks(it) }
         session?.player?.removeListener(resumeSaver)
+        session?.player?.removeListener(Jam.errorSkipper)
+        if (Jam.player === session?.player) Jam.player = null
         SleepTimer.cancel()
         SleepTimer.player = null
         Spectrum.stop()

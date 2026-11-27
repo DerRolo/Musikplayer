@@ -5,6 +5,7 @@ package de.musikplayer.app
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Folder
@@ -69,7 +70,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview }
+private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Jam }
 
 @Composable
 fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset: Int) {
@@ -77,11 +78,13 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
     OnReset(reset) { page = Page.Menu }
     LaunchedEffect(vm.settingsPageRequest) {
         if (vm.settingsPageRequest == "blocked") { page = Page.Blocked; vm.settingsPageRequest = null }
+        if (vm.settingsPageRequest == "jam") { page = Page.Jam; vm.settingsPageRequest = null }
     }
     BackHandler(enabled = page != Page.Menu) { page = if (page == Page.DeveloperPreview) Page.Developer else Page.Menu }
     when (page) {
         Page.Menu -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+            MenuEntry(Icons.Filled.Groups, "Jam", "Mit Handys im selben WLAN zusammen hören und Musik übernehmen") { page = Page.Jam }
             MenuEntry(Icons.Filled.FiberNew, "Neue Lieder", "Neu gefundene Lieder: Interpret zuordnen, umbenennen, einsortieren") { page = Page.New }
             MenuEntry(Icons.Filled.Person, "Interpreten & Ordner", "Ordner prüfen, Interpret zuordnen") { page = Page.Folders }
             MenuEntry(Icons.Filled.DriveFileMove, "Nach Interpret einsortieren", "Zugeordnete Lieder in Musik/<Interpret> verschieben") { page = Page.Sort }
@@ -132,6 +135,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
         Page.Blocked -> BlockedPage(vm) { page = Page.Menu }
         Page.Developer -> DeveloperOptionsPage(vm, onOpenPreview = { page = Page.DeveloperPreview }) { page = Page.Menu }
         Page.DeveloperPreview -> DeveloperPreviewPage(vm) { page = Page.Developer }
+        Page.Jam -> JamPage(vm) { page = Page.Menu }
     }
 }
 

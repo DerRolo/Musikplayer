@@ -96,6 +96,11 @@ fun MusicApp(vm: MusicViewModel) {
     LaunchedEffect(vm.openPlayerRequest) {
         if (vm.openPlayerRequest) { vm.openPlayerRequest = false; showPlayer = true }
     }
+    // Jam-Meldungen in der gewohnten Leiste unten zeigen
+    LaunchedEffect(Jam.message) {
+        Jam.message?.let { vm.message = it; Jam.message = null }
+    }
+    val openJam = { vm.settingsPageRequest = "jam"; backTo = null; tab = 4; showPlayer = false }
 
     val actions = TrackActions(
         onPlayNext = { vm.playNext(listOf(it)) },
@@ -161,6 +166,7 @@ fun MusicApp(vm: MusicViewModel) {
         },
         bottomBar = {
             Column {
+                JamBar(onOpen = openJam)
                 if (!showPlayer) MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }, onEdit = { stagedCoverUri = null; stagedCoverUrl = null; stagedCoverReset = false; renameTrack = it }) { showPlayer = true }
                 NavigationBar {
                     val icons = listOf(Icons.Filled.LibraryMusic, Icons.Filled.Search, Icons.Filled.PlaylistPlay, Icons.Filled.Headphones, Icons.Filled.Settings)
@@ -230,6 +236,7 @@ fun MusicApp(vm: MusicViewModel) {
     }
 
     // ---------- Dialoge ----------
+    JamDialogs(onOpenJam = openJam)
     vm.pickerRequest?.let { list -> AddToPlaylistDialog(vm, list, onDismiss = { vm.pickerRequest = null }) }
     addToPlaylist?.let { list ->
         AddToPlaylistDialog(vm, list, onDismiss = { addToPlaylist = null })

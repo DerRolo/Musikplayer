@@ -122,6 +122,40 @@ object Dupes {
             .sortedWith(compareBy<DupGroup> { it.albumVariant }.thenByDescending { it.sameSize }.thenByDescending { it.tracks[0].size * it.tracks.size })
     }
 
+    /** Dieselben Kriterien wie [find], für ein einzelnes Paar (z. B. ein Lied aus einem Jam gegen die eigene Bibliothek). */
+    fun same(a: Track, b: Track): Boolean {
+        val d = abs(a.durationMs - b.durationMs)
+        if (d <= DURATION_TOLERANCE_MS && sizeClose(a.size, b.size)) {
+            val na = normName(a.fileName)
+            if (na.length >= 3 && similarity(na, normName(b.fileName)) >= NAME_SIMILARITY) return true
+        }
+        if (a.artist != UNKNOWN_ARTIST && a.artistKey == b.artistKey) {
+            val ca = coreTitle(a.title)
+            if (ca.length >= 3 && ca == coreTitle(b.title)) {
+                val tol = max(6000L, (max(a.durationMs, b.durationMs) * 0.03).toLong())
+                if (d <= tol) return true
+            }
+        }
+        return false
+    }
+
+    /** Schneller Abgleich vieler Lieder gegen eine Bibliothek: Vorfilter über die Länge, dann [same]. */
+    class Matcher(pool: List<Track>) {
+        private val sorted = pool.sortedBy { it.durationMs }
+        private val durs = LongArray(sorted.size) { sorted[it].durationMs }
+
+        fun find(t: Track): Track? {
+            val tol = max(6000L, (t.durationMs * 0.03).toLong())
+            var i = java.util.Arrays.binarySearch(durs, t.durationMs - tol).let { if (it < 0) -it - 1 else it }
+            while (i > 0 && durs[i - 1] >= t.durationMs - tol) i--
+            while (i < sorted.size && durs[i] <= t.durationMs + tol) {
+                if (same(t, sorted[i])) return sorted[i]
+                i++
+            }
+            return null
+        }
+    }
+
     /** Erster Eintrag = Vorschlag zum Behalten: größte Datei (beste Qualität), Original statt „(1)“-Kopie, ältere zuerst. */
     private fun order(g: List<Track>): List<Track> = g.sortedWith(
         compareByDescending<Track> { it.size }

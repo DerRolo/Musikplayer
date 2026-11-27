@@ -113,6 +113,12 @@ object Store {
         private set
     var resumePosMs: Long = 0L
         private set
+    /** Eigene Geräte-Kennung für den Jam (zufällig, bleibt erhalten). */
+    var deviceId: String = ""
+        private set
+    /** Für andere im WLAN sichtbar (Jam-Einladungen). */
+    var jamVisible: Boolean = true
+        private set
 
     private var loaded = false
 
@@ -157,6 +163,8 @@ object Store {
             resumePath = o.optString("resumePath", "")
             resumeContext = o.optString("resumeCtx", "")
             resumePosMs = o.optLong("resumePos", 0L)
+            deviceId = o.optString("deviceId", "")
+            jamVisible = o.optBoolean("jamVisible", true)
             Names.extraStrip = stripStrings
             skipSilence = o.optBoolean("skipSilence", true)
             modes = o.optJSONObject("modes").toMap()
@@ -255,6 +263,8 @@ object Store {
         o.put("resumePath", resumePath)
         o.put("resumeCtx", resumeContext)
         o.put("resumePos", resumePosMs)
+        o.put("deviceId", deviceId)
+        o.put("jamVisible", jamVisible)
         o.put("known", JSONArray().also { a -> knownPaths.forEach { a.put(it) } })
         val tmp = File(ctx.filesDir, "$FILE.tmp")
         tmp.writeText(o.toString())
@@ -378,6 +388,16 @@ object Store {
         val p = modes[key]?.split(":") ?: return false to 0
         return (p.getOrNull(0) == "1") to (p.getOrNull(1)?.toIntOrNull() ?: 0)
     }
+
+    /** Geräte-Kennung für den Jam; wird beim ersten Mal erzeugt und gespeichert. */
+    @Synchronized
+    fun ensureDeviceId(ctx: Context): String {
+        load(ctx)
+        if (deviceId.isBlank()) { deviceId = java.util.UUID.randomUUID().toString().replace("-", "").take(16); save(ctx) }
+        return deviceId
+    }
+
+    fun setJamVisible(ctx: Context, on: Boolean) { jamVisible = on; save(ctx) }
 
     /** Merkt sich, wo die Wiedergabe zuletzt stand. Fremdtitel (nicht in der Bibliothek) werden nie gespeichert. */
     fun setResume(ctx: Context, path: String, context: String, posMs: Long) {

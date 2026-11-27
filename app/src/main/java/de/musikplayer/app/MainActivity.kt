@@ -91,6 +91,17 @@ class MainActivity : ComponentActivity() {
         vm.playExternal(uri)
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Jam: andere Handys im WLAN nur suchen, solange die App offen ist
+        Jam.setForeground(this, true)
+    }
+
+    override fun onStop() {
+        Jam.setForeground(this, false)
+        super.onStop()
+    }
+
     override fun onResume() {
         super.onResume()
         granted = hasAccess()

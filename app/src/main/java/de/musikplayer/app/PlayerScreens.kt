@@ -163,8 +163,8 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Tr
     ) {
         Column {
             Row(Modifier.padding(start = 10.dp, end = 2.dp, top = 8.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                // Von außen geöffnete Datei (nicht in der Bibliothek): eingebettetes Cover aus der Datei
-                val foreignArt = remember(item.mediaId) { if (track == null) External.artwork(item)?.asImageBitmap() else null }
+                // Nicht in der Bibliothek (Datei von außen oder Jam-Lied eines anderen): Cover aus der Datei bzw. vom Besitzer
+                val foreignArt = if (track == null) rememberForeignArt(item, 200) else null
                 if (foreignArt != null) androidx.compose.foundation.Image(
                     foreignArt, null, Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)),
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
@@ -223,13 +223,15 @@ private fun PlayerPage(item: MediaItem?, spinning: Boolean, modifier: Modifier, 
     val ver = Art.version
     val coverTag = t?.let { Store.trackCovers[it.path] }
     val art by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
-        initialValue = t?.let { Art.peekLarge(it)?.asImageBitmap() } ?: External.artwork(item)?.asImageBitmap(), item?.mediaId, ver, coverTag
+        initialValue = t?.let { Art.peekLarge(it)?.asImageBitmap() }, item?.mediaId, ver, coverTag
     ) {
-        // altes Bild bleibt stehen, bis das neue geladen ist (kein Aufblitzen/Leerlauf); Fremdtitel: Cover aus der Datei
-        t?.let { Art.large(ctx, it)?.asImageBitmap() }?.let { value = it } ?: run { if (t == null) value = External.artwork(item)?.asImageBitmap() }
+        // altes Bild bleibt stehen, bis das neue geladen ist (kein Aufblitzen/Leerlauf)
+        t?.let { Art.large(ctx, it)?.asImageBitmap() }?.let { value = it } ?: run { if (t == null) value = null }
     }
+    // Nicht in der Bibliothek (Datei von außen oder Jam-Lied): Cover aus der Datei bzw. vom Besitzer
+    val foreign = if (t == null) rememberForeignArt(item) else null
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        val a = art
+        val a = art ?: foreign
         // Cover/Platte nimmt nur den Platz, der übrig ist (Steuerung unten bleibt immer sichtbar)
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             val side = minOf(maxWidth * 0.72f, maxHeight)
@@ -295,6 +297,13 @@ private fun PlayerFullPage(
                         IconButton(onClick = { vm.quickRename(track, proposed) }) { Icon(Icons.Filled.Save, "Dateinamen übernehmen", tint = ORANGE) }
                     }
                 }
+            }
+        } else if (Jam.isJamItem(item)) {
+            // Jam-Lied von einem anderen Handy: Herkunft zeigen und direkt übernehmen können
+            val e = Jam.entryOfItem(item)
+            Row(Modifier.fillMaxWidth().height(42.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                Text("Im Jam · von ${e?.let { Jam.memberName(it.owner) } ?: "…"}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (e != null) TextButton(onClick = { Jam.importEntry(e) }) { Text("Übernehmen", color = ORANGE) }
             }
         } else if (External.isExternal(item)) {
             // Fremdtitel: Bibliotheksaktionen (Herz, Playlist, Sperren, Umbenennen) gibt es hier bewusst nicht

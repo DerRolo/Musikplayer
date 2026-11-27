@@ -1,6 +1,6 @@
 # Musikplayer
 
-Werbefreier Android-Musikplayer für Lieder, die auf dem Handy oder der SD-Karte liegen. Er sieht aus und bedient sich ähnlich wie Spotify, braucht aber kein Konto und kein Internet. Nur die Cover-Suche greift auf das Netz zu.
+Werbefreier Android-Musikplayer für Lieder, die auf dem Handy oder der SD-Karte liegen. Er sieht aus und bedient sich ähnlich wie Spotify, braucht aber kein Konto und kein Internet. Nur die Cover-Suche greift auf das Netz zu, der Jam nur auf das eigene WLAN.
 
 Gebaut mit Kotlin, Jetpack Compose und Media3. Die APK baut GitHub Actions.
 
@@ -28,6 +28,16 @@ Die App ist nicht nur ein Player, sondern auch ein Aufräumwerkzeug für eine un
 - **Nur dieses eine Lied:** Eine von außen geöffnete Datei spielt allein, ohne Ordner-Warteschlange. Liegt sie in deiner Bibliothek, hast du alle Aktionen wie Herz und Playlist. Sonst wird sie nur abgespielt und nirgends gespeichert („Nicht in deiner Bibliothek“). Titel, Interpret und Cover kommen dann aus der Datei.
 - **Fortsetzen:** Die Play-Taste an Kopfhörer, Bluetooth oder im Auto startet das zuletzt gespielte Lied an der gemerkten Stelle, auch wenn die App gerade nicht läuft.
 - Android selbst hat keinen eigenen Schalter „Standard-Musik-App“ wie beim Browser. Die bevorzugte App wird über „Öffnen mit → Immer“ festgelegt. Manche Hersteller bieten zusätzliche Auswahlmöglichkeiten.
+
+## Jam (zusammen hören im WLAN)
+
+Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im selben WLAN ist.
+
+- **Jam erstellen oder beitreten** wie bei Spotify. Der Host nimmt jede Anfrage an, ohne Bestätigung kommt niemand an deine Musik.
+- **Zusammen hören:** Alle hören synchron, was der Host spielt, auch Lieder, die sie selbst nicht haben (Streaming im WLAN). Jeder kann starten, pausieren, spulen, weiterspringen und Lieder oder Playlists einreihen, mit der ganz normalen Bedienung der App.
+- **Musik übernehmen:** Die Bibliothek der anderen ansehen und Lieder, Alben, Interpreten oder ganze Playlists aufs eigene Handy holen. Interpret, Album, Cover und Playlist-Zuordnung kommen mit, die Dateien landen in `Music/<Interpret>`. Lieder, die du schon hast (gleiche Regeln wie die Duplikat-Suche), werden nicht doppelt geladen. Neues erscheint in „Neue Lieder“.
+- **Sichtbarkeit:** Mit „Im WLAN sichtbar“ schaltest du das Finden und die Pop-ups ab.
+- Für das Streaming im lokalen Netz erlaubt die App unverschlüsselte Verbindungen (`http`). Das betrifft nur Verbindungen zwischen den Handys im WLAN, der Zugang ist durch einen Jam-Schlüssel geschützt.
 
 ## Bibliothek und Ordnung
 

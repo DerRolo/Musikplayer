@@ -121,11 +121,14 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         playlistGrid = Store.playlistGrid
         audiobookGrid = Store.audiobookGrid
         syncPlaylists()
+        Jam.onLibraryChanged = { refresh() }
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         val f = MediaController.Builder(app, token).buildAsync()
         f.addListener({
             try {
                 controller = f.get().also { it.addListener(listener) }
+                // erst hier: alle Felder des ViewModels sind jetzt sicher angelegt
+                Jam.host = jamHost
                 syncFromPlayer()
                 applyMode(keyOf(playingContext))
                 // Wurde die App über „Öffnen mit“ gestartet, bevor der Dienst verbunden war: jetzt abspielen
@@ -290,7 +293,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     private fun isQueued(m: MediaItem) = m.mediaMetadata.extras?.getBoolean("queued", false) == true
 
     private fun asQueued(m: MediaItem): MediaItem {
-        val b = Bundle().apply { putBoolean("queued", true) }
+        // vorhandene Zusatzdaten (z. B. Jam-Herkunft) behalten
+        val b = Bundle(m.mediaMetadata.extras ?: Bundle()).apply { putBoolean("queued", true) }
         return m.buildUpon().setMediaMetadata(m.mediaMetadata.buildUpon().setExtras(b).build()).build()
     }
 
@@ -300,6 +304,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
      */
     fun play(list: List<Track>, index: Int, context: String) {
         if (list.isEmpty()) return
+        if (jamGuest) { Jam.playOwn(list, index.coerceIn(0, list.lastIndex)); return }
         applyMode(keyOf(context))
         startItems(list.map { Library.mediaItem(it, context) }, index.coerceIn(0, list.lastIndex))
     }
@@ -367,6 +372,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun playShuffled(list: List<Track>, context: String) {
         val c = controller ?: return
         if (list.isEmpty()) return
+        if (jamGuest) { Jam.playOwn(list.shuffled(), 0); return }
         shuffle = true
         Store.setMode(app, keyOf(context), true, Store.modeOf(keyOf(context)).second); modeVersion++
         c.shuffleModeEnabled = false
@@ -391,10 +397,12 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun togglePlay() {
         val c = controller ?: return
+        if (jamGuest) Jam.cmd(if (c.playWhenReady) "pause" else "play")
         if (c.isPlaying) c.pause() else c.play()
     }
 
     fun next() {
+        if (jamGuest) { Jam.cmd("next"); return }
         val c = controller ?: return
         if (c.mediaItemCount == 0 || c.currentMediaItemIndex < 0) return
         when (repeatFor(keyOf(playingContext))) {
@@ -413,13 +421,15 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
     /** Swipe ist ein echter Trackwechsel und darf nicht wie der Zurück-Button zum Songanfang springen. */
-    fun previousFromSwipe() { controller?.seekToPreviousMediaItem() }
+    fun previousFromSwipe() { if (jamGuest) Jam.cmd("prev") else controller?.seekToPreviousMediaItem() }
     fun previous() {
+        if (jamGuest) { Jam.cmd("prev"); return }
         val c = controller ?: return
         if (c.currentPosition > 3000) c.seekTo(0) else c.seekToPreviousMediaItem()
     }
 
     fun seekTo(ms: Long) {
+        if (jamGuest) Jam.seekAbs(ms)
         controller?.seekTo(ms)
         positionMs = ms
     }
@@ -431,6 +441,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Shuffle umschalten. [key] = Kontext einer Playlist-Seite; ohne Angabe gilt das, was gerade läuft. */
     fun toggleShuffle(key: String? = null) {
+        if (jamGuest && key == null) { Jam.cmd("shuffle"); return }
         val c = controller ?: return
         val k = key ?: keyOf(playingContext)
         val on = !Store.modeOf(k).first
@@ -453,6 +464,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun cycleRepeat(key: String? = null) {
+        if (jamGuest && key == null) { Jam.cmd("repeat"); return }
         val c = controller ?: return
         val k = key ?: keyOf(playingContext)
         val (s, r) = Store.modeOf(k)
@@ -478,6 +490,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Direkt nach dem aktuellen Lied (vor schon eingereihten). */
     fun playNext(list: List<Track>) {
+        if (jamGuest) { Jam.addOwn(list); return }
         val c = controller ?: return
         if (c.mediaItemCount == 0) { play(list, 0, "q"); return }
         c.addMediaItems(c.currentMediaItemIndex + 1, itemsOf(list))
@@ -486,6 +499,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Hinten an die Warteschlange: nach dem aktuellen Lied und nach allem, was schon eingereiht ist. */
     fun addToQueue(list: List<Track>) {
+        if (jamGuest) { Jam.addOwn(list); return }
         val c = controller ?: return
         if (c.mediaItemCount == 0) { play(list, 0, "q"); return }
         c.addMediaItems(c.currentMediaItemIndex + 1 + queuedCount, itemsOf(list))
@@ -500,12 +514,42 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun jumpTo(index: Int) {
+        if (jamGuest) return
         val c = controller ?: return
         c.seekToDefaultPosition(index)
         c.play()
     }
 
-    fun clearQueue() { controller?.let { it.stop(); it.clearMediaItems() } }
+    fun clearQueue() {
+        // Im Jam als Gast: Player wegwischen = Jam verlassen
+        if (jamGuest) { Jam.leave(); return }
+        controller?.let { it.stop(); it.clearMediaItems() }
+    }
+
+    // ---------- Jam ----------
+
+    /** Als Gast im Jam: Bedienung geht an den Host, der eigene Player spielt synchron mit. */
+    private val jamGuest: Boolean get() = Jam.role == Jam.Role.Guest
+
+    /** Als Host: Befehle der Gäste laufen über dieselben Funktionen wie die eigene Bedienung. */
+    private val jamHost = object : JamHost {
+        override fun jamToggle() = togglePlay()
+        override fun jamNext() = next()
+        override fun jamPrevious() = previous()
+        override fun jamSeek(ms: Long) = seekTo(ms)
+        override fun jamPlay(items: List<MediaItem>, index: Int) {
+            applyMode("all")
+            startItems(items, index.coerceIn(0, items.lastIndex))
+        }
+        override fun jamAdd(items: List<MediaItem>) {
+            val c = controller ?: return
+            if (c.mediaItemCount == 0) { doStart(items, 0); return }
+            c.addMediaItems(c.currentMediaItemIndex + 1 + queuedCount, items.map { asQueued(it) })
+        }
+        override fun jamShuffle() = toggleShuffle()
+        override fun jamRepeat() = cycleRepeat()
+        override val jamShuffleOn: Boolean get() = shuffle
+    }
 
     // ---------- Von außen geöffnete Dateien („Öffnen mit“) ----------
 
@@ -519,6 +563,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
      */
     fun playExternal(uri: android.net.Uri) {
         if (controller == null) { pendingExternal = uri; return }
+        // Eine Datei von außen lässt sich nicht im Jam teilen: als Gast erst den Jam verlassen
+        if (jamGuest) Jam.leave()
         viewModelScope.launch {
             val item = try { withContext(Dispatchers.IO) { External.itemFor(app, uri) } } catch (e: Exception) { null }
             if (item == null) { message = "Datei kann nicht geöffnet werden"; return@launch }
@@ -1149,6 +1195,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun cancelFade() = SleepTimer.cancelFade()
 
     override fun onCleared() {
+        if (Jam.host === jamHost) Jam.host = null
+        Jam.onLibraryChanged = null
         controller?.removeListener(listener)
         controller?.release()
         super.onCleared()
