@@ -209,44 +209,33 @@ fun TrackRow(
                         color = titleColor
                     )
                 }
-                val plays = Store.playCounts[track.path] ?: 0
                 val openArtist = actions.onOpenArtist
                 val canOpen = openArtist != null && track.artist != UNKNOWN_ARTIST
+                // Fixed three-line layout: title, optional album, clickable artist. Album is never navigational.
+                Text(
+                    if (Store.showAlbum) track.albumName.takeIf { it.isNotBlank() }?.let { "Album: $it" } ?: " " else " ",
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Text(
                     track.artist,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (canOpen) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (canOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    textDecoration = if (canOpen) androidx.compose.ui.text.style.TextDecoration.Underline else null,
                     modifier = Modifier.then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist) } else Modifier)
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val hasAlbum = track.albumName.isNotBlank()
-                    if (hasAlbum) Text(
-                        track.albumName,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f, fill = false).then(if (canOpen) Modifier.clickable { openArtist?.invoke(track.artist + "\u0000" + track.albumName) } else Modifier)
-                    )
-                    if (plays > 0) {
-                        Text(if (hasAlbum) "  ·  " else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Icon(Icons.Filled.Headphones, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(" $plays", maxLines = 1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Text(
-                        (if (hasAlbum || plays > 0) "  ·  " else "") + formatDuration(track.durationMs),
-                        maxLines = 1,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            }
+            Column(Modifier.width(64.dp).padding(end = 2.dp), horizontalAlignment = Alignment.End) {
+                val plays = Store.playCounts[track.path] ?: 0
+                Text(if (plays > 0) "$plays×" else " ", maxLines = 1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(formatDuration(track.durationMs), maxLines = 1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (!selectionMode) {
                 // Song-Metadaten sind unabhängig vom Ansichtstyp (Bibliothek, Playlist, Hörbuch etc.).
                 val fav = actions.isFavorite(track)
-                val plays = Store.playCounts[track.path] ?: 0
                 if (!compact) IconButton(onClick = { actions.onBlock(track) }, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Filled.Block, contentDescription = "Sperren", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.75f), modifier = Modifier.size(20.dp))
                 }

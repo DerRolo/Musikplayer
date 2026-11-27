@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Collections
+import java.io.File
 
 /** Lädt eingebettete Albumcover (klein, zwischengespeichert). Ohne Cover bleibt es beim Farb-Platzhalter. */
 object Art {
@@ -146,6 +147,27 @@ fun Cover(tracks: List<Track>, label: String, modifier: Modifier = Modifier, siz
                 label.trim().take(1).uppercase().ifEmpty { "♪" },
                 color = Color.White.copy(alpha = 0.85f), fontSize = 28.sp, fontWeight = FontWeight.Bold
             )
+        }
+    }
+}
+
+/** Interpreten-Cover mit persönlicher Auswahl; sonst fällt es auf Song-Cover zurück. */
+@Composable
+fun ArtistCover(artist: String, tracks: List<Track>, modifier: Modifier = Modifier, sizePx: Int = 256) {
+    val ctx = LocalContext.current
+    val custom = Store.artistCovers[artist]
+    val coverVersion = Art.version
+    if (custom.isNullOrBlank()) {
+        Cover(tracks, artist, modifier, sizePx)
+    } else {
+        val bmp by produceState<ImageBitmap?>(null, custom, coverVersion) {
+            value = withContext(Dispatchers.IO) {
+                BitmapFactory.decodeFile(File(File(ctx.filesDir, "artistcovers"), custom).path)?.asImageBitmap()
+            }
+        }
+        Box(modifier.background(placeholderColor(artist)), contentAlignment = Alignment.Center) {
+            bmp?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+                ?: Text(artist.trim().take(1).uppercase().ifEmpty { "♪" }, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

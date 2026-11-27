@@ -35,6 +35,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         private set
     var playlistGrid by mutableStateOf(false)
         private set
+    var audiobookGrid by mutableStateOf(false)
+        private set
     var sortLevel by mutableIntStateOf(0)
         private set
     var seenTick by mutableIntStateOf(0)
@@ -93,8 +95,6 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     var prevItem by mutableStateOf<MediaItem?>(null)
         private set
 
-    private var lastCounted = -1L
-
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) = syncFromPlayer()
         override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
@@ -103,10 +103,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             prefetchNext()
-            // Hörzähler: jedes gestartete Lied zählt einmal
+            // Jede tatsächliche Media-Transition zählt als neuer Hörvorgang, auch Repeat 1.
             val id = mediaItem?.mediaId?.substringAfterLast(':')?.toLongOrNull() ?: return
-            if (id == lastCounted && reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) return
-            lastCounted = id
             val ctxId = mediaItem?.mediaId.orEmpty().removePrefix("t:").substringBeforeLast(':')
             if (ctxId.startsWith("p:")) Store.incPlaylistPlay(app, ctxId.removePrefix("p:"))
             tracks.firstOrNull { it.id == id }?.let { Store.incPlay(app, it.path) }
@@ -121,6 +119,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         favArtists = Store.favArtists.toSet()
         rowScale = Store.rowScale
         playlistGrid = Store.playlistGrid
+        audiobookGrid = Store.audiobookGrid
         syncPlaylists()
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         val f = MediaController.Builder(app, token).buildAsync()
@@ -435,7 +434,14 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         val next = (r + 1) % 3
         Store.setMode(app, k, s, next)
         modeVersion++
-        if (isLive(k)) c.repeatMode = when (next) { 1 -> Player.REPEAT_MODE_ALL; 2 -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF }
+        if (isLive(k)) {
+            c.repeatMode = when (next) {
+                1 -> Player.REPEAT_MODE_ALL
+                2 -> Player.REPEAT_MODE_ONE
+                else -> Player.REPEAT_MODE_OFF
+            }
+            repeat = when (next) { 1 -> RepeatMode.All; 2 -> RepeatMode.One; else -> RepeatMode.Off }
+        }
     }
 
     /** Bibliothek neu einlesen (z. B. wenn die App wieder in den Vordergrund kommt oder man nach unten zieht). */
@@ -563,9 +569,9 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         message = if (audio) "Zu Hörbuch/Podcast umgewandelt" else "Zu Playlist umgewandelt"
     }
 
-    fun showPlaylistsAsGrid(grid: Boolean) {
-        Store.setPlaylistGrid(app, grid)
-        playlistGrid = grid
+    fun showPlaylistsAsGrid(grid: Boolean, audio: Boolean = false) {
+        Store.setPlaylistGrid(app, grid, audio)
+        if (audio) audiobookGrid = grid else playlistGrid = grid
     }
 
     fun setPinned(id: String, pinned: Boolean) {
@@ -616,6 +622,35 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
                 } catch (e: Exception) { false }
             }
             if (ok) { Store.setCoverStamp(app, id, System.currentTimeMillis()); syncPlaylists() } else message = "Bild konnte nicht geladen werden"
+        }
+    }
+
+    /** Eigenes, unabhängiges Interpret-Cover speichern oder zurücksetzen. */
+    fun setArtistCover(artist: String, uri: android.net.Uri? = null, url: String? = null, reset: Boolean = false) {
+        viewModelScope.launch {
+            if (reset) {
+                val old = Store.artistCovers[artist]
+                old?.let { java.io.File(java.io.File(app.filesDir, "artistcovers"), it).delete() }
+                Store.setArtistCover(app, artist, null)
+                Art.invalidate()
+                message = "Interpreten-Cover zurückgesetzt"
+                return@launch
+            }
+            val filename = withContext(Dispatchers.IO) {
+                val bmp = fetchBytes(uri, url)?.let { squareBitmap(it) } ?: return@withContext null
+                try {
+                    val dir = java.io.File(app.filesDir, "artistcovers").also { it.mkdirs() }
+                    val n = java.util.UUID.randomUUID().toString() + ".jpg"
+                    java.io.File(dir, n).outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+                    n
+                } catch (e: Exception) { null }
+            }
+            if (filename != null) {
+                Store.artistCovers[artist]?.let { java.io.File(java.io.File(app.filesDir, "artistcovers"), it).delete() }
+                Store.setArtistCover(app, artist, filename)
+                Art.invalidate()
+                message = "Interpreten-Cover gesetzt"
+            } else message = "Bild konnte nicht geladen werden"
         }
     }
 

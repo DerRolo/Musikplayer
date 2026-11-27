@@ -42,6 +42,10 @@ object Store {
     private var knownInit = false
     var playlistGrid: Boolean = false
         private set
+    var audiobookGrid: Boolean = false
+        private set
+    var showAlbum: Boolean = false
+        private set
     var blockedTracks: Set<String> = emptySet()
         private set
     var blockedArtists: Set<String> = emptySet()
@@ -62,6 +66,9 @@ object Store {
     var trackAlbums: Map<String, String> = emptyMap()
     /** Eigene Lied-Cover: Dateipfad -> Dateiname in filesDir/trackcovers. */
     var trackCovers: Map<String, String> = emptyMap()
+        private set
+    /** Eigene Interpreten-Cover, Interpretname -> Dateiname in filesDir/artistcovers. */
+    var artistCovers: Map<String, String> = emptyMap()
         private set
     /** Dateien, deren Namen du selbst festgelegt hast: der Dateiname ist dann der Titel in der App. */
     var userNamed: Set<String> = emptySet()
@@ -127,6 +134,8 @@ object Store {
             sortLevel = o.optInt("sortLevel", 0)
             knownInit = o.optBoolean("knownInit", false)
             playlistGrid = o.optBoolean("playlistGrid", false)
+            audiobookGrid = o.optBoolean("audiobookGrid", false)
+            showAlbum = o.optBoolean("showAlbum", false)
             blockedTracks = o.optJSONArray("blockedTracks").strings().toHashSet()
             blockedArtists = o.optJSONArray("blockedArtists").strings().toHashSet()
             blockedFolders = o.optJSONArray("blockedFolders").strings().toHashSet()
@@ -153,6 +162,7 @@ object Store {
             userNamed = o.optJSONArray("userNamed").strings().toHashSet()
             trackAlbums = o.optJSONObject("trackAlbums").toMap()
             trackCovers = o.optJSONObject("trackCovers").toMap()
+            artistCovers = o.optJSONObject("artistCovers").toMap()
             playlistPlays = o.optJSONObject("playlistPlays").toMap().mapValues { it.value.toIntOrNull() ?: 0 }
             knownPaths = o.optJSONArray("known").strings().toHashSet()
         } catch (e: Exception) {
@@ -203,6 +213,8 @@ object Store {
         o.put("sortLevel", sortLevel)
         o.put("knownInit", knownInit)
         o.put("playlistGrid", playlistGrid)
+        o.put("audiobookGrid", audiobookGrid)
+        o.put("showAlbum", showAlbum)
         o.put("blockedTracks", JSONArray(blockedTracks.toList()))
         o.put("blockedArtists", JSONArray(blockedArtists.toList()))
         o.put("blockedFolders", JSONArray(blockedFolders.toList()))
@@ -225,6 +237,7 @@ object Store {
         o.put("userNamed", JSONArray(userNamed.toList()))
         o.put("trackAlbums", JSONObject(trackAlbums))
         o.put("trackCovers", JSONObject(trackCovers))
+        o.put("artistCovers", JSONObject(artistCovers))
         o.put("playlistPlays", JSONObject(playlistPlays.mapValues { it.value.toString() }))
         o.put("recent", JSONArray(recentSearches))
         o.put("favArtists", JSONArray(favArtists))
@@ -314,6 +327,11 @@ object Store {
 
     // ---------- Zähler, Filter, Suchverlauf ----------
 
+    fun setArtistCover(ctx: Context, artist: String, file: String?) {
+        artistCovers = if (file.isNullOrBlank()) artistCovers - artist else artistCovers + (artist to file)
+        save(ctx)
+    }
+
     fun setTrackCover(ctx: Context, paths: List<String>, file: String?) {
         trackCovers = if (file == null) trackCovers - paths.toSet() else trackCovers + paths.associateWith { file }
         save(ctx)
@@ -376,8 +394,13 @@ object Store {
         save(ctx)
     }
 
-    fun setPlaylistGrid(ctx: Context, grid: Boolean) {
-        playlistGrid = grid
+    fun setPlaylistGrid(ctx: Context, grid: Boolean, audio: Boolean = false) {
+        if (audio) audiobookGrid = grid else playlistGrid = grid
+        save(ctx)
+    }
+
+    fun setShowAlbum(ctx: Context, enabled: Boolean) {
+        showAlbum = enabled
         save(ctx)
     }
 

@@ -105,6 +105,7 @@ fun GroupTile(
     actions: GroupActions,
     modifier: Modifier = Modifier,
     heart: Boolean = false,
+    artistCoverName: String? = null,
     onClick: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
@@ -115,6 +116,7 @@ fun GroupTile(
         ) {
             val shape = if (circle) CircleShape else RoundedCornerShape(12.dp)
             if (heart) FavCover(Modifier.fillMaxWidth().aspectRatio(1f).clip(shape))
+            else if (artistCoverName != null) ArtistCover(artistCoverName, tracks, Modifier.fillMaxWidth().aspectRatio(1f).clip(shape))
             else Cover(tracks, name, Modifier.fillMaxWidth().aspectRatio(1f).clip(shape))
             Text(
                 name, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
@@ -138,6 +140,7 @@ fun GroupRow(
     actions: GroupActions,
     heart: Boolean = false,
     star: Boolean = false,
+    artistCoverName: String? = null,
     onClick: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
@@ -148,6 +151,7 @@ fun GroupRow(
         ) {
             val shape = if (circle) CircleShape else RoundedCornerShape(8.dp)
             if (heart) FavCover(Modifier.size(48.dp).clip(shape))
+            else if (artistCoverName != null) ArtistCover(artistCoverName, tracks, Modifier.size((46 * LocalRowScale.current).dp).clip(shape), sizePx = 128)
             else Cover(tracks, name, Modifier.size((46 * LocalRowScale.current).dp).clip(shape), sizePx = 128)
             Text(name, Modifier.weight(1f).padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (star) Icon(Icons.Filled.Star, "Favoriten-Interpret", Modifier.padding(end = 8.dp).size(18.dp), tint = ORANGE)

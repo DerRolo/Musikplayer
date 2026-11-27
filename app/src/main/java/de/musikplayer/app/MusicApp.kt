@@ -184,8 +184,8 @@ fun MusicApp(vm: MusicViewModel) {
                     vm, actions, onAddToPlaylist = { addToPlaylist = listOf(it) },
                     nav = PlayerNav(
                         onArtist = { backTo = tab to showPlayer; artistToOpen = it; tab = 0; showPlayer = false },
-                        onLocate = { t -> backTo = tab to showPlayer; artistToOpen = t.artist + "\u0000" + t.albumName; tab = 0; showPlayer = false },
-                        onPlaylist = { id -> playlistToOpen = id; tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 3 else 2; showPlayer = false }
+                        onLocate = { t -> backTo = tab to showPlayer; artistToOpen = t.artist; tab = 0; showPlayer = false },
+                        onPlaylist = { id -> backTo = tab to showPlayer; playlistToOpen = id; tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 3 else 2; showPlayer = false }
                     )
                 ) { showPlayer = false }
             } else holder.SaveableStateProvider(tab) { when (tab) {
@@ -194,8 +194,8 @@ fun MusicApp(vm: MusicViewModel) {
                     onArtistClosed = { backTo = null })
                 1 -> SearchTab(
                     vm, actions, resets[1],
-                    onOpenArtist = { artistToOpen = it; tab = 0 },
-                    onOpenPlaylist = { playlistToOpen = it; tab = 2 }
+                    onOpenArtist = { backTo = tab to showPlayer; artistToOpen = it; tab = 0; showPlayer = false },
+                    onOpenPlaylist = { id -> backTo = tab to showPlayer; playlistToOpen = id; tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 3 else 2; showPlayer = false }
                 )
                 2 -> PlaylistsTab(
                     vm, actions,
@@ -204,7 +204,8 @@ fun MusicApp(vm: MusicViewModel) {
                     onDeleteList = { deleteList = it },
                     openRequest = playlistToOpen,
                     onConsumed = { playlistToOpen = null },
-                    reset = resets[2]
+                    reset = resets[2],
+                    originBack = backTo?.let { b -> { backTo = null; tab = b.first; showPlayer = b.second } }
                 )
                 3 -> PlaylistsTab(
                     vm, actions,
@@ -214,7 +215,8 @@ fun MusicApp(vm: MusicViewModel) {
                     openRequest = playlistToOpen,
                     onConsumed = { playlistToOpen = null },
                     reset = resets[3],
-                    audio = true
+                    audio = true,
+                    originBack = backTo?.let { b -> { backTo = null; tab = b.first; showPlayer = b.second } }
                 )
                 else -> SettingsTab(vm, actions, sel, resets[4])
             } }

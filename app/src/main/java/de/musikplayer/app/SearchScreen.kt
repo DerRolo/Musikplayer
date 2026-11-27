@@ -126,7 +126,7 @@ fun SearchTab(
                 if (artistHits.isNotEmpty()) {
                     item(key = "h_a") { Header("Interpreten") }
                     itemsIndexed(artistHits, key = { _, h -> "a_" + h.first }) { _, (name, list) ->
-                        GroupRow(name, list, list.size, true, groupActions(vm, list, "a:$name", actions)) { onOpenArtist(name) }
+                        GroupRow(name, list, list.size, true, groupActions(vm, list, "a:$name", actions), artistCoverName = name) { onOpenArtist(name) }
                     }
                 }
                 if (albumHits.isNotEmpty()) {

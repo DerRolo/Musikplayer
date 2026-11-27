@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -54,6 +55,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -78,6 +80,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
     BackHandler(enabled = page != Page.Menu) { page = Page.Menu }
     when (page) {
         Page.Menu -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
             MenuEntry(Icons.Filled.FiberNew, "Neue Lieder", "Neu gefundene Lieder: Interpret zuordnen, umbenennen, einsortieren") { page = Page.New }
             MenuEntry(Icons.Filled.Person, "Interpreten & Ordner", "Ordner prüfen, Interpret zuordnen") { page = Page.Folders }
             MenuEntry(Icons.Filled.DriveFileMove, "Nach Interpret einsortieren", "Zugeordnete Lieder in Musik/<Interpret> verschieben") { page = Page.Sort }
@@ -99,7 +102,6 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
                 androidx.compose.material3.Switch(checked = silence, onCheckedChange = { silence = it; vm.setSkipSilence(it) })
             }
             var quickMove by remember { mutableStateOf(Store.quickMove) }
-            val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
             Row(Modifier.fillMaxWidth().clickable { quickMove = !quickMove; Store.setQuickMove(appCtx, quickMove) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.FolderOpen, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 16.dp))
                 Column(Modifier.weight(1f)) {
@@ -112,11 +114,41 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
                 }
                 androidx.compose.material3.Checkbox(checked = quickMove, onCheckedChange = { quickMove = it; Store.setQuickMove(appCtx, it) })
             }
+            var showAlbum by remember { mutableStateOf(Store.showAlbum) }
             Column(Modifier.padding(16.dp)) {
-                Text("Größe der Listenzeilen", style = MaterialTheme.typography.titleMedium)
+                Text("UI-Größe", style = MaterialTheme.typography.titleMedium)
                 Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Kompakt" to 1.0f, "Normal" to 1.2f, "Groß" to 1.45f).forEach { (l, v) ->
+                    listOf("Klein" to 1.0f, "Mittel" to 1.2f, "Groß" to 1.45f).forEach { (l, v) ->
                         LetterChip(l, kotlin.math.abs(vm.rowScale - v) < 0.05f, true) { vm.changeRowScale(v) }
+                    }
+                }
+                androidx.compose.material3.Surface(tonalElevation = 1.dp, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = (4 + 5 * vm.rowScale).dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.GraphicEq, null, modifier = Modifier.size((40 * vm.rowScale).dp), tint = MaterialTheme.colorScheme.primary)
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text("Beispiel-Song", maxLines = 1, style = MaterialTheme.typography.bodyLarge)
+                            if (showAlbum) Text("Album: Beispiel-Album", maxLines = 1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Beispiel-Interpret", maxLines = 1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)
+                        }
+                        Column(Modifier.width(64.dp), horizontalAlignment = Alignment.End) {
+                            Text("12×", style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                            Text("3:42", style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        }
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth().clickable { showAlbum = !showAlbum; Store.setShowAlbum(appCtx, showAlbum) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Show Album", style = MaterialTheme.typography.titleMedium)
+                    Text("Albumzeile in der Songliste ein-/ausblenden", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                androidx.compose.material3.Switch(checked = showAlbum, onCheckedChange = { showAlbum = it; Store.setShowAlbum(appCtx, it) })
+            }
+            androidx.compose.material3.Surface(tonalElevation = 1.dp, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Show Album – Vorschau", style = MaterialTheme.typography.titleSmall)
+                        Text("Beispiel-Song · ${if (showAlbum) "Beispiel-Album" else "Album ausgeblendet"} · Beispiel-Interpret", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -466,6 +498,20 @@ fun SilenceDialog(onDismiss: () -> Unit) {
         title = { Text("Stille überspringen") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("Beispiel: Stille am Anfang/Ende wird übersprungen", style = MaterialTheme.typography.titleSmall)
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Box(Modifier.weight(1f).height(24.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp)))
+                    Box(Modifier.weight(0.35f).height(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f), RoundedCornerShape(4.dp)))
+                    Box(Modifier.weight(2f).height(24.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp)))
+                    Box(Modifier.weight(0.55f).height(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(4.dp)))
+                    Box(Modifier.weight(1f).height(24.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp)))
+                }
+                Row(Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Stille", style = MaterialTheme.typography.labelSmall)
+                    Text("Ton", style = MaterialTheme.typography.labelSmall)
+                    Text("Hall bleibt", style = MaterialTheme.typography.labelSmall)
+                    Text("Stille", style = MaterialTheme.typography.labelSmall)
+                }
                 Text(
                     "Die App schneidet intern: Alles vor dem ersten Ton und nach dem letzten Ton fällt weg. Pausen mitten im Lied bleiben. Deine Dateien werden nicht verändert.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -290,7 +290,7 @@ fun ArtistsTab(
     val albumRowState = rememberLazyListState()
     var lastOpen by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(open) {
-        if (open != lastOpen) { lastOpen = open; ovState.scrollToItem(0); albumRowState.scrollToItem(0) }
+        if (open != lastOpen) { lastOpen = open; view = ""; ovState.scrollToItem(0); albumRowState.scrollToItem(0) }
     }
     OnReset(reset) {
         if (view != "" || open != null) { view = ""; open = null }
@@ -363,7 +363,7 @@ fun ArtistsTab(
                         item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { sortRow() }
                         items(names, key = { it }) { name ->
                             val list = remember(groups, name) { (groups[name] ?: emptyList()).sortedBy { it.sortKey } }
-                            GroupTile(name, list, list.size, true, groupActions(vm, list, "a:$name", actions) { vm.blockArtist(name) }.copy(onStar = { vm.toggleFavArtist(name) }, starred = name in vm.favArtists)) { view = ""; open = name }
+                            GroupTile(name, list, list.size, true, groupActions(vm, list, "a:$name", actions) { vm.blockArtist(name) }.copy(onStar = { vm.toggleFavArtist(name) }, starred = name in vm.favArtists), artistCoverName = name) { view = ""; open = name }
                         }
                     }
                     GridScrollbar(gridState, Modifier.align(Alignment.CenterEnd))
@@ -375,7 +375,7 @@ fun ArtistsTab(
                         items(names, key = { it }) { name ->
                             val list = remember(groups, name) { (groups[name] ?: emptyList()).sortedBy { it.sortKey } }
                             ArtistSwipe(vm, name) {
-                                GroupRow(name, list, list.size, true, groupActions(vm, list, "a:$name", actions) { vm.blockArtist(name) }.copy(onStar = { vm.toggleFavArtist(name) }, starred = name in vm.favArtists), star = name in vm.favArtists) { view = ""; open = name }
+                                GroupRow(name, list, list.size, true, groupActions(vm, list, "a:$name", actions) { vm.blockArtist(name) }.copy(onStar = { vm.toggleFavArtist(name) }, starred = name in vm.favArtists), star = name in vm.favArtists, artistCoverName = name) { view = ""; open = name }
                             }
                         }
                     }
@@ -389,14 +389,12 @@ fun ArtistsTab(
         val top = remember(fullList, vm.current) { fullList.filter { vm.plays(it.path) > 0 }.sortedByDescending { vm.plays(it.path) }.take(5) }
         val v = view
         BackHandler(enabled = v != "") { view = "" }
-        val shown = when {
-            v == "" || v == "*" -> fullList
-            else -> albums[v].orEmpty()
-        }
+        val shown = fullList
         val ctx = "a:$artist"
         var menu by remember { mutableStateOf(false) }
         var editAlbumFor by remember { mutableStateOf<String?>(null) }
         var albumCover by remember { mutableStateOf<Pair<String, List<Track>>?>(null) }
+        var artistCoverPicker by remember { mutableStateOf(false) }
         albumCover?.let { (an, tl) ->
             CoverPickerDialog(
                 initialQuery = "$artist $an",
@@ -406,8 +404,13 @@ fun ArtistsTab(
                 onReset = if (vm.hasOwnCover(tl)) ({ vm.setTrackCover(tl) }) else null
             )
         }
-        val isAlbum = v != "" && v != "*"
-        LaunchedEffect(albums.keys, v) { if (isAlbum && !albums.containsKey(v)) view = "" }
+        if (artistCoverPicker) CoverPickerDialog(
+            initialQuery = artist,
+            onDismiss = { artistCoverPicker = false },
+            onUri = { vm.setArtistCover(artist, uri = it) },
+            onUrl = { vm.setArtistCover(artist, url = it) },
+            onReset = if (artist in Store.artistCovers) ({ vm.setArtistCover(artist, reset = true) }) else null
+        )
         editAlbumFor?.let { an ->
             val tl = albums[an].orEmpty()
             if (tl.isNotEmpty()) AlbumEditDialog(
@@ -422,12 +425,12 @@ fun ArtistsTab(
         Column(Modifier.fillMaxSize()) {
             if (v == "" && sel.active) TrackSelectionBar(vm, fullList, actions, sel)
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { if (v != "") view = "" else open = null }) { Text("‹ Zurück") }
+                TextButton(onClick = { if (v != "") view = "" else { open = null; originBack?.invoke() } }) { Text("‹ Zurück") }
                 if (v != "") Text(
-                    if (v == "*") "$artist · alle Lieder" else v,
+                    "$artist · alle Lieder",
                     Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis
                 ) else Spacer(Modifier.weight(1f))
-                if (!isAlbum && v != "*") IconButton(onClick = { vm.toggleFavArtist(artist) }) {
+                if (v != "*") IconButton(onClick = { vm.toggleFavArtist(artist) }) {
                     val on = artist in vm.favArtists
                     Icon(if (on) Icons.Filled.Star else Icons.Filled.StarBorder, "Favoriten-Interpret", tint = if (on) ORANGE else LocalContentColor.current)
                 }
@@ -436,9 +439,7 @@ fun ArtistsTab(
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Alle Lieder …") }
                     GroupMenu(
                         menu, { menu = false },
-                        if (isAlbum) groupActions(vm, shown, ctx, actions) { vm.blockTracks(shown); view = "" }
-                            .copy(onEdit = { editAlbumFor = v }, onDelete = { actions.onDeleteMany(shown) })
-                        else groupActions(vm, shown, ctx, actions) { vm.blockArtist(artist); open = null }
+                        groupActions(vm, shown, ctx, actions) { vm.blockArtist(artist); open = null }
                     )
                 }
             }
@@ -455,7 +456,10 @@ fun ArtistsTab(
                         item(key = "hdr") {
                             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Cover(fullList, artist, Modifier.size(104.dp).clip(CircleShape), sizePx = 256)
+                                    Box {
+                                        ArtistCover(artist, fullList, Modifier.size(104.dp).clip(CircleShape), sizePx = 256)
+                                        Box(Modifier.align(Alignment.BottomEnd).size(30.dp).clip(CircleShape).background(ORANGE).clickable { artistCoverPicker = true }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Edit, "Interpreten-Cover bearbeiten", tint = Color.Black, modifier = Modifier.size(17.dp)) }
+                                    }
                                     Column(Modifier.weight(1f).padding(start = 16.dp)) {
                                         Text(artist, style = MaterialTheme.typography.headlineMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
                                         val totalPlays = fullList.sumOf { vm.plays(it.path) }
@@ -506,7 +510,7 @@ fun ArtistsTab(
                                             name, l,
                                             groupActions(vm, l, ctx, actions) { vm.blockTracks(l) }
                                                 .copy(onEdit = { editAlbumFor = name }, onDelete = { actions.onDeleteMany(l) })
-                                        ) { view = name }
+                                        ) { vm.play(l, 0, ctx) }
                                     }
                                 }
                             }
@@ -551,17 +555,23 @@ fun PlaylistsTab(
     onConsumed: () -> Unit,
     reset: Int,
     /** true = Reiter „Hörbücher & Podcasts“ (eigene Listen, getrennt von den Musik-Playlists). */
-    audio: Boolean = false
+    audio: Boolean = false,
+    originBack: (() -> Unit)? = null
 ) {
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
+    var externalOpen by rememberSaveable { mutableStateOf(false) }
     val plListState = rememberLazyListState()
     val plGridState = rememberLazyGridState()
     val plScope = rememberCoroutineScope()
-    OnReset(reset) { if (openId != null) openId = null else plScope.launch { plListState.animateScrollToItem(0) } }
+    OnReset(reset) { if (openId != null) { openId = null; externalOpen = false } else plScope.launch { plListState.animateScrollToItem(0) } }
     LaunchedEffect(openRequest) {
-        if (openRequest != null) { openId = openRequest; onConsumed() }
+        if (openRequest != null) { openId = openRequest; externalOpen = true; onConsumed() }
     }
-    BackHandler(enabled = openId != null) { openId = null }
+    val closePlaylist = {
+        openId = null
+        if (externalOpen) { externalOpen = false; originBack?.invoke() }
+    }
+    BackHandler(enabled = openId != null) { closePlaylist() }
     val open = vm.playlists.firstOrNull { it.id == openId }
     if (open == null) {
         val base = vm.playlistsByUse().filter { it.audio == audio }
@@ -591,8 +601,9 @@ fun PlaylistsTab(
                 IconButton(onClick = { searchOn = !searchOn; if (!searchOn) query = "" }) {
                     Icon(if (searchOn) Icons.Filled.Close else Icons.Filled.Search, "Suchen", tint = if (searchOn) MaterialTheme.colorScheme.primary else LocalContentColor.current)
                 }
-                IconButton(onClick = { vm.showPlaylistsAsGrid(!vm.playlistGrid) }) {
-                    Icon(if (vm.playlistGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.playlistGrid) "Listenansicht" else "Kachelansicht")
+                IconButton(onClick = { vm.showPlaylistsAsGrid(if (audio) !vm.audiobookGrid else !vm.playlistGrid, audio) }) {
+                    val grid = if (audio) vm.audiobookGrid else vm.playlistGrid
+                    Icon(if (grid) Icons.Filled.ViewList else Icons.Filled.GridView, if (grid) "Listenansicht" else "Kachelansicht")
                 }
             }
             if (searchOn) SearchField(query, { query = it }, if (audio) "Hörbücher & Podcasts suchen" else "Playlists suchen")
@@ -615,7 +626,7 @@ fun PlaylistsTab(
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            } else if (vm.playlistGrid) {
+            } else if (if (audio) vm.audiobookGrid else vm.playlistGrid) {
                 Box(Modifier.fillMaxSize()) {
                     LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize(), state = plGridState, contentPadding = PaddingValues(6.dp)) {
                         items(ordered, key = { it.id }) { p ->
@@ -667,7 +678,7 @@ fun PlaylistsTab(
         Column(Modifier.fillMaxSize()) {
             PlaylistHeader(
                 vm, open, list, compact = collapsed,
-                onBack = { openId = null },
+                onBack = { closePlaylist() },
                 onStart = { vm.playContext(list, ctx) },
                 onEdit = { onRename(open) },
                 onDelete = { onDeleteList(open); openId = null }
