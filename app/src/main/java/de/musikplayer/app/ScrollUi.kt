@@ -1,5 +1,6 @@
 package de.musikplayer.app
 
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -115,18 +116,26 @@ fun GridScrollbar(state: LazyGridState, modifier: Modifier = Modifier) {
     )
 }
 
-/** Einheitliche Sortier-Auswahl: ein Knopf „Sortierung: …“, öffnet eine Liste und schließt sich nach der Wahl. */
+/**
+ * Einheitliche Sortier-Auswahl: ein Knopf mit der aktuellen Sortierung (ohne das Wort „Sortierung“ – das Symbol
+ * zeigt es), öffnet eine Liste und schließt sich nach der Wahl. Feste Breite, damit sich daneben nichts verschiebt.
+ */
 @Composable
 fun SortMenu(label: String, options: List<String>, selected: Int, onPick: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }
+    val shown = label.removePrefix("Sortierung: ")
     Box {
         Row(
-            Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceVariant)
-                .clickable { open = true }.padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            Modifier.width(148.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable { open = true }.padding(start = 10.dp, end = 2.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Filled.SwapVert, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("  $label", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Filled.SwapVert, "Sortierung", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                shown, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(start = 6.dp)
+            )
             Icon(Icons.Filled.ArrowDropDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -161,5 +170,19 @@ fun AlbumTile(
         }
         Text(name, Modifier.padding(top = 4.dp).clickable(onClick = onClick), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         Text("${tracks.size} Lieder", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/**
+ * Feste Werkzeugzeile über jeder Liste (Bibliothek, Interpreten, Alben, Playlists, Hörbücher, Jam):
+ * links die Anzahl, rechts Filter/Abspielen/Ansicht und ganz rechts die Sortierung. Liegt NICHT in der Liste,
+ * damit sie beim Scrollen, Filtern und Wechsel Kachel/Liste immer an derselben Stelle bleibt.
+ */
+@Composable
+fun ListToolbar(count: String, sortLabel: String, sortOptions: List<String>, sortSelected: Int, onSort: (Int) -> Unit, icons: @Composable () -> Unit = {}) {
+    Row(Modifier.fillMaxWidth().height(48.dp).padding(start = 12.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(count, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        icons()
+        SortMenu(sortLabel, sortOptions, sortSelected, onSort)
     }
 }

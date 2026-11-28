@@ -6,6 +6,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.filled.SystemUpdate
@@ -76,7 +77,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Jam, Trash, Profile, Update, Backup }
+private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Jam, Trash, Profile, Update, Backup, Theme }
 
 @Composable
 fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset: Int) {
@@ -92,6 +93,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
         Page.Menu -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
             MenuEntry(Icons.Filled.SystemUpdate, "App-Update", "Version ${Updater.installedName(LocalContext.current)} · automatisch nach Updates suchen") { page = Page.Update }
+            MenuEntry(Icons.Filled.Palette, "Design", "Hell, dunkel oder wie das System · Farbvorlagen") { page = Page.Theme }
             MenuEntry(Icons.Filled.AccountCircle, "Profil", "Name und Profilbild, die andere im Jam sehen") { page = Page.Profile }
             MenuEntry(Icons.Filled.Groups, "Jam", "Mit Handys im selben WLAN zusammen hören und Musik übernehmen") { page = Page.Jam }
             // Im Jam sind die Bearbeiten-Werkzeuge gesperrt (außer alle erlauben es in den Developer Options)
@@ -162,6 +164,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
         Page.Profile -> ProfilePage { page = Page.Menu }
         Page.Update -> UpdatePage { page = Page.Menu }
         Page.Backup -> BackupPage { page = Page.Menu }
+        Page.Theme -> ThemePage { page = Page.Menu }
     }
 }
 

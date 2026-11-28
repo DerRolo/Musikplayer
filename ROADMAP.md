@@ -32,6 +32,27 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
+## Update 16 – Feste Leisten, Herz-Filter, Kachel-Bibliothek, Design *(umgesetzt, Gerätetest offen)*
+
+- [~] **Feste Werkzeugleiste**, überall gleich (Bibliothek, Interpreten, Alben, Playlists, Hörbücher, Jam-Bibliothek):
+  - Sie steht über der Liste statt in ihr und bleibt beim Scrollen, Filtern und beim Wechsel zwischen Kachel und Liste an derselben Stelle.
+  - Links die Anzahl (immer einzeilig), rechts die Symbole, ganz rechts die Sortierung.
+  - Der Sortier-Knopf hat eine feste Breite, damit sich beim Umsortieren nichts verschiebt.
+- [~] Das Wort „Sortierung“ entfällt überall. Das Symbol ⇅ zeigt es, daneben steht nur die Art, zum Beispiel „Hinzugefügt ↓“.
+- [~] **Interpreten:**
+  - Der Shuffle-Knopf, der nur bei aktivem Stern auftauchte und die Leiste verschob, ist entfernt.
+  - Der Stern bleibt jetzt auch bei Buchstabe ohne Treffer sichtbar. Vorher verschwand er mit der Liste. Statt der leeren Liste steht dann „Keine Favoriten-Interpreten mit „X““.
+- [~] **Bibliothek**, gleicher Aufbau wie Interpreten:
+  - **Herz-Filter** (nur Lieblingssongs).
+  - ▶ **der Reihe nach abspielen** und ⤮ **zufällig abspielen**, jetzt klar als zwei Knöpfe.
+  - **Kachel- oder Listenansicht** (Cover, Titel, Interpret), wird gemerkt.
+- [~] **Design** (Optionen → Design):
+  - **Hell / Dunkel / Wie System**.
+  - **Farbvorlagen** mit Vorschau zum Antippen: Musikplayer (Standard, warmes Dunkel mit Orange), Ozean, Wald, Beere, Lavendel, Sonnenuntergang, Graphit, Mitternacht (reines Schwarz), ab Android 12 auch die Systemfarben. Die Wahl wirkt sofort.
+  - Das bisherige fast schwarze Dunkel kam von den Systemfarben. Neuer Standard ist die Vorlage „Musikplayer“.
+- [~] **Profilbild drehen** (↻, jeweils um 90°).
+- Vorlagen aus dem Internet laden ist nicht eingebaut. Die App bringt ihre Vorlagen mit, weitere lassen sich leicht ergänzen.
+
 ## Update 15 – Sicherung für eine Neuinstallation *(umgesetzt, Gerätetest offen)*
 
 - [~] **Automatische Sicherung**: Die App sichert ihre Daten in den Ordner `Musikplayer-Sicherung` im Handyspeicher. Der bleibt beim Deinstallieren erhalten.

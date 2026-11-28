@@ -123,7 +123,8 @@ fun MenuItem(text: String, icon: ImageVector, danger: Boolean = false, warn: Boo
     )
 }
 
-private val HEART_PINK = Color(0xFFE5486B)
+/** Herz-Farbe für Lieblingssongs (überall gleich). */
+val HEART_PINK = Color(0xFFE5486B)
 
 /** Läuft gerade Musik? (für die kleinen Equalizer-Balken in Listenzeilen) */
 val LocalIsPlaying = androidx.compose.runtime.compositionLocalOf { false }

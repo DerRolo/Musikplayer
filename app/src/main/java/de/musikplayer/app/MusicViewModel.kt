@@ -54,6 +54,11 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     var artistGrid by mutableStateOf(true)
     var albumGrid by mutableStateOf(true)
         private set
+    /** Bibliothek als Kacheln statt Liste. */
+    var songGrid by mutableStateOf(false)
+        private set
+    /** Bibliothek: nur Lieblingssongs zeigen (Herz-Filter, wie der Stern bei Interpreten). */
+    var onlyFavSongs by mutableStateOf(false)
     var favArtists by mutableStateOf<Set<String>>(emptySet())
     var onlyFavArtists by mutableStateOf(false)
     var rowScale by mutableStateOf(1.0f)
@@ -119,6 +124,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         sortLevel = Store.sortLevel
         artistGrid = Store.artistGrid
         albumGrid = Store.albumGrid
+        songGrid = Store.songGrid
         favArtists = Store.favArtists.toSet()
         rowScale = Store.rowScale
         playlistGrid = Store.playlistGrid
@@ -965,6 +971,17 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Sortierung einer Ansicht merken (bleibt nach Neustart erhalten). */
     fun saveSort(key: String, value: Int) = Store.setSortPref(app, key, value)
+
+    fun showSongsAsGrid(grid: Boolean) { Store.setSongGrid(app, grid); songGrid = grid }
+
+    /** Der Reihe nach abspielen (Shuffle für diese Liste aus), ab dem ersten Lied. */
+    fun playInOrder(list: List<Track>, context: String) {
+        if (list.isEmpty()) return
+        val key = keyOf(context)
+        val (_, rep) = Store.modeOf(key)
+        Store.setMode(app, key, false, rep)
+        play(list, 0, context)
+    }
 
     fun showAlbumsAsGrid(grid: Boolean) {
         Store.setAlbumGrid(app, grid)

@@ -47,6 +47,10 @@ Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im 
 - **Sichtbarkeit:** Mit „Im WLAN sichtbar“ schaltest du das Finden und die Pop-ups ab.
 - Für das Streaming im lokalen Netz erlaubt die App unverschlüsselte Verbindungen (`http`). Das betrifft nur Verbindungen zwischen den Handys im WLAN, der Zugang ist durch einen Jam-Schlüssel geschützt.
 
+## Design
+
+- Optionen → Design: Hell, Dunkel oder wie das System. Dazu Farbvorlagen mit Vorschau, zum Beispiel „Musikplayer“ (Standard), Ozean, Wald, Beere, Lavendel, Sonnenuntergang, Graphit, Mitternacht und die Systemfarben.
+
 ## Sicherung (Neuinstallation)
 
 - Die App sichert automatisch alles, was sie selbst speichert, in den Ordner `Musikplayer-Sicherung` im Handyspeicher: Playlists, Hörbücher, Lieblingssongs, Zähler, Zuordnungen, Cover, Sperrliste, Einstellungen und Profil. Der Papierkorb liegt ebenfalls dort.
@@ -69,7 +73,7 @@ Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im 
   1. Suchfeld.
   2. Oranger Knopf (Umschalter bzw. „+ Neue Playlist“).
   3. Buchstabenleiste.
-  4. Anzahl, Ansicht (Kachel/Liste) und Sortierung (Standard: Meistgehört).
+  4. Eine feste Leiste mit Anzahl, Filter (♥ bzw. ★), Ansicht (Kachel/Liste) und Sortierung (Standard: Meistgehört).
 - Bei Playlists und Hörbüchern sucht das Feld nur in diesem Reiter.
 
 ## Bibliothek und Ordnung

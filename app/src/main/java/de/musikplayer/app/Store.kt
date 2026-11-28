@@ -28,6 +28,13 @@ object Store {
         private set
     var albumGrid: Boolean = true
         private set
+    var songGrid: Boolean = false
+        private set
+    /** Design: 0 = wie System, 1 = hell, 2 = dunkel; Farbvorlage (siehe Theme.kt). */
+    var themeMode: Int = 0
+        private set
+    var themeId: String = "musikplayer"
+        private set
     /** Zuletzt gewählte Sortierung je Ansicht (Interpreten, Alben, Playlists, Hörbücher, Jam-Reiter …). */
     var sortPrefs: Map<String, Int> = emptyMap()
         private set
@@ -172,6 +179,9 @@ object Store {
             fadeMinutes = o.optInt("fadeMinutes", 30)
             artistGrid = o.optBoolean("artistGrid", true)
             albumGrid = o.optBoolean("albumGrid", true)
+            songGrid = o.optBoolean("songGrid", false)
+            themeMode = o.optInt("themeMode", 0)
+            themeId = o.optString("themeId", "musikplayer")
             sortPrefs = o.optJSONObject("sortPrefs")?.let { j -> j.keys().asSequence().associateWith { j.optInt(it) } }.orEmpty()
             autoUpdate = o.optBoolean("autoUpdate", true)
             restoreOffered = o.optBoolean("restoreOffered", true)
@@ -266,6 +276,9 @@ object Store {
         o.put("fadeMinutes", fadeMinutes)
         o.put("artistGrid", artistGrid)
         o.put("albumGrid", albumGrid)
+        o.put("songGrid", songGrid)
+        o.put("themeMode", themeMode)
+        o.put("themeId", themeId)
         o.put("sortPrefs", JSONObject(sortPrefs))
         o.put("autoUpdate", autoUpdate)
         o.put("restoreOffered", restoreOffered)
@@ -639,6 +652,8 @@ object Store {
     }
 
     fun setAlbumGrid(ctx: Context, grid: Boolean) { albumGrid = grid; save(ctx) }
+    fun setSongGrid(ctx: Context, grid: Boolean) { songGrid = grid; save(ctx) }
+    fun setTheme(ctx: Context, mode: Int, id: String) { themeMode = mode; themeId = id; save(ctx) }
     fun sortPref(key: String, default: Int): Int = sortPrefs[key] ?: default
     fun setSortPref(ctx: Context, key: String, value: Int) { if (sortPrefs[key] != value) { sortPrefs = sortPrefs + (key to value); save(ctx) } }
     fun setAutoUpdate(ctx: Context, on: Boolean) { autoUpdate = on; save(ctx) }

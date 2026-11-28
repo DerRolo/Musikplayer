@@ -517,10 +517,7 @@ private fun JamLibraryPage(vm: MusicViewModel, owner: String, onBack: () -> Unit
 /** Anzahl links, Sortierung rechts – wie in der eigenen Bibliothek. */
 @Composable
 private fun JamSortRow(count: String, options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(count, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        SortMenu("Sortierung: " + options[selected], options, selected, onSelect)
-    }
+    ListToolbar(count, options[selected], options, selected, onSelect)
 }
 
 @Composable

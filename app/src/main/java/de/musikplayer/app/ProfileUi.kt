@@ -71,6 +71,22 @@ fun ProfilePage(onBack: () -> Unit) {
             JamAvatar(Jam.myId, name.ifBlank { Jam.deviceName }, 72.dp)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 OutlinedButton(onClick = { pick.launch("image/*") }) { Text("Profilbild wählen") }
+                // Bild steht schief/quer? Jeweils um 90° im Uhrzeigersinn drehen
+                if (Store.profileStamp != 0L) TextButton(onClick = {
+                    scope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            try {
+                                val f = File(ctx.filesDir, "profile.jpg")
+                                val src = BitmapFactory.decodeFile(f.path) ?: return@withContext false
+                                val m = android.graphics.Matrix().apply { postRotate(90f) }
+                                val r = Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true)
+                                f.outputStream().use { r.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+                                true
+                            } catch (e: Exception) { false }
+                        }
+                        if (ok) { Store.setProfileStamp(ctx, System.currentTimeMillis()); Jam.profileChanged() }
+                    }
+                }) { Text("↻ Drehen") }
                 if (Store.profileStamp != 0L) TextButton(onClick = {
                     File(ctx.filesDir, "profile.jpg").delete()
                     Store.setProfileStamp(ctx, 0L); Jam.profileChanged(); info = "Profilbild entfernt"

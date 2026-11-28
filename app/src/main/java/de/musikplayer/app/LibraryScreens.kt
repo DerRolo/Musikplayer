@@ -2,6 +2,10 @@
 
 package de.musikplayer.app
 
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
@@ -276,25 +280,62 @@ fun SongsTab(
             GlobalSearchBody(vm, actions, query, { query = it }, picked, ssel, onOpenArtist, onOpenPlaylist, searchState)
         } else if (vm.loading && all.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        } else if (all.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Keine Musik gefunden") }
         } else {
             val sortLabel = run {
                 val naturalDown = vm.sortBy == SortBy.Added || vm.sortBy == SortBy.Duration || vm.sortBy == SortBy.Plays
                 val down = if (vm.sortLevel == 1) !naturalDown else naturalDown
-                "Sortierung: " + vm.sortBy.label + if (vm.sortLevel != 2) (if (down) " ↓" else " ↑") else " (aus)"
+                vm.sortBy.label + if (vm.sortLevel != 2) (if (down) " ↓" else " ↑") else " (aus)"
             }
-            TrackListBody(
-                vm, all, "all", actions, sel, listState = listState,
-                header = {
-                    Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("${all.size} Titel", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-                        IconButton(onClick = { vm.playShuffled(all, "all") }) { Icon(Icons.Filled.Shuffle, "Zufällig") }
-                        SortMenu(sortLabel, SortBy.values().map { it.label }, vm.sortBy.ordinal) { vm.cycleSort(SortBy.values()[it]) }
-                    }
+            // Herz = nur Lieblingssongs (wie der Stern bei Interpreten)
+            val shownList = remember(all, vm.onlyFavSongs, vm.favoritePaths) { if (vm.onlyFavSongs) all.filter { vm.isFavorite(it.path) } else all }
+            val ctx = if (vm.onlyFavSongs) "favsongs" else "all"
+            // Feste Leiste: Anzahl · Herz · Abspielen · Zufällig · Kachel/Liste · Sortierung
+            ListToolbar(
+                if (vm.onlyFavSongs) "${shownList.size} Lieblingssongs" else "${all.size} Titel",
+                sortLabel, SortBy.values().map { it.label }, vm.sortBy.ordinal, { vm.cycleSort(SortBy.values()[it]) }
+            ) {
+                IconButton(onClick = { vm.onlyFavSongs = !vm.onlyFavSongs }) {
+                    Icon(if (vm.onlyFavSongs) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Nur Lieblingssongs", tint = if (vm.onlyFavSongs) HEART_PINK else LocalContentColor.current)
                 }
-            )
+                IconButton(onClick = { vm.playInOrder(shownList, ctx) }, enabled = shownList.isNotEmpty()) { Icon(Icons.Filled.PlayArrow, "Der Reihe nach abspielen") }
+                IconButton(onClick = { vm.playShuffled(shownList, ctx) }, enabled = shownList.isNotEmpty()) { Icon(Icons.Filled.Shuffle, "Zufällig abspielen") }
+                IconButton(onClick = { vm.showSongsAsGrid(!vm.songGrid) }) {
+                    Icon(if (vm.songGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.songGrid) "Listenansicht" else "Kachelansicht")
+                }
+            }
+            if (shownList.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(if (all.isEmpty()) "Keine Musik gefunden" else "Noch keine Lieblingssongs – tippe bei einem Lied auf das Herz")
+                }
+            } else if (vm.songGrid) {
+                val gridState = rememberLazyGridState()
+                val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
+                Box(Modifier.fillMaxSize()) {
+                    LazyVerticalGrid(GridCells.Adaptive(112.dp), Modifier.fillMaxSize(), state = gridState, contentPadding = PaddingValues(8.dp)) {
+                        itemsIndexed(shownList, key = { _, t -> t.id }) { i, t ->
+                            TrackTile(t, t.id == playingId) { vm.play(shownList, i, ctx) }
+                        }
+                    }
+                    GridScrollbar(gridState, Modifier.align(Alignment.CenterEnd))
+                }
+            } else {
+                TrackListBody(vm, shownList, ctx, actions, sel, listState = listState)
+            }
         }
+    }
+}
+
+/** Lied als Kachel (Kachelansicht der Bibliothek): Cover, Titel, Interpret. */
+@Composable
+fun TrackTile(t: Track, playing: Boolean, onClick: () -> Unit) {
+    Column(Modifier.padding(4.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(4.dp)) {
+        Cover(listOf(t), t.title, Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)), sizePx = 300)
+        Text(
+            t.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        Text(t.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -332,25 +373,24 @@ fun AlbumsTab(vm: MusicViewModel, actions: TrackActions, reset: Int, switch: @Co
             else -> f.sortedWith(compareByDescending<Alb> { a -> a.tracks.sumOf { vm.plays(it.path) } }.thenBy { Names.fold(it.name) })
         }
     }
+    // Feste Leiste über der Liste: Anzahl · Kachel/Liste · Sortierung
     val sortRow: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("${shown.size} Alben", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+        ListToolbar("${shown.size} Alben", sorts[sortIdx], sorts, sortIdx, { sortIdx = it; vm.saveSort("albums", it) }) {
             IconButton(onClick = { vm.showAlbumsAsGrid(!vm.albumGrid) }) {
                 Icon(if (vm.albumGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.albumGrid) "Listenansicht" else "Kachelansicht")
             }
-            SortMenu("Sortierung: " + sorts[sortIdx], sorts, sortIdx) { sortIdx = it; vm.saveSort("albums", it) }
         }
     }
     Column(Modifier.fillMaxSize()) {
         SearchField(query, { query = it }, "Album oder Interpret suchen")
         switch()
         LetterBar(active, available) { letter = it }
+        sortRow()
         if (shown.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(if (albums.isEmpty()) "Keine Alben – Alben kommen aus den Tags oder aus Album-Ordnern" else "Nichts gefunden", textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(24.dp)) }
         } else if (vm.albumGrid) {
             Box(Modifier.fillMaxSize()) {
                 LazyVerticalGrid(GridCells.Adaptive(112.dp), Modifier.fillMaxSize(), state = gridState, contentPadding = PaddingValues(8.dp)) {
-                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { sortRow() }
                     items(shown, key = { it.artist + "\u0000" + it.name }) { a ->
                         GroupTile(a.name, a.tracks, a.tracks.size, false, groupActions(vm, a.tracks, "album:${a.artist}:${a.name}", actions)) { onOpen(a.artist + "\u0000album:" + a.name) }
                     }
@@ -360,7 +400,6 @@ fun AlbumsTab(vm: MusicViewModel, actions: TrackActions, reset: Int, switch: @Co
         } else {
             Box(Modifier.fillMaxSize()) {
                 LazyColumn(Modifier.fillMaxSize(), state = listState) {
-                    item { sortRow() }
                     items(shown, key = { it.artist + "\u0000" + it.name }) { a ->
                         GroupRow(a.name + "  ·  " + a.artist, a.tracks, a.tracks.size, false, groupActions(vm, a.tracks, "album:${a.artist}:${a.name}", actions)) { onOpen(a.artist + "\u0000album:" + a.name) }
                     }
@@ -450,25 +489,24 @@ fun ArtistsTab(
         }
         val sortOptions = listOf("Name A–Z", "Name Z–A", "Meiste Lieder", "Meistgehört", "Ohne Sortierung")
         // Zeile über der Liste: Anzahl · Stern (nur Favoriten) · Liste/Kachel · Sortierung – gleich wie bei Alben, Playlists, Hörbüchern
+        // Feste Leiste über der Liste: Anzahl · Stern (nur Favoriten) · Kachel/Liste · Sortierung
         val sortRow: @Composable () -> Unit = {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${names.size} Interpreten", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-                if (vm.onlyFavArtists && names.isNotEmpty()) IconButton(onClick = { vm.playShuffled(names.flatMap { groups[it].orEmpty() }, "favartists") }) { Icon(Icons.Filled.Shuffle, "Favoriten zufällig") }
+            ListToolbar("${names.size} Interpreten", sortOptions[aSort], sortOptions, aSort, { aSort = it; vm.saveSort("artists", it) }) {
                 IconButton(onClick = { vm.onlyFavArtists = !vm.onlyFavArtists }) {
                     Icon(if (vm.onlyFavArtists) Icons.Filled.Star else Icons.Filled.StarBorder, "Nur Favoriten-Interpreten", tint = if (vm.onlyFavArtists) ORANGE else LocalContentColor.current)
                 }
                 IconButton(onClick = { vm.showArtistsAsGrid(!vm.artistGrid) }) {
                     Icon(if (vm.artistGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.artistGrid) "Listenansicht" else "Kachelansicht")
                 }
-                SortMenu("Sortierung: " + sortOptions[aSort], sortOptions, aSort) { aSort = it; vm.saveSort("artists", it) }
             }
         }
         Column(Modifier.fillMaxSize()) {
             SearchField(query, { query = it }, "Interpret suchen")
             switch()
             LetterBar(activeLetter, available) { letter = it }
+            sortRow()
             if (names.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Keine Interpreten") }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(if (vm.onlyFavArtists) "Keine Favoriten-Interpreten" + (if (activeLetter != null) " mit „$activeLetter“" else "") else "Keine Interpreten") }
             } else if (vm.artistGrid) {
                 Box(Modifier.fillMaxSize()) {
                     LazyVerticalGrid(
@@ -476,7 +514,6 @@ fun ArtistsTab(
                         state = gridState,
                         contentPadding = PaddingValues(8.dp)
                     ) {
-                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { sortRow() }
                         items(names, key = { it }) { name ->
                             val list = remember(groups, name) { (groups[name] ?: emptyList()).sortedBy { it.sortKey } }
                             GroupTile(name, list, list.size, true, groupActions(vm, list, "a:$name", actions) { vm.blockArtist(name) }.copy(onStar = { vm.toggleFavArtist(name) }, starred = name in vm.favArtists), artistCoverName = name) { view = ""; open = name }
@@ -487,7 +524,6 @@ fun ArtistsTab(
             } else {
                 Box(Modifier.fillMaxSize()) {
                     LazyColumn(Modifier.fillMaxSize(), state = artistsListState) {
-                        item { sortRow() }
                         items(names, key = { it }) { name ->
                             val list = remember(groups, name) { (groups[name] ?: emptyList()).sortedBy { it.sortKey } }
                             ArtistSwipe(vm, name) {
@@ -766,12 +802,10 @@ fun PlaylistsTab(
             SearchField(query, { query = it }, if (audio) "Hörbücher & Podcasts suchen" else "Playlists suchen")
             NewListButton(if (audio) "Neues Hörbuch / Podcast" else "Neue Playlist", onNew)
             LetterBar(letter.ifEmpty { null }, available) { letter = it ?: "" }
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${ordered.size} " + if (audio) "Listen" else "Playlists", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+            ListToolbar("${ordered.size} " + if (audio) "Listen" else "Playlists", sorts[sortIdx], sorts, sortIdx, { sortIdx = it; vm.saveSort(sortKey, it) }) {
                 IconButton(onClick = { vm.showPlaylistsAsGrid(!grid, audio) }) {
                     Icon(if (grid) Icons.Filled.ViewList else Icons.Filled.GridView, if (grid) "Listenansicht" else "Kachelansicht")
                 }
-                SortMenu("Sortierung: " + sorts[sortIdx], sorts, sortIdx) { sortIdx = it; vm.saveSort(sortKey, it) }
             }
             if (ordered.isEmpty() && (fq.isNotEmpty() || letter.isNotEmpty())) {
                 Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) { Text("Nichts gefunden") }
