@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.lazy.LazyListState
@@ -185,10 +186,43 @@ fun TrackListBody(
     }
 }
 
-// ---------- Bibliothek (Titel + Interpreten) ----------
+// ---------- Bibliothek (Titel · Interpreten · Alben) ----------
+
+/**
+ * Umschalter oben in der Bibliothek (orange = aktiv): Bibliothek · Interpreten · Alben.
+ * An derselben Stelle steht bei Playlists und Hörbüchern „+ Neue …“ – so sieht jeder Reiter gleich aus.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun LibrarySwitch(mode: Int, onMode: (Int) -> Unit) {
+    val labels = listOf("Bibliothek", "Interpreten", "Alben")
+    val icons = listOf(Icons.Filled.LibraryMusic, Icons.Filled.Person, Icons.Filled.Album)
+    androidx.compose.material3.SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)) {
+        labels.forEachIndexed { i, l ->
+            androidx.compose.material3.SegmentedButton(
+                selected = mode == i,
+                onClick = { onMode(i) },
+                shape = androidx.compose.material3.SegmentedButtonDefaults.itemShape(i, labels.size),
+                colors = androidx.compose.material3.SegmentedButtonDefaults.colors(activeContainerColor = ORANGE, activeContentColor = Color.Black),
+                icon = { Icon(icons[i], null, Modifier.size(18.dp)) }
+            ) { Text(l, maxLines = 1) }
+        }
+    }
+}
+
+/** Oranger Knopf an der Stelle des Umschalters (Playlists/Hörbücher): „+ Neue Playlist“ usw. */
+@Composable
+fun NewListButton(label: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)) {
+        androidx.compose.material3.Button(
+            onClick = onClick, modifier = Modifier.fillMaxWidth(),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = ORANGE, contentColor = Color.Black)
+        ) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text("  $label") }
+    }
+}
 
 @Composable
-fun LibraryTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, openArtist: String?, onArtistConsumed: () -> Unit, reset: Int, originBack: (() -> Unit)? = null, onArtistClosed: () -> Unit = {}) {
+fun LibraryTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, openArtist: String?, onArtistConsumed: () -> Unit, reset: Int, originBack: (() -> Unit)? = null, onArtistClosed: () -> Unit = {}, onOpenPlaylist: (String) -> Unit = {}) {
     var mode by rememberSaveable { mutableIntStateOf(0) }
     val holder = rememberSaveableStateHolder()
     val songsState = rememberLazyListState()
@@ -196,24 +230,22 @@ fun LibraryTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, openAr
     OnReset(reset) { if (mode == 0) scope.launch { songsState.animateScrollToItem(0) } }
     var modeBefore by rememberSaveable { mutableIntStateOf(0) }
     var fromRequest by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(openArtist) { if (openArtist != null) { if (mode != 1) modeBefore = mode; fromRequest = true; mode = 1 } }
-    // Die beiden Umschalter stehen unter dem Suchfeld
-    val switch: @Composable () -> Unit = {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 2.dp)) {
-            // Ein Knopf, der umschaltet (wie Playlists ⇄ Hörbücher)
-            androidx.compose.material3.Button(
-                onClick = { mode = if (mode == 0) 1 else 0; fromRequest = false },
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = ORANGE, contentColor = Color.Black)
-            ) {
-                Icon(if (mode == 0) Icons.Filled.LibraryMusic else Icons.Filled.Person, null, Modifier.size(20.dp))
-                Text(if (mode == 0) "  Bibliothek" else "  Interpreten")
-            }
-        }
-    }
+    // Interpret/Album aus der Suche oder aus „Alben“ öffnen; Zurück führt wieder dorthin (mit Scroll-Position)
+    var innerRequest by rememberSaveable { mutableStateOf<String?>(null) }
+    val request = openArtist ?: innerRequest
+    LaunchedEffect(request) { if (request != null) { if (mode != 1) modeBefore = mode; fromRequest = true; mode = 1 } }
+    val openInside: (String) -> Unit = { innerRequest = it }
+    val switch: @Composable () -> Unit = { LibrarySwitch(mode) { mode = it; fromRequest = false } }
     Column(Modifier.fillMaxSize()) {
         holder.SaveableStateProvider(mode) {
-            if (mode == 0) SongsTab(vm, actions, sel, songsState, switch)
-            else ArtistsTab(vm, actions, sel, openArtist, onArtistConsumed, reset, switch, originBack, onClosed = { onArtistClosed(); if (fromRequest) { fromRequest = false; mode = modeBefore } })
+            when (mode) {
+                0 -> SongsTab(vm, actions, sel, songsState, switch, openInside, onOpenPlaylist)
+                1 -> ArtistsTab(
+                    vm, actions, sel, request, { innerRequest = null; onArtistConsumed() }, reset, switch, originBack,
+                    onClosed = { onArtistClosed(); if (fromRequest) { fromRequest = false; mode = modeBefore } }
+                )
+                else -> AlbumsTab(vm, actions, reset, switch, openInside)
+            }
         }
     }
 }
@@ -221,44 +253,119 @@ fun LibraryTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, openAr
 // ---------- Titel ----------
 
 @Composable
-fun SongsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, listState: LazyListState, switch: @Composable () -> Unit) {
+fun SongsTab(
+    vm: MusicViewModel, actions: TrackActions, sel: Selection, listState: LazyListState, switch: @Composable () -> Unit,
+    onOpenArtist: (String) -> Unit = {}, onOpenPlaylist: (String) -> Unit = {}
+) {
     var query by rememberSaveable { mutableStateOf("") }
+    var picked by rememberSaveable { mutableStateOf("") }
+    val ssel = remember { Selection() }
+    val searchState = rememberLazyListState()
     val all = remember(vm.tracks, vm.sortBy, vm.sortLevel) { Library.sorted(vm.tracks, vm.sortBy, vm.sortLevel) }
-    val list = remember(all, query) { filterTracks(all, query) }
     var lastSort by rememberSaveable { mutableIntStateOf(vm.sortBy.ordinal * 3 + vm.sortLevel) }
     LaunchedEffect(vm.sortBy, vm.sortLevel) {
         val now = vm.sortBy.ordinal * 3 + vm.sortLevel
         if (now != lastSort) { lastSort = now; listState.scrollToItem(0) }
     }
     Column(Modifier.fillMaxSize()) {
-        SearchField(query, { query = it }, "Titel oder Interpret suchen")
+        // Gleiche Suche wie im Such-Reiter: Vorschläge, Interpreten, Alben, Playlists, Hörbücher, Titel
+        SearchField(query, { query = it }, "Titel, Interpreten, Alben, Playlists", onSubmit = { picked = query; vm.addRecentSearch(query) })
         switch()
-        if (vm.loading && all.isEmpty()) {
+        if (query.isNotBlank()) {
+            GlobalSearchBody(vm, actions, query, { query = it }, picked, ssel, onOpenArtist, onOpenPlaylist, searchState)
+        } else if (vm.loading && all.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        } else if (list.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(if (all.isEmpty()) "Keine Musik gefunden" else "Nichts gefunden")
-            }
+        } else if (all.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Keine Musik gefunden") }
         } else {
             val sortLabel = run {
                 val naturalDown = vm.sortBy == SortBy.Added || vm.sortBy == SortBy.Duration || vm.sortBy == SortBy.Plays
                 val down = if (vm.sortLevel == 1) !naturalDown else naturalDown
                 "Sortierung: " + vm.sortBy.label + if (vm.sortLevel != 2) (if (down) " ↓" else " ↑") else " (aus)"
             }
-            // Beim Suchen nur die Treffer abspielen; ohne Suche die ganze Bibliothek
             TrackListBody(
-                vm, list, if (query.isBlank()) "all" else "s", actions, sel, listState = listState,
+                vm, all, "all", actions, sel, listState = listState,
                 header = {
                     Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            if (query.isBlank()) "${all.size} Titel" else "${list.size} von ${all.size}",
-                            Modifier.weight(1f), style = MaterialTheme.typography.titleSmall
-                        )
+                        Text("${all.size} Titel", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                        IconButton(onClick = { vm.playShuffled(all, "all") }) { Icon(Icons.Filled.Shuffle, "Zufällig") }
                         SortMenu(sortLabel, SortBy.values().map { it.label }, vm.sortBy.ordinal) { vm.cycleSort(SortBy.values()[it]) }
-                        IconButton(onClick = { vm.playShuffled(list, "all") }) { Icon(Icons.Filled.Shuffle, "Zufällig") }
                     }
                 }
             )
+        }
+    }
+}
+
+// ---------- Alben ----------
+
+/** Alle Alben der Bibliothek (Album + Interpret). Gleicher Aufbau wie Interpreten. Tippen öffnet das Album. */
+@Composable
+fun AlbumsTab(vm: MusicViewModel, actions: TrackActions, reset: Int, switch: @Composable () -> Unit, onOpen: (String) -> Unit) {
+    val gridState = rememberLazyGridState()
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    OnReset(reset) { scope.launch { if (vm.albumGrid) gridState.animateScrollToItem(0) else listState.animateScrollToItem(0) } }
+    var query by rememberSaveable { mutableStateOf("") }
+    var letter by rememberSaveable { mutableStateOf<String?>(null) }
+    var sortIdx by rememberSaveable { mutableIntStateOf(0) }
+    val sorts = listOf("Meistgehört", "Name A–Z", "Name Z–A", "Interpret A–Z", "Meiste Lieder", "Zuletzt hinzugefügt")
+    var lastSort by rememberSaveable { mutableIntStateOf(sortIdx) }
+    LaunchedEffect(sortIdx) { if (sortIdx != lastSort) { lastSort = sortIdx; gridState.scrollToItem(0); listState.scrollToItem(0) } }
+    data class Alb(val artist: String, val name: String, val tracks: List<Track>)
+    val albums = remember(vm.tracks) {
+        vm.tracks.filter { it.albumName.isNotBlank() }.groupBy { it.artist to it.albumName }
+            .map { (k, l) -> Alb(k.first, k.second, l.sortedBy { it.sortKey }) }
+    }
+    val available = remember(albums) { albums.map { Names.letterOf(it.name) }.toSet() }
+    val active = letter?.takeIf { it in available }
+    val shown = remember(albums, query, active, sortIdx) {
+        val q = Names.fold(query.trim())
+        val f = albums.filter { (q.isEmpty() || q in Names.fold(it.name) || q in Names.fold(it.artist)) && (active == null || Names.letterOf(it.name) == active) }
+        when (sortIdx) {
+            1 -> f.sortedBy { Names.fold(it.name) }
+            2 -> f.sortedByDescending { Names.fold(it.name) }
+            3 -> f.sortedWith(compareBy({ Names.fold(it.artist) }, { Names.fold(it.name) }))
+            4 -> f.sortedWith(compareByDescending<Alb> { it.tracks.size }.thenBy { Names.fold(it.name) })
+            5 -> f.sortedByDescending { a -> a.tracks.maxOf { it.modified } }
+            else -> f.sortedWith(compareByDescending<Alb> { a -> a.tracks.sumOf { vm.plays(it.path) } }.thenBy { Names.fold(it.name) })
+        }
+    }
+    val sortRow: @Composable () -> Unit = {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("${shown.size} Alben", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+            IconButton(onClick = { vm.showAlbumsAsGrid(!vm.albumGrid) }) {
+                Icon(if (vm.albumGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.albumGrid) "Listenansicht" else "Kachelansicht")
+            }
+            SortMenu("Sortierung: " + sorts[sortIdx], sorts, sortIdx) { sortIdx = it }
+        }
+    }
+    Column(Modifier.fillMaxSize()) {
+        SearchField(query, { query = it }, "Album oder Interpret suchen")
+        switch()
+        LetterBar(active, available) { letter = it }
+        if (shown.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(if (albums.isEmpty()) "Keine Alben – Alben kommen aus den Tags oder aus Album-Ordnern" else "Nichts gefunden", textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(24.dp)) }
+        } else if (vm.albumGrid) {
+            Box(Modifier.fillMaxSize()) {
+                LazyVerticalGrid(GridCells.Adaptive(112.dp), Modifier.fillMaxSize(), state = gridState, contentPadding = PaddingValues(8.dp)) {
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { sortRow() }
+                    items(shown, key = { it.artist + "\u0000" + it.name }) { a ->
+                        GroupTile(a.name, a.tracks, a.tracks.size, false, groupActions(vm, a.tracks, "album:${a.artist}:${a.name}", actions)) { onOpen(a.artist + "\u0000album:" + a.name) }
+                    }
+                }
+                GridScrollbar(gridState, Modifier.align(Alignment.CenterEnd))
+            }
+        } else {
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize(), state = listState) {
+                    item { sortRow() }
+                    items(shown, key = { it.artist + "\u0000" + it.name }) { a ->
+                        GroupRow(a.name + "  ·  " + a.artist, a.tracks, a.tracks.size, false, groupActions(vm, a.tracks, "album:${a.artist}:${a.name}", actions)) { onOpen(a.artist + "\u0000album:" + a.name) }
+                    }
+                }
+                ListScrollbar(listState, Modifier.align(Alignment.CenterEnd))
+            }
         }
     }
 }
@@ -299,7 +406,7 @@ fun ArtistsTab(
     }
     var query by rememberSaveable { mutableStateOf("") }
     var letter by rememberSaveable { mutableStateOf<String?>(null) }
-    var aSort by rememberSaveable { mutableIntStateOf(0) } // 0 A–Z, 1 Z–A, 2 meiste Lieder, 3 meistgehört, 4 keine Sortierung
+    var aSort by rememberSaveable { mutableIntStateOf(3) } // 0 A–Z, 1 Z–A, 2 meiste Lieder, 3 meistgehört (Standard), 4 keine Sortierung
     var lastSort by rememberSaveable { mutableIntStateOf(aSort) }
     LaunchedEffect(aSort) {
         if (aSort != lastSort) {
@@ -307,8 +414,16 @@ fun ArtistsTab(
             gridState.scrollToItem(0); artistsListState.scrollToItem(0)
         }
     }
+    // Direkt in ein Album geöffnet (aus Suche/Alben): Zurück schließt dann ganz und führt zum Ursprung zurück
+    var directView by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(openRequest) {
-        if (openRequest != null) { open = openRequest.substringBefore('\u0000'); view = openRequest.substringAfter('\u0000', ""); onConsumed() }
+        if (openRequest != null) {
+            val a = openRequest.substringBefore('\u0000')
+            val v = openRequest.substringAfter('\u0000', "")
+            lastOpen = a      // verhindert, dass die Ansicht gleich wieder auf den Überblick springt
+            open = a; view = v; directView = v.isNotEmpty()
+            onConsumed()
+        }
     }
     BackHandler(enabled = open != null) { open = null; view = ""; originBack?.invoke() }
 
@@ -333,23 +448,22 @@ fun ArtistsTab(
             }
         }
         val sortOptions = listOf("Name A–Z", "Name Z–A", "Meiste Lieder", "Meistgehört", "Ohne Sortierung")
+        // Zeile über der Liste: Anzahl · Stern (nur Favoriten) · Liste/Kachel · Sortierung – gleich wie bei Alben, Playlists, Hörbüchern
         val sortRow: @Composable () -> Unit = {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("${names.size} Interpreten", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
                 if (vm.onlyFavArtists && names.isNotEmpty()) IconButton(onClick = { vm.playShuffled(names.flatMap { groups[it].orEmpty() }, "favartists") }) { Icon(Icons.Filled.Shuffle, "Favoriten zufällig") }
-                SortMenu("Sortierung: " + sortOptions[aSort], sortOptions, aSort) { aSort = it }
-            }
-        }
-        Column(Modifier.fillMaxSize()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SearchField(query, { query = it }, "Interpret suchen", Modifier.weight(1f))
                 IconButton(onClick = { vm.onlyFavArtists = !vm.onlyFavArtists }) {
                     Icon(if (vm.onlyFavArtists) Icons.Filled.Star else Icons.Filled.StarBorder, "Nur Favoriten-Interpreten", tint = if (vm.onlyFavArtists) ORANGE else LocalContentColor.current)
                 }
                 IconButton(onClick = { vm.showArtistsAsGrid(!vm.artistGrid) }) {
                     Icon(if (vm.artistGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.artistGrid) "Listenansicht" else "Kachelansicht")
                 }
+                SortMenu("Sortierung: " + sortOptions[aSort], sortOptions, aSort) { aSort = it }
             }
+        }
+        Column(Modifier.fillMaxSize()) {
+            SearchField(query, { query = it }, "Interpret suchen")
             switch()
             LetterBar(activeLetter, available) { letter = it }
             if (names.isEmpty()) {
@@ -389,7 +503,9 @@ fun ArtistsTab(
         val albums = remember(fullList) { fullList.groupBy { it.albumName }.filterKeys { it.isNotBlank() }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
         val top = remember(fullList, vm.current) { fullList.filter { vm.plays(it.path) > 0 }.sortedByDescending { vm.plays(it.path) }.take(5) }
         val v = view
-        BackHandler(enabled = v != "") { view = "" }
+        BackHandler(enabled = v != "") {
+            if (directView) { directView = false; view = ""; open = null; originBack?.invoke() } else view = ""
+        }
         val albumDetail = v.startsWith("album:")
         val detailAlbumName = if (albumDetail) v.removePrefix("album:") else ""
         val shown = if (albumDetail) albums[detailAlbumName].orEmpty() else fullList
@@ -428,7 +544,11 @@ fun ArtistsTab(
         Column(Modifier.fillMaxSize()) {
             if (v == "" && sel.active) TrackSelectionBar(vm, fullList, actions, sel)
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { if (v != "") view = "" else { open = null; originBack?.invoke() } }) { Text("‹ Zurück") }
+                // Zurück wie die System-Zurück-Taste: direkt geöffnetes Album schließt ganz (zurück zu Alben/Suche)
+                TextButton(onClick = {
+                    if (v != "" && !directView) view = ""
+                    else { directView = false; view = ""; open = null; originBack?.invoke() }
+                }) { Text("‹ Zurück") }
                 if (v != "") Text(
                     if (albumDetail) detailAlbumName else "$artist · alle Lieder",
                     Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -620,12 +740,11 @@ fun PlaylistsTab(
     val open = vm.playlists.firstOrNull { it.id == openId }
     if (open == null) {
         val base = vm.playlistsByUse().filter { it.audio == audio }
-        var searchOn by rememberSaveable { mutableStateOf(false) }
         var query by rememberSaveable { mutableStateOf("") }
         var letter by rememberSaveable { mutableStateOf("") }
         var sortIdx by rememberSaveable { mutableIntStateOf(0) }
         val sorts = listOf("Meistgehört", "Name A–Z", "Name Z–A", "Zuletzt hinzugefügt", "Anzahl Lieder")
-        val letters = remember(base) { base.map { Names.letterOf(it.name) }.distinct().sorted() }
+        val available = remember(base) { base.map { Names.letterOf(it.name) }.toSet() }
         val fq = Names.fold(query.trim())
         val ordered = remember(base, query, letter, sortIdx) {
             var l = base
@@ -639,35 +758,26 @@ fun PlaylistsTab(
                 else -> l
             }
         }
+        val grid = if (audio) vm.audiobookGrid else vm.playlistGrid
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onNew) { Icon(Icons.Filled.Add, null, Modifier.size(20.dp)); Text(if (audio) "  Neue Liste" else "  Neue Playlist") }
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = { searchOn = !searchOn; if (!searchOn) query = "" }) {
-                    Icon(if (searchOn) Icons.Filled.Close else Icons.Filled.Search, "Suchen", tint = if (searchOn) MaterialTheme.colorScheme.primary else LocalContentColor.current)
-                }
-                IconButton(onClick = { vm.showPlaylistsAsGrid(if (audio) !vm.audiobookGrid else !vm.playlistGrid, audio) }) {
-                    val grid = if (audio) vm.audiobookGrid else vm.playlistGrid
+            // Gleicher Aufbau wie Bibliothek/Interpreten/Alben: Suche (nur in diesem Reiter), oranger Knopf, Buchstaben, Ansicht + Sortierung
+            SearchField(query, { query = it }, if (audio) "Hörbücher & Podcasts suchen" else "Playlists suchen")
+            NewListButton(if (audio) "Neues Hörbuch / Podcast" else "Neue Playlist", onNew)
+            LetterBar(letter.ifEmpty { null }, available) { letter = it ?: "" }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${ordered.size} " + if (audio) "Listen" else "Playlists", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                IconButton(onClick = { vm.showPlaylistsAsGrid(!grid, audio) }) {
                     Icon(if (grid) Icons.Filled.ViewList else Icons.Filled.GridView, if (grid) "Listenansicht" else "Kachelansicht")
                 }
-            }
-            if (searchOn) SearchField(query, { query = it }, if (audio) "Hörbücher & Podcasts suchen" else "Playlists suchen")
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 SortMenu("Sortierung: " + sorts[sortIdx], sorts, sortIdx) { sortIdx = it }
-            }
-            if (letters.size > 1) Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                LetterChip("Alle", letter.isEmpty(), true) { letter = "" }
-                for (c in letters) LetterChip(c, letter == c, true) { letter = if (letter == c) "" else c }
             }
             if (ordered.isEmpty() && (fq.isNotEmpty() || letter.isNotEmpty())) {
                 Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) { Text("Nichts gefunden") }
             } else if (ordered.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                     Text(
-                        "Noch keine Hörbuch- oder Podcast-Listen. Lege eine Liste an und füge Folgen oder Kapitel über „Zu Playlist hinzufügen“ hinzu (dort „Hörbuch-Listen anzeigen“).",
+                        if (audio) "Noch keine Hörbuch- oder Podcast-Listen. Lege eine Liste an und füge Folgen oder Kapitel über „Zu Playlist hinzufügen“ hinzu (dort „Hörbuch-Listen anzeigen“)."
+                        else "Noch keine Playlists. Lege oben mit „+ Neue Playlist“ eine an oder füge Lieder über „Zu Playlist hinzufügen“ hinzu.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

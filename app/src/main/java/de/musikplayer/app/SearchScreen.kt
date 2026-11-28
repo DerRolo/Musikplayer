@@ -37,7 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/** Globale Suche wie bei Spotify: Interpreten, Playlists und Titel in einer Liste. */
+/** Globale Suche wie bei Spotify: Interpreten, Alben, Playlists, Hörbücher und Titel in einer Liste. */
 @Composable
 fun SearchTab(
     vm: MusicViewModel,
@@ -50,6 +50,29 @@ fun SearchTab(
     var picked by rememberSaveable { mutableStateOf("") }
     val ssel = remember { Selection() }
     OnReset(reset) { query = ""; picked = ""; ssel.clear() }
+    val q = Names.fold(query.trim())
+    Column(Modifier.fillMaxSize(), verticalArrangement = if (q.isEmpty()) Arrangement.Center else Arrangement.Top) {
+        SearchField(query, { query = it }, "Titel, Interpreten, Alben, Playlists", onSubmit = { picked = query; vm.addRecentSearch(query) })
+        GlobalSearchBody(vm, actions, query, { query = it }, picked, ssel, onOpenArtist, onOpenPlaylist)
+    }
+}
+
+/**
+ * Inhalt der globalen Suche (ohne Suchfeld). Wird vom Such-Reiter UND vom Suchfeld oben in der Bibliothek benutzt,
+ * damit beide genau dasselbe finden und anzeigen. [onOpenArtist] bekommt „Interpret“ oder „Interpret\u0000album:Album“.
+ */
+@Composable
+fun GlobalSearchBody(
+    vm: MusicViewModel,
+    actions: TrackActions,
+    query: String,
+    setQuery: (String) -> Unit,
+    picked: String,
+    ssel: Selection,
+    onOpenArtist: (String) -> Unit,
+    onOpenPlaylist: (String) -> Unit,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+) {
     val q = Names.fold(query.trim())
 
     val artistHits = remember(vm.searchableTracks, vm.blockTick, q) {
@@ -75,8 +98,7 @@ fun SearchTab(
     }
 
     LaunchedEffect(vm.blockTick) { ssel.clear() }
-    Column(Modifier.fillMaxSize(), verticalArrangement = if (q.isEmpty()) Arrangement.Center else Arrangement.Top) {
-        SearchField(query, { query = it }, "Titel, Interpreten, Playlists", onSubmit = { picked = query; vm.addRecentSearch(query) })
+    Column(Modifier.fillMaxWidth()) {
         val sugs = remember(vm.searchableTracks, vm.blockTick, albumHits, q) {
             if (q.isEmpty()) emptyList()
             else {
@@ -98,7 +120,7 @@ fun SearchTab(
             } else {
                 Header("Zuletzt gesucht")
                 for (r in recent) {
-                    Row(Modifier.fillMaxWidth().clickable { query = r }.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().clickable { setQuery(r) }.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.History, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(r, Modifier.weight(1f).padding(start = 16.dp), maxLines = 1)
                         IconButton(onClick = { vm.removeRecentSearch(r) }) { Icon(Icons.Filled.Close, "Entfernen") }
@@ -109,7 +131,7 @@ fun SearchTab(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nichts gefunden") }
         } else {
             val playingId = vm.current?.mediaId?.substringAfterLast(':')?.toLongOrNull()
-            LazyColumn(Modifier.fillMaxSize()) {
+            LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 if (showSug && sugs.isNotEmpty()) {
                     item(key = "h_s") { Header("Vorschläge") }
                     items(sugs, key = { "s_" + it.kind + "_" + it.name + "_" + it.artist }) { sg ->
@@ -117,7 +139,7 @@ fun SearchTab(
                             vm.addRecentSearch(sg.name)
                             when (sg.kind) {
                                 0 -> onOpenArtist(sg.name)
-                                1 -> onOpenArtist(sg.artist)
+                                1 -> onOpenArtist(sg.artist + "\u0000album:" + sg.name)
                                 else -> vm.play(sg.tracks, 0, "s")
                             }
                         }
@@ -132,12 +154,16 @@ fun SearchTab(
                 if (albumHits.isNotEmpty()) {
                     item(key = "h_al") { Header("Alben") }
                     itemsIndexed(albumHits, key = { _, h -> "al_" + h.first + "|" + h.second }) { _, (artistName, albumName, list) ->
-                        GroupRow(albumName + "  ·  " + artistName, list, list.size, false, groupActions(vm, list, "a:$artistName", actions)) { onOpenArtist(artistName) }
+                        // direkt ins Album (Zurück führt wieder hierher)
+                        GroupRow(albumName + "  ·  " + artistName, list, list.size, false, groupActions(vm, list, "album:$artistName:$albumName", actions)) { onOpenArtist(artistName + "\u0000album:" + albumName) }
                     }
                 }
-                if (playlistHits.isNotEmpty()) {
-                    item(key = "h_p") { Header("Playlists") }
-                    itemsIndexed(playlistHits, key = { _, p -> "p_" + p.id }) { _, p ->
+                // Playlists und Hörbücher getrennt, wie die beiden Reiter
+                for ((audio, title) in listOf(false to "Playlists", true to "Hörbücher & Podcasts")) {
+                    val hits = playlistHits.filter { it.audio == audio }
+                    if (hits.isEmpty()) continue
+                    item(key = "h_p$audio") { Header(title) }
+                    itemsIndexed(hits, key = { _, p -> "p_" + p.id }) { _, p ->
                         val list = vm.playlistEntries(p.id).map { it.second }
                         GroupRow(p.name, list, p.trackPaths.size, false, groupActions(vm, list, "p:${p.id}", null)) { onOpenPlaylist(p.id) }
                     }

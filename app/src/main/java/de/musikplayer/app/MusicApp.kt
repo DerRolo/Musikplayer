@@ -213,7 +213,9 @@ fun MusicApp(vm: MusicViewModel) {
             } else holder.SaveableStateProvider(tab) { when (tab) {
                 0 -> LibraryTab(vm, actions, sel, artistToOpen, { artistToOpen = null }, resets[0],
                     originBack = backTo?.let { b -> { backTo = null; tab = b.first; showPlayer = b.second } },
-                    onArtistClosed = { backTo = null })
+                    onArtistClosed = { backTo = null },
+                    // Playlist/Hörbuch aus der Suche oben in der Bibliothek: Zurück führt wieder zur Suche
+                    onOpenPlaylist = { id -> backTo = tab to showPlayer; playlistToOpen = id; tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 3 else 2; showPlayer = false })
                 1 -> SearchTab(
                     vm, actions, resets[1],
                     onOpenArtist = { backTo = tab to showPlayer; artistToOpen = it; tab = 0; showPlayer = false },

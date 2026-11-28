@@ -52,6 +52,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     var blockTick by mutableIntStateOf(0)
         private set
     var artistGrid by mutableStateOf(true)
+    var albumGrid by mutableStateOf(true)
+        private set
     var favArtists by mutableStateOf<Set<String>>(emptySet())
     var onlyFavArtists by mutableStateOf(false)
     var rowScale by mutableStateOf(1.0f)
@@ -116,6 +118,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         sortBy = Store.sortBy
         sortLevel = Store.sortLevel
         artistGrid = Store.artistGrid
+        albumGrid = Store.albumGrid
         favArtists = Store.favArtists.toSet()
         rowScale = Store.rowScale
         playlistGrid = Store.playlistGrid
@@ -958,6 +961,11 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         val on = Store.toggleFavArtist(app, name)
         favArtists = Store.favArtists.toSet()
         message = if (on) "„$name“ zu Favoriten-Interpreten hinzugefügt" else "„$name“ aus Favoriten-Interpreten entfernt"
+    }
+
+    fun showAlbumsAsGrid(grid: Boolean) {
+        Store.setAlbumGrid(app, grid)
+        albumGrid = grid
     }
 
     fun showArtistsAsGrid(grid: Boolean) {

@@ -26,6 +26,8 @@ object Store {
         private set
     var fadeMinutes: Int = 30
         private set
+    var albumGrid: Boolean = true
+        private set
     var artistGrid: Boolean = true
         private set
     /** Wurde die Equalizer-Berechtigung schon einmal abgefragt? (Nicht bei jedem Öffnen erneut fragen.) */
@@ -156,6 +158,7 @@ object Store {
             sleepMinutes = o.optInt("sleepMinutes", 30)
             fadeMinutes = o.optInt("fadeMinutes", 30)
             artistGrid = o.optBoolean("artistGrid", true)
+            albumGrid = o.optBoolean("albumGrid", true)
             eqAsked = o.optBoolean("eqAsked", false)
             sortBy = try { SortBy.valueOf(o.optString("sortBy", "Title")) } catch (e: Exception) { SortBy.Title }
             sortLevel = o.optInt("sortLevel", 0)
@@ -245,6 +248,7 @@ object Store {
         o.put("sleepMinutes", sleepMinutes)
         o.put("fadeMinutes", fadeMinutes)
         o.put("artistGrid", artistGrid)
+        o.put("albumGrid", albumGrid)
         o.put("eqAsked", eqAsked)
         o.put("sortBy", sortBy.name)
         o.put("sortLevel", sortLevel)
@@ -603,6 +607,8 @@ object Store {
         save(ctx)
         return on
     }
+
+    fun setAlbumGrid(ctx: Context, grid: Boolean) { albumGrid = grid; save(ctx) }
 
     fun setArtistGrid(ctx: Context, grid: Boolean) {
         artistGrid = grid

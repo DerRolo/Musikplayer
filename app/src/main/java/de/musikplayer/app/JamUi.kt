@@ -186,6 +186,8 @@ fun JamDialogs(onOpenJam: () -> Unit) {
 @Composable
 fun JamPage(vm: MusicViewModel, onBack: () -> Unit) {
     var browse by rememberSaveable { mutableStateOf<String?>(null) }
+    // Scroll-Position der Jam-Seite bleibt erhalten, wenn man eine Bibliothek öffnet und zurückkommt
+    val pageScroll = rememberScrollState()
     val owner = browse
     if (owner != null) {
         BackHandler { browse = null }
@@ -193,7 +195,7 @@ fun JamPage(vm: MusicViewModel, onBack: () -> Unit) {
         return
     }
     val ctx = LocalContext.current.applicationContext
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxSize().verticalScroll(pageScroll)) {
         PageHeader("Jam", onBack)
         Text(
             "Zusammen Musik hören mit Handys im selben WLAN – wie bei Spotify. Es gibt eine gemeinsame Ausgabe: ein Handy oder " +
@@ -411,6 +413,10 @@ private fun JamLibraryPage(vm: MusicViewModel, owner: String, onBack: () -> Unit
     var tab by rememberSaveable { mutableStateOf(LibTab.Songs) }
     var query by rememberSaveable { mutableStateOf("") }
     var openGroup by remember { mutableStateOf<RemoteGroup?>(null) }
+    // Pro Reiter eigene Scroll-Position, Buchstabe und Sortierung – bleiben beim Öffnen eines Albums/einer Playlist und Zurück erhalten
+    val states = remember { LibTab.values().associateWith { androidx.compose.foundation.lazy.LazyListState() } }
+    val letters = remember { androidx.compose.runtime.mutableStateMapOf<LibTab, String>() }
+    val sorts = remember { androidx.compose.runtime.mutableStateMapOf<LibTab, Int>() }
     val g = openGroup
     if (g != null) {
         BackHandler { openGroup = null }
@@ -421,65 +427,99 @@ private fun JamLibraryPage(vm: MusicViewModel, owner: String, onBack: () -> Unit
         PageHeader("Bibliothek von $name", onBack) { TextButton(onClick = { reload++ }) { Text("Neu laden") } }
         val l = lib
         if (l == null) {
-            Text("Lade Bibliothek von $name …", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp))
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                Text("  Lade Bibliothek von $name …", style = MaterialTheme.typography.bodyMedium)
+            }
             return@Column
         }
+        // Gleicher Aufbau wie die eigene Bibliothek: Suche, Reiter, Buchstaben, Anzahl + Sortierung
+        SearchField(query, { query = it }, "In der Bibliothek von $name suchen")
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             LibTab.values().forEach { t -> LetterChip(t.label, tab == t, true) { tab = t } }
         }
-        OutlinedTextField(
-            value = query, onValueChange = { query = it }, singleLine = true, placeholder = { Text("Suchen") },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
-        )
         val f = Names.fold(query.trim())
         fun hit(vararg s: String) = f.isEmpty() || s.any { Names.fold(it).contains(f) }
-        val haveCount = owned.size
-        Text(
-            "${l.tracks.size} Lieder · $haveCount davon hast du schon",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-        )
-        when (tab) {
-            LibTab.Songs -> {
-                val list = remember(l, f) { l.tracks.filter { hit(it.title, it.artist, it.albumName) }.sortedBy { Names.fold(it.title) } }
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(list, key = { it.id }) { t -> RemoteTrackRow(owner, t, owned[t.id] != null, onPlay = { Jam.playEntries(list.map { JamEntry.of(owner, it) }, list.indexOf(t)) }) }
+        val letter = letters[tab]
+        val sortIdx = sorts[tab] ?: 0
+        val listState = states.getValue(tab)
+        fun played(n: Int) = if (n > 0) " · ${n}× gehört" else ""
+        if (tab == LibTab.Songs) {
+            val opts = listOf("Meistgehört von $name", "Titel A–Z", "Interpret A–Z", "Länge", "Zuletzt hinzugefügt")
+            val avail = remember(l) { l.tracks.map { Names.letterOf(it.title) }.toSet() }
+            val active = letter?.takeIf { it in avail }
+            val list = remember(l, f, active, sortIdx) {
+                val x = l.tracks.filter { hit(it.title, it.artist, it.albumName) && (active == null || Names.letterOf(it.title) == active) }
+                when (sortIdx) {
+                    1 -> x.sortedBy { Names.fold(it.title) }
+                    2 -> x.sortedWith(compareBy({ Names.fold(it.artist) }, { Names.fold(it.title) }))
+                    3 -> x.sortedByDescending { it.durationMs }
+                    4 -> x.sortedByDescending { it.added }
+                    else -> x.sortedWith(compareByDescending<RemoteTrack> { it.plays }.thenBy { Names.fold(it.title) })
                 }
             }
-            else -> {
-                val groups = remember(l, tab, f, owned) {
-                    when (tab) {
-                        LibTab.Albums -> l.tracks.filter { it.albumName.isNotBlank() }.groupBy { it.artist + "\u0000" + it.albumName }.map { (k, ts) ->
-                            RemoteGroup("al:$k", ts[0].albumName, "${ts[0].artist} · ${ts.size} Lieder · ${ts.count { owned[it.id] != null }} vorhanden", ts)
-                        }
-                        LibTab.Artists -> l.tracks.groupBy { it.artist }.map { (a, ts) ->
-                            RemoteGroup("a:$a", a, "${ts.size} Lieder · ${ts.count { owned[it.id] != null }} vorhanden", ts.sortedBy { Names.fold(it.title) })
-                        }
-                        // Playlists und Hörbücher/Podcasts getrennt – wie in der eigenen Bibliothek
-                        else -> l.playlists.filter { it.audio == (tab == LibTab.Audiobooks) }.map { p ->
-                            val ts = p.trackIds.mapNotNull { l.byId[it] }
-                            RemotePlaylist(p.id, if (p.favorites) "Lieblingssongs" else p.name, p.audio, p.favorites, p.trackIds).let { pl ->
-                                RemoteGroup("p:${p.id}", pl.name, "${ts.size} " + (if (p.audio) "Titel" else "Lieder") + " · ${ts.count { owned[it.id] != null }} vorhanden", ts, p)
-                            }
-                        }
-                    }.filter { gr -> hit(gr.name, gr.sub) }.sortedBy { Names.fold(it.name) }
+            LetterBar(active, avail) { if (it == null) letters.remove(tab) else letters[tab] = it }
+            JamSortRow("${list.size} Lieder · ${owned.size} hast du schon", opts, sortIdx) { sorts[tab] = it }
+            LazyColumn(Modifier.fillMaxSize(), state = listState) {
+                items(list, key = { it.id }) { t -> RemoteTrackRow(owner, t, owned[t.id] != null, onPlay = { Jam.playEntries(list.map { JamEntry.of(owner, it) }, list.indexOf(t)) }) }
+            }
+        } else {
+            val opts = listOf("Meistgehört von $name", "Name A–Z", "Name Z–A", "Meiste Lieder")
+            val groups = remember(l, tab, owned) {
+                when (tab) {
+                    LibTab.Albums -> l.tracks.filter { it.albumName.isNotBlank() }.groupBy { it.artist + "\u0000" + it.albumName }.map { (k, ts) ->
+                        RemoteGroup("al:$k", ts[0].albumName, "${ts[0].artist} · ${ts.size} Lieder · ${ts.count { owned[it.id] != null }} vorhanden" + played(ts.sumOf { it.plays }), ts)
+                    }
+                    LibTab.Artists -> l.tracks.groupBy { it.artist }.map { (a, ts) ->
+                        RemoteGroup("a:$a", a, "${ts.size} Lieder · ${ts.count { owned[it.id] != null }} vorhanden" + played(ts.sumOf { it.plays }), ts.sortedByDescending { it.plays })
+                    }
+                    // Playlists und Hörbücher/Podcasts getrennt – wie in der eigenen Bibliothek
+                    else -> l.playlists.filter { it.audio == (tab == LibTab.Audiobooks) }.map { p ->
+                        val ts = p.trackIds.mapNotNull { l.byId[it] }
+                        RemoteGroup(
+                            "p:${p.id}", if (p.favorites) "Lieblingssongs" else p.name,
+                            "${ts.size} " + (if (p.audio) "Titel" else "Lieder") + " · ${ts.count { owned[it.id] != null }} vorhanden" + played(ts.sumOf { it.plays }), ts, p
+                        )
+                    }
                 }
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(groups, key = { it.key }) { gr ->
-                        Row(Modifier.fillMaxWidth().clickable { openGroup = gr }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            val first = gr.tracks.firstOrNull()
-                            if (first != null) RemoteCover(owner, first.id, gr.name, Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)))
-                            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                                Text(gr.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(gr.sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            val all = gr.tracks.isNotEmpty() && gr.tracks.all { owned[it.id] != null }
-                            if (all) Icon(Icons.Filled.CheckCircle, "Alles vorhanden", tint = OWNED)
+            }
+            val avail = remember(groups) { groups.map { Names.letterOf(it.name) }.toSet() }
+            val active = letter?.takeIf { it in avail }
+            val shown = remember(groups, f, active, sortIdx) {
+                val x = groups.filter { gr -> hit(gr.name, gr.sub) && (active == null || Names.letterOf(gr.name) == active) }
+                when (sortIdx) {
+                    1 -> x.sortedBy { Names.fold(it.name) }
+                    2 -> x.sortedByDescending { Names.fold(it.name) }
+                    3 -> x.sortedWith(compareByDescending<RemoteGroup> { it.tracks.size }.thenBy { Names.fold(it.name) })
+                    else -> x.sortedWith(compareByDescending<RemoteGroup> { gr -> gr.tracks.sumOf { it.plays } }.thenBy { Names.fold(it.name) })
+                }
+            }
+            LetterBar(active, avail) { if (it == null) letters.remove(tab) else letters[tab] = it }
+            JamSortRow("${shown.size} " + tab.label, opts, sortIdx) { sorts[tab] = it }
+            LazyColumn(Modifier.fillMaxSize(), state = listState) {
+                items(shown, key = { it.key }) { gr ->
+                    Row(Modifier.fillMaxWidth().clickable { openGroup = gr }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        val first = gr.tracks.firstOrNull()
+                        if (first != null) RemoteCover(owner, first.id, gr.name, Modifier.size(48.dp).clip(if (tab == LibTab.Artists) androidx.compose.foundation.shape.CircleShape else RoundedCornerShape(8.dp)))
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                            Text(gr.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(gr.sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
+                        val all = gr.tracks.isNotEmpty() && gr.tracks.all { owned[it.id] != null }
+                        if (all) Icon(Icons.Filled.CheckCircle, "Alles vorhanden", tint = OWNED)
                     }
                 }
             }
         }
+    }
+}
+
+/** Anzahl links, Sortierung rechts – wie in der eigenen Bibliothek. */
+@Composable
+private fun JamSortRow(count: String, options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(count, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        SortMenu("Sortierung: " + options[selected], options, selected, onSelect)
     }
 }
 
@@ -529,7 +569,7 @@ private fun RemoteTrackRow(owner: String, t: RemoteTrack, have: Boolean, onPlay:
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(t.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                t.artist + (if (t.albumName.isNotBlank()) " · ${t.albumName}" else "") + " · " + formatDuration(t.durationMs),
+                t.artist + (if (t.albumName.isNotBlank()) " · ${t.albumName}" else "") + " · " + formatDuration(t.durationMs) + (if (t.plays > 0) " · ${t.plays}×" else ""),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis
             )
         }

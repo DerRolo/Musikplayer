@@ -32,6 +32,25 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
+## Update 13 – Einheitliche Bibliothek, gemeinsame Suche, Jam-Bibliothek mit Sortierung *(umgesetzt, Gerätetest offen)*
+
+- [~] **Bibliothek mit drei Reitern:** Bibliothek · Interpreten · **Alben** (neu). Der orange Umschalter zeigt den aktiven Reiter. Alben haben Suche, Buchstabenleiste, Kachel/Liste und Sortierung (Meistgehört, Name, Interpret, Meiste Lieder, Zuletzt hinzugefügt). Tippen öffnet das Album, Zurück führt an dieselbe Stelle in „Alben“.
+- [~] **Eine Suche für alles:** Das Suchfeld oben in der Bibliothek zeigt genau dasselbe wie der Such-Reiter, mit Vorschlägen, Interpreten, Alben, Playlists, Hörbüchern und Titeln. Zurück führt wieder zur Suche. Album-Treffer öffnen jetzt direkt das Album statt nur den Interpreten.
+- [~] **Gleicher Aufbau in allen Reitern** (Interpreten, Alben, Playlists, Hörbücher):
+  1. Suchfeld über die ganze Breite.
+  2. Oranger Knopf: der Umschalter bzw. „+ Neue Playlist“ / „+ Neues Hörbuch / Podcast“.
+  3. Buchstabenleiste (Buchstaben ohne Treffer ausgegraut).
+  4. Zeile mit Anzahl · Stern (nur Interpreten) · Kachel/Liste · Sortierung.
+- [~] Die Lupe bei Playlists und Hörbüchern entfällt. Dort sucht das Feld nur in Playlists bzw. nur in Hörbüchern.
+- [~] **Standard-Sortierung „Meistgehört“** bei Interpreten, Alben, Playlists und Hörbüchern.
+- [~] **Jam – Bibliothek der anderen:**
+  - Die Scroll-Position bleibt erhalten: Album, Interpret oder Playlist öffnen, Zurück (oben links oder Handy-Taste), und man ist wieder genau dort. Jeder Reiter merkt sich seine Stelle, auch die Jam-Seite selbst.
+  - Buchstabenleiste wie in der eigenen Bibliothek.
+  - Sortierung: „Meistgehört von <Name>“ (Standard), Name, Interpret, Länge, Zuletzt hinzugefügt bzw. Meiste Lieder.
+  - Die Wiedergabezahlen des anderen werden angezeigt („12× gehört“), nur zum Entdecken. Beim Übernehmen kommen sie nicht mit.
+- Kleinigkeit: Der Leertext bei Playlists sprach von Hörbüchern, das ist korrigiert.
+- **Offen zur Entscheidung:** Der Such-Reiter unten ist jetzt doppelt, weil die Bibliothek dasselbe kann. Vorschlag: ihn durch einen **Jam-Reiter** ersetzen und den Jam aus den Optionen dorthin holen.
+
 ## Update 12 – Jam-Feinschliff nach dem ersten Test *(umgesetzt, Gerätetest offen)*
 
 - [~] **Unterbrechung (Anruf, Video in einer anderen App):** Ist die Musik an der Ausgabe dadurch angehalten, zeigen alle „Pause“, und jeder kann sie mit Play wieder starten. Der Player wird dabei neu angestoßen. Das gilt auch ohne Jam. Solange ein Anruf läuft, gibt Android den Ton nicht frei.

@@ -21,7 +21,11 @@ data class RemoteTrack(
     /** true = Interpret wurde dort von Hand zugeordnet (nicht aus dem Tag). */
     val manual: Boolean,
     /** true = dort ist ein eigenes Cover gesetzt (wird beim Übernehmen mitgeladen). */
-    val customCover: Boolean
+    val customCover: Boolean,
+    /** Wie oft der Besitzer das Lied gehört hat – nur zum Entdecken/Sortieren, wird beim Übernehmen NICHT übernommen. */
+    val plays: Int = 0,
+    /** Wann es beim Besitzer hinzugekommen ist (Datei-Zeitstempel). */
+    val added: Long = 0L
 ) {
     /** Als Track-Objekt nur für den Duplikat-Abgleich (Pfad ist ein Platzhalter). */
     fun asProbe(): Track = Track(
@@ -31,16 +35,17 @@ data class RemoteTrack(
 
     fun toJson(): JSONObject = JSONObject()
         .put("id", id).put("t", title).put("a", artist).put("al", albumName).put("d", durationMs)
-        .put("s", size).put("f", fileName).put("m", manual).put("c", customCover)
+        .put("s", size).put("f", fileName).put("m", manual).put("c", customCover).put("p", plays).put("ad", added)
 
     companion object {
         fun from(o: JSONObject) = RemoteTrack(
             o.getLong("id"), o.optString("t"), o.optString("a", UNKNOWN_ARTIST), o.optString("al"), o.optLong("d"),
-            o.optLong("s"), o.optString("f"), o.optBoolean("m"), o.optBoolean("c")
+            o.optLong("s"), o.optString("f"), o.optBoolean("m"), o.optBoolean("c"), o.optInt("p"), o.optLong("ad")
         )
 
         fun of(t: Track) = RemoteTrack(
-            t.id, t.title, t.artist, t.albumName, t.durationMs, t.size, t.fileName, t.manual, t.path in Store.trackCovers
+            t.id, t.title, t.artist, t.albumName, t.durationMs, t.size, t.fileName, t.manual, t.path in Store.trackCovers,
+            Store.playCounts[t.path] ?: 0, t.modified
         )
     }
 }
