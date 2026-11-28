@@ -98,6 +98,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        // Beim Verlassen offene Änderungen sichern (für eine Neuinstallation)
+        Backup.flush(this)
         Jam.setForeground(this, false)
         super.onStop()
     }

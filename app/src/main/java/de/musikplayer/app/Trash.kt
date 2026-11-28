@@ -40,11 +40,18 @@ data class TrashItem(
 object Trash {
     const val DAYS = 30
 
-    /** Papierkorb-Ordner auf demselben Speicher wie [path]. */
+    /**
+     * Papierkorb-Ordner auf demselben Speicher wie [path]: „<Speicher>/Musikplayer-Sicherung/Papierkorb“.
+     * Liegt dort, damit der Papierkorb auch ein Deinstallieren/Neuinstallieren übersteht (wie die Sicherung).
+     * Geht das nicht, ersatzweise der App-Ordner auf demselben Speicher.
+     */
     private fun dirFor(ctx: Context, path: String): File {
-        val root = Library.volumeRoot(ctx, path).path
-        val dirs = ctx.getExternalFilesDirs("Papierkorb").filterNotNull()
-        val d = dirs.firstOrNull { it.path.startsWith("$root/") } ?: dirs.firstOrNull() ?: File(ctx.filesDir, "Papierkorb")
+        val root = Library.volumeRoot(ctx, path)
+        val shared = File(File(root, Backup.DIR), "Papierkorb")
+        val d = if (shared.isDirectory || shared.mkdirs()) shared else {
+            val dirs = ctx.getExternalFilesDirs("Papierkorb").filterNotNull()
+            dirs.firstOrNull { it.path.startsWith(root.path + "/") } ?: dirs.firstOrNull() ?: File(ctx.filesDir, "Papierkorb")
+        }
         d.mkdirs()
         val nomedia = File(d, ".nomedia")
         if (!nomedia.exists()) try { nomedia.createNewFile() } catch (e: Exception) { }
@@ -116,6 +123,9 @@ object Trash {
 
     /** Alles, was länger als [DAYS] Tage im Papierkorb liegt, endgültig löschen. */
     fun purgeOld(ctx: Context): Int {
+        // Einträge, deren Datei es nicht mehr gibt (z. B. alter Papierkorb nach Neuinstallation), still entfernen
+        val missing = Store.trash.filter { !File(it.file).exists() }
+        if (missing.isNotEmpty()) Store.removeTrash(ctx, missing.map { it.id }.toSet())
         val limit = System.currentTimeMillis() - DAYS * TrashItem.DAY_MS
         val old = Store.trash.filter { it.deletedAt < limit }
         return if (old.isEmpty()) 0 else deleteForever(ctx, old)

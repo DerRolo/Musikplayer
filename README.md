@@ -47,6 +47,13 @@ Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im 
 - **Sichtbarkeit:** Mit „Im WLAN sichtbar“ schaltest du das Finden und die Pop-ups ab.
 - Für das Streaming im lokalen Netz erlaubt die App unverschlüsselte Verbindungen (`http`). Das betrifft nur Verbindungen zwischen den Handys im WLAN, der Zugang ist durch einen Jam-Schlüssel geschützt.
 
+## Sicherung (Neuinstallation)
+
+- Die App sichert automatisch alles, was sie selbst speichert, in den Ordner `Musikplayer-Sicherung` im Handyspeicher: Playlists, Hörbücher, Lieblingssongs, Zähler, Zuordnungen, Cover, Sperrliste, Einstellungen und Profil. Der Papierkorb liegt ebenfalls dort.
+- Nach dem Neuinstallieren fragt die App beim ersten Start, ob alles wiederhergestellt werden soll.
+- Optionen → Sicherung (ganz unten): „Jetzt sichern“, Sicherungen wiederherstellen oder löschen, automatische Sicherung an/aus.
+- Wichtig: Die Musikdateien müssen an denselben Stellen liegen, denn die Zuordnungen hängen an den Pfaden.
+
 ## App-Update
 
 - Die App sucht beim Start in den GitHub-Releases nach einer neuen Version. Gibt es eine, erscheint „Update bereit“ → „Installieren“, danach kommt die Bestätigung von Android.

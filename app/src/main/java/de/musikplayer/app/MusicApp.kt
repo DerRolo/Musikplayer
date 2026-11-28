@@ -253,6 +253,7 @@ fun MusicApp(vm: MusicViewModel) {
     normalizeFor?.let { list -> NormalizeDialog(vm, list) { normalizeFor = null } }
     JamDialogs(onOpenJam = openJam)
     UpdateDialog()
+    RestoreOnFirstStart()
     vm.pickerRequest?.let { list -> AddToPlaylistDialog(vm, list, onDismiss = { vm.pickerRequest = null }) }
     addToPlaylist?.let { list ->
         AddToPlaylistDialog(vm, list, onDismiss = { addToPlaylist = null })

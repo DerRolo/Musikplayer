@@ -32,6 +32,19 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
+## Update 15 – Sicherung für eine Neuinstallation *(umgesetzt, Gerätetest offen)*
+
+- [~] **Automatische Sicherung**: Die App sichert ihre Daten in den Ordner `Musikplayer-Sicherung` im Handyspeicher. Der bleibt beim Deinstallieren erhalten.
+  - Gesichert werden Playlists, Hörbücher, Lieblingssongs, Wiedergabezahlen, Interpreten- und Album-Zuordnungen, eigene Cover, Sperrliste, Sortierungen, Einstellungen und Profil.
+  - Das passiert nach Änderungen im Hintergrund (höchstens alle 10 Minuten) und beim Verlassen der App. Die letzten 5 Sicherungen bleiben, jede ist eine ZIP-Datei.
+- [~] **Neuinstallation:** Beim ersten Start fragt die App „Sicherung gefunden – wiederherstellen?“.
+  - „Wiederherstellen“ richtet alles wie vorher ein und startet die App neu.
+  - „Neu anfangen“ ignoriert die Sicherung.
+  - Solange die Frage nicht beantwortet ist, wird nicht automatisch gesichert. So kann ein leerer Neustart keine alten Sicherungen verdrängen.
+- [~] **Optionen → Sicherung** (ganz unten): Erklärung, „Automatisch sichern“ an/aus, **„Jetzt sichern“**, Liste der Sicherungen mit „Wiederherstellen“, „Alle Sicherungen löschen“. Vor einem Wiederherstellen wird der aktuelle Stand selbst noch gesichert.
+- [~] **Papierkorb** liegt jetzt ebenfalls im Sicherungsordner (`Musikplayer-Sicherung/Papierkorb`, auf SD-Karten im gleichen Ordner dort) und übersteht damit ein Neuinstallieren. Er ist weiterhin für andere Musik-Apps unsichtbar. Einträge, deren Datei fehlt, räumt die App still weg.
+- Voraussetzung: Die Musikdateien liegen nach der Neuinstallation an denselben Stellen. Die Zuordnungen hängen an den Dateipfaden.
+
 ## Update 14 – Sortierung merken, App-Update aus GitHub, Build-Fix *(umgesetzt, Gerätetest offen)*
 
 - [~] **Build-Fehler behoben:** In der neuen Warteschlange wurde die Zieh-Funktion falsch aufgerufen (Kotlin-Fehler `detectDragGesturesAfterLongPress`).

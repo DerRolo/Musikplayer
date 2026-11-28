@@ -31,6 +31,12 @@ object Store {
     /** Zuletzt gewählte Sortierung je Ansicht (Interpreten, Alben, Playlists, Hörbücher, Jam-Reiter …). */
     var sortPrefs: Map<String, Int> = emptyMap()
         private set
+    /** Sicherung: schon nach einer Wiederherstellung gefragt? (false nur bei frischer Installation) */
+    var restoreOffered: Boolean = true
+        private set
+    /** Automatisch sichern (Standard an). */
+    var autoBackup: Boolean = true
+        private set
     /** App-Updates: beim Start automatisch auf GitHub nach einer neuen Version suchen. */
     var autoUpdate: Boolean = true
         private set
@@ -149,7 +155,8 @@ object Store {
         if (loaded) return
         loaded = true
         val f = File(ctx.filesDir, FILE)
-        if (!f.exists()) { ensureFavorites(); return }
+        // Frische Installation: noch keine Daten → beim Start nach einer Sicherung fragen
+        if (!f.exists()) { ensureFavorites(); restoreOffered = false; return }
         try {
             val o = JSONObject(f.readText())
             playlists = o.optJSONArray("playlists").mapObjects { p ->
@@ -167,6 +174,8 @@ object Store {
             albumGrid = o.optBoolean("albumGrid", true)
             sortPrefs = o.optJSONObject("sortPrefs")?.let { j -> j.keys().asSequence().associateWith { j.optInt(it) } }.orEmpty()
             autoUpdate = o.optBoolean("autoUpdate", true)
+            restoreOffered = o.optBoolean("restoreOffered", true)
+            autoBackup = o.optBoolean("autoBackup", true)
             eqAsked = o.optBoolean("eqAsked", false)
             sortBy = try { SortBy.valueOf(o.optString("sortBy", "Title")) } catch (e: Exception) { SortBy.Title }
             sortLevel = o.optInt("sortLevel", 0)
@@ -259,6 +268,8 @@ object Store {
         o.put("albumGrid", albumGrid)
         o.put("sortPrefs", JSONObject(sortPrefs))
         o.put("autoUpdate", autoUpdate)
+        o.put("restoreOffered", restoreOffered)
+        o.put("autoBackup", autoBackup)
         o.put("eqAsked", eqAsked)
         o.put("sortBy", sortBy.name)
         o.put("sortLevel", sortLevel)
@@ -307,7 +318,16 @@ object Store {
         val tmp = File(ctx.filesDir, "$FILE.tmp")
         tmp.writeText(o.toString())
         tmp.renameTo(File(ctx.filesDir, FILE))
+        // Automatische Sicherung anstoßen (gebündelt, nicht bei jeder Kleinigkeit sofort)
+        Backup.changed(ctx)
     }
+
+    fun setRestoreOffered(ctx: Context) { restoreOffered = true; save(ctx) }
+    fun setAutoBackup(ctx: Context, on: Boolean) { autoBackup = on; save(ctx) }
+
+    /** Nach dem Wiederherstellen einer Sicherung alles neu einlesen. */
+    @Synchronized
+    fun reload(ctx: Context) { loaded = false; load(ctx) }
 
     // ---------- Playlists ----------
 

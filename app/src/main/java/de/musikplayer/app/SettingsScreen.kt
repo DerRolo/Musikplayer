@@ -6,6 +6,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.AccountCircle
@@ -75,7 +76,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Jam, Trash, Profile, Update }
+private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Jam, Trash, Profile, Update, Backup }
 
 @Composable
 fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset: Int) {
@@ -109,6 +110,12 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
             MenuEntry(Icons.Filled.DeleteOutline, "Papierkorb", "Gelöschte Lieder ${Trash.DAYS} Tage lang wiederherstellen, anhören oder endgültig löschen") { page = Page.Trash }
             MenuEntry(Icons.Filled.Lock, "Gesperrt", "Gesperrte Lieder, Interpreten und Ordner ansehen und entsperren") { page = Page.Blocked }
             MenuEntry(Icons.Filled.Tune, "Developer Options", "Developer tools and UI settings") { page = Page.Developer }
+            // Ganz unten: Sicherung für eine Neuinstallation
+            val lastBackup = remember(Backup.tick) { Backup.list().firstOrNull()?.let { Backup.label(it) } }
+            MenuEntry(
+                Icons.Filled.SettingsBackupRestore, "Sicherung",
+                "Für eine Neuinstallation: Playlists, Zuordnungen, Einstellungen usw. sichern · " + (lastBackup?.let { "zuletzt $it" } ?: "noch keine Sicherung")
+            ) { page = Page.Backup }
             var silence by remember { mutableStateOf(Store.skipSilence) }
             var showSilence by remember { mutableStateOf(false) }
             if (showSilence) SilenceDialog { showSilence = false }
@@ -154,6 +161,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
         Page.Trash -> TrashPage(vm) { page = Page.Menu }
         Page.Profile -> ProfilePage { page = Page.Menu }
         Page.Update -> UpdatePage { page = Page.Menu }
+        Page.Backup -> BackupPage { page = Page.Menu }
     }
 }
 
