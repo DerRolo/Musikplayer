@@ -32,6 +32,33 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
+## Update 12 – Jam-Feinschliff nach dem ersten Test *(umgesetzt, Gerätetest offen)*
+
+- [~] **Unterbrechung (Anruf, Video in einer anderen App):** Ist die Musik an der Ausgabe dadurch angehalten, zeigen alle „Pause“, und jeder kann sie mit Play wieder starten. Der Player wird dabei neu angestoßen. Das gilt auch ohne Jam. Solange ein Anruf läuft, gibt Android den Ton nicht frei.
+- [~] **Nach dem Rauswerfen:** Will jemand wieder beitreten, bekommt der Host eine Anfrage („Beitreten lassen“ / „Ablehnen“). Alle anderen treten weiterhin ohne Bestätigung bei.
+- [~] **Bearbeiten im Jam gesperrt**, für alle im Jam (Host und Gäste):
+  - Gesperrt sind: Datei bearbeiten, Interpret zuordnen, Cover ändern, Lautstärke angleichen, Sperren, Löschen, Dateinamen übernehmen (oranger Speichern-Knopf), Album umbenennen, Interpreten-, Playlist- und Lied-Cover, Papierkorb wiederherstellen oder löschen.
+  - Ebenso die Werkzeuge in den Optionen: Interpreten & Ordner, Einsortieren, Dateinamen übernehmen, Duplikate, Aufräumen, Namen-Filter.
+  - Im großen Player und in der Mini-Leiste sind die Knöpfe herausgenommen. In Menüs und der Mehrfachauswahl sind die Punkte ausgeblendet, das Sperren-Schnellsymbol in den Liedzeilen ist ausgegraut.
+  - Zusätzlich sperrt das ViewModel alle diese Funktionen zentral.
+  - Erlaubt bleiben: Hören, Herz, Playlists, Warteschlange, Übernehmen.
+- [~] **Developer Options → „Allow editing in Jam“** (Standard aus). Wirkt nur, wenn **alle** im Jam es eingeschaltet haben.
+- [~] **Warteschlange neu**, überall gleich, nicht nur im Jam:
+  - Jede Zeile zeigt Cover, Titel und Interpret · Album · Länge.
+  - Gedrückt halten und schieben ändert die Reihenfolge, wie in Playlists. Tippen springt zum Lied.
+  - Drei-Punkte-Menü: „Jetzt abspielen“, „Aus der Warteschlange entfernen“, im Jam zusätzlich „Übernehmen“ (schon vor dem Hören).
+  - Pfeile und Kreuz entfallen. Eingereihte Lieder sind mit ● markiert.
+  - Im Jam steht dabei „eingereiht von …“, und Gäste können die Warteschlange genauso sortieren und bearbeiten.
+- [~] **Wer hat es eingereiht:** Jedes Jam-Lied merkt sich, wer es gestartet oder eingereiht hat. Bisher stand dort immer der Besitzer der Datei.
+- [~] **Sleep-Timer und Ausfaden** gelten im Jam für die gemeinsame Ausgabe, egal wer sie startet. Die Restzeit steht auf der Jam-Seite.
+- [~] **Lautstärke:** bestimmt das Gerät, das abspielt (wie bei Spotify). Es gibt keine Änderung, so ist es gewollt.
+- [~] **Hörbücher** haben in der Bibliothek der anderen einen eigenen Reiter und lassen sich übernehmen (als Hörbuch-Liste).
+- [~] **Profil** (Optionen → Profil): eigener Name (Vorgabe Gerätename) und Profilbild. Andere sehen beides im Pop-up, in der Mitgliederliste und bei „eingereiht von“.
+- [~] **Vollsperre auch im Jam:**
+  - Gesperrte Lieder (orange und rot) teilt kein Handy, sie lassen sich weder sehen noch laden noch streamen.
+  - Was man selbst voll gesperrt hat (rot, also Interpreten oder dieselben Lieder), sieht man auch in der Bibliothek der anderen nicht.
+- Shuffle im Jam: Gemischt wird die Liste (Playlist, Album …), von Hand eingereihte Lieder (●) bleiben in ihrer Reihenfolge vorne, wie bei Spotify. Werden fast nur einzelne Lieder eingereiht, ändert Shuffle deshalb kaum etwas.
+
 ## Update 11 – Lautstärke angleichen (Normalisieren) *(umgesetzt, Gerätetest offen)*
 
 - [~] Neue Aktion „Lautstärke angleichen …“ (orange). Sie steht überall gleich zur Verfügung: im Aktionsmenü jedes Liedes (Bibliothek, Interpret, Album, Playlist, Suche usw.), im großen Player und in der Mehrfachauswahl.

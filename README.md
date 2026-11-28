@@ -15,6 +15,7 @@ Die App ist nicht nur ein Player, sondern auch ein Aufräumwerkzeug für eine un
 
 ## Wiedergabe
 
+- **Warteschlange:** zeigt Cover, Titel, Interpret, Album und Länge. Gedrückt halten und schieben sortiert um, das Drei-Punkte-Menü bietet „Jetzt abspielen“ und „Entfernen“.
 - **Ausgabegerät wählen:** Im großen Player bei der Warteschlange rechts oben. Angezeigt werden nur verbundene Geräte (Handy, Bluetooth, Kopfhörer, USB). „Automatisch“ überlässt Android die Wahl.
 
 - Hintergrundwiedergabe mit Benachrichtigung, Warteschlange, Shuffle, Wiederholen (aus, alle, eines).
@@ -38,7 +39,10 @@ Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im 
 - **Jam erstellen oder beitreten** wie bei Spotify. Jeder im WLAN kann einem Jam ohne Bestätigung beitreten. Der Host sieht, wer dabei ist (und wer sonst noch im WLAN ist), und kann Leute wieder entfernen.
 - **Eine gemeinsame Ausgabe:** Gespielt wird an genau einer Stelle, zum Beispiel am Handy des Hosts, an der Bluetooth-Box des Hosts oder am Handy bzw. der Box eines Gasts. Jeder im Jam kann sie wählen (großer Player → Warteschlange → Ausgabe-Knopf rechts oben, oder auf der Jam-Seite). Beim Wechsel zieht die Wiedergabe samt Warteschlange und Stelle auf das neue Gerät um.
 - **Mitbestimmen:** Jeder kann mit der ganz normalen Bedienung der App starten, pausieren, spulen, weiterspringen und Lieder oder Playlists einreihen, auch Lieder, die das abspielende Handy selbst nicht hat (Streaming im WLAN).
-- **Fremde Lieder** kann man im Jam anhören und übernehmen, aber nicht bearbeiten oder löschen. Das geht nur mit den eigenen Liedern.
+- **Im Jam ist Bearbeiten gesperrt**, für alle Mitglieder: keine Änderungen an Dateien, Tags, Covern, Sperren oder Löschen, damit sich nichts ändert, während andere zuhören. Nur wenn alle in den Developer Options „Allow editing in Jam“ einschalten, ist es erlaubt.
+- **Vollsperre gilt auch im Jam:** Gesperrtes teilt kein Handy. Was du selbst voll gesperrt hast, siehst du auch bei anderen nicht.
+- **Profil:** Unter Optionen → Profil stellst du Namen und Profilbild ein, die andere im Jam sehen.
+- Wurde jemand entfernt und will wieder rein, bekommt der Host eine Anfrage.
 - **Musik übernehmen:** Die Bibliothek der anderen ansehen und Lieder, Alben, Interpreten oder ganze Playlists aufs eigene Handy holen. Interpret, Album, Cover und Playlist-Zuordnung kommen mit, die Dateien landen in `Music/<Interpret>`. Lieder, die du schon hast (gleiche Regeln wie die Duplikat-Suche), werden nicht doppelt geladen. Neues erscheint in „Neue Lieder“.
 - **Sichtbarkeit:** Mit „Im WLAN sichtbar“ schaltest du das Finden und die Pop-ups ab.
 - Für das Streaming im lokalen Netz erlaubt die App unverschlüsselte Verbindungen (`http`). Das betrifft nur Verbindungen zwischen den Handys im WLAN, der Zugang ist durch einen Jam-Schlüssel geschützt.
