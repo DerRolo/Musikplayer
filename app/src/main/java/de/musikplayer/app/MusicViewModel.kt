@@ -963,6 +963,9 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         message = if (on) "„$name“ zu Favoriten-Interpreten hinzugefügt" else "„$name“ aus Favoriten-Interpreten entfernt"
     }
 
+    /** Sortierung einer Ansicht merken (bleibt nach Neustart erhalten). */
+    fun saveSort(key: String, value: Int) = Store.setSortPref(app, key, value)
+
     fun showAlbumsAsGrid(grid: Boolean) {
         Store.setAlbumGrid(app, grid)
         albumGrid = grid

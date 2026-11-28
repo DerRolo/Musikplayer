@@ -11,8 +11,12 @@ android {
         applicationId = "de.musikplayer.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        // Fortlaufende Build-Nummer aus GitHub Actions (run_number) – die App vergleicht damit beim Update-Check
+        val buildNumber = (project.findProperty("buildNumber") as String?)?.toIntOrNull() ?: 1
+        versionCode = buildNumber
+        versionName = "1.0.$buildNumber"
+        // Woher Updates kommen (owner/repo), wird vom Workflow gesetzt
+        resValue("string", "update_repo", (project.findProperty("updateRepo") as String?) ?: "")
     }
 
     // Feste Signatur, damit Updates über die alte Installation drüberinstalliert werden können

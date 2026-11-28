@@ -32,6 +32,23 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
+## Update 14 – Sortierung merken, App-Update aus GitHub, Build-Fix *(umgesetzt, Gerätetest offen)*
+
+- [~] **Build-Fehler behoben:** In der neuen Warteschlange wurde die Zieh-Funktion falsch aufgerufen (Kotlin-Fehler `detectDragGesturesAfterLongPress`).
+- [~] **Sortierung wird gemerkt**, auch nach einem Neustart: Interpreten, Alben, Playlists, Hörbücher, geöffnete Playlist, Ordner, Neue Lieder und jeder Reiter der Jam-Bibliothek. Die Bibliothek merkte sich die Sortierung schon vorher.
+- [~] **App-Update direkt aus der App:**
+  - Beim Start sucht die App im Hintergrund in den GitHub-Releases nach einer neueren Version. Das lässt sich in Optionen → App-Update abschalten.
+  - Gibt es eine, erscheint „Update bereit“ mit den Neuerungen und „Installieren“ / „Später“.
+  - „Installieren“ lädt die APK mit Fortschrittsanzeige. Danach zeigt Android seine Bestätigung, deine Daten bleiben erhalten.
+  - Beim ersten Mal fragt Android, ob die App Updates installieren darf.
+  - Optionen → App-Update zeigt die installierte Version und hat „Jetzt suchen“.
+- [~] **Versionsnummer:** Der Workflow gibt jeder APK die fortlaufende Build-Nummer mit (Version 1.0.<Nummer>) und trägt das Repository ein. Daran erkennt die App, ob ein Release neuer ist.
+- [~] Workflow: `actions/checkout` und `actions/setup-java` auf v5 (behebt die Deprecation-Warnungen).
+- Voraussetzungen und Grenzen:
+  - Das Repository muss öffentlich sein, sonst liefert GitHub ohne Anmeldung keine Releases.
+  - Die APK muss weiter mit der festen `debug.keystore` signiert sein. Das ist schon so.
+  - Erst Versionen ab diesem Update kennen ihre Nummer. Die jetzt installierte Version zeigt das erste neue Release deshalb sicher als Update an.
+
 ## Update 13 – Einheitliche Bibliothek, gemeinsame Suche, Jam-Bibliothek mit Sortierung *(umgesetzt, Gerätetest offen)*
 
 - [~] **Bibliothek mit drei Reitern:** Bibliothek · Interpreten · **Alben** (neu). Der orange Umschalter zeigt den aktiven Reiter. Alben haben Suche, Buchstabenleiste, Kachel/Liste und Sortierung (Meistgehört, Name, Interpret, Meiste Lieder, Zuletzt hinzugefügt). Tippen öffnet das Album, Zurück führt an dieselbe Stelle in „Alben“.

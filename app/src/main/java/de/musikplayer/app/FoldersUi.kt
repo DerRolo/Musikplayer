@@ -55,7 +55,7 @@ private val FOLDER_SORTS = listOf("Meiste ohne Interpret", "Name", "Anzahl Liede
 fun FoldersPage(vm: MusicViewModel, actions: TrackActions, onBack: () -> Unit) {
     var openPath by rememberSaveable { mutableStateOf<String?>(null) }
     var view by rememberSaveable { mutableIntStateOf(1) } // 0 Einzeln, 1 Liste
-    var sortIdx by rememberSaveable { mutableIntStateOf(0) }
+    var sortIdx by rememberSaveable { mutableIntStateOf(Store.sortPref("folders", 0)) }
     var input by remember { mutableStateOf<FolderInfo?>(null) }
     var sortConfirm by remember { mutableStateOf<List<Track>?>(null) }
     val sel = remember { Selection() }
@@ -88,7 +88,7 @@ fun FoldersPage(vm: MusicViewModel, actions: TrackActions, onBack: () -> Unit) {
             } else {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("${folders.size} Ordner", Modifier.weight(1f).padding(start = 4.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                    SortMenu("Sortierung: " + FOLDER_SORTS[sortIdx], FOLDER_SORTS, sortIdx) { sortIdx = it }
+                    SortMenu("Sortierung: " + FOLDER_SORTS[sortIdx], FOLDER_SORTS, sortIdx) { sortIdx = it; vm.saveSort("folders", it) }
                 }
                 if (view == 1) {
                     LazyColumn(Modifier.fillMaxSize()) {

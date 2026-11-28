@@ -2,6 +2,7 @@
 
 package de.musikplayer.app
 
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.ui.zIndex
@@ -757,7 +758,7 @@ private fun QueueList(vm: MusicViewModel, modifier: Modifier) {
                             else Modifier.animateItemPlacement()
                         )
                         .pointerInput(qi) {
-                            androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress(
+                            detectDragGesturesAfterLongPress(
                                 onDragStart = { haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); rs.start(pos) },
                                 onDrag = { change, offset -> change.consume(); rs.drag(offset.y) },
                                 onDragEnd = { rs.end(scope) { from, to -> vm.moveInQueue(start + from, start + to) } },

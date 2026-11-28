@@ -441,7 +441,7 @@ private fun JamLibraryPage(vm: MusicViewModel, owner: String, onBack: () -> Unit
         val f = Names.fold(query.trim())
         fun hit(vararg s: String) = f.isEmpty() || s.any { Names.fold(it).contains(f) }
         val letter = letters[tab]
-        val sortIdx = sorts[tab] ?: 0
+        val sortIdx = sorts[tab] ?: Store.sortPref("jam:" + tab.name, 0)
         val listState = states.getValue(tab)
         fun played(n: Int) = if (n > 0) " · ${n}× gehört" else ""
         if (tab == LibTab.Songs) {
@@ -459,7 +459,7 @@ private fun JamLibraryPage(vm: MusicViewModel, owner: String, onBack: () -> Unit
                 }
             }
             LetterBar(active, avail) { if (it == null) letters.remove(tab) else letters[tab] = it }
-            JamSortRow("${list.size} Lieder · ${owned.size} hast du schon", opts, sortIdx) { sorts[tab] = it }
+            JamSortRow("${list.size} Lieder · ${owned.size} hast du schon", opts, sortIdx) { sorts[tab] = it; vm.saveSort("jam:" + tab.name, it) }
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 items(list, key = { it.id }) { t -> RemoteTrackRow(owner, t, owned[t.id] != null, onPlay = { Jam.playEntries(list.map { JamEntry.of(owner, it) }, list.indexOf(t)) }) }
             }
@@ -495,7 +495,7 @@ private fun JamLibraryPage(vm: MusicViewModel, owner: String, onBack: () -> Unit
                 }
             }
             LetterBar(active, avail) { if (it == null) letters.remove(tab) else letters[tab] = it }
-            JamSortRow("${shown.size} " + tab.label, opts, sortIdx) { sorts[tab] = it }
+            JamSortRow("${shown.size} " + tab.label, opts, sortIdx) { sorts[tab] = it; vm.saveSort("jam:" + tab.name, it) }
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 items(shown, key = { it.key }) { gr ->
                     Row(Modifier.fillMaxWidth().clickable { openGroup = gr }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {

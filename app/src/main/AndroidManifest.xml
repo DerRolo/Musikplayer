@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- App-Update aus den GitHub-Releases installieren (Android fragt einmal nach der Erlaubnis) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Jam: andere Handys im selben WLAN finden -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -79,6 +81,11 @@
                 <data android:pathPattern=".*\\.opus" />
             </intent-filter>
         </activity>
+
+        <!-- Rückmeldung der Android-Installation beim App-Update -->
+        <receiver
+            android:name=".UpdateReceiver"
+            android:exported="false" />
 
         <!-- Play-Taste an Kopfhörer/Bluetooth/Auto startet die Wiedergabe auch, wenn die App nicht läuft -->
         <receiver

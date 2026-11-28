@@ -28,6 +28,12 @@ object Store {
         private set
     var albumGrid: Boolean = true
         private set
+    /** Zuletzt gewählte Sortierung je Ansicht (Interpreten, Alben, Playlists, Hörbücher, Jam-Reiter …). */
+    var sortPrefs: Map<String, Int> = emptyMap()
+        private set
+    /** App-Updates: beim Start automatisch auf GitHub nach einer neuen Version suchen. */
+    var autoUpdate: Boolean = true
+        private set
     var artistGrid: Boolean = true
         private set
     /** Wurde die Equalizer-Berechtigung schon einmal abgefragt? (Nicht bei jedem Öffnen erneut fragen.) */
@@ -159,6 +165,8 @@ object Store {
             fadeMinutes = o.optInt("fadeMinutes", 30)
             artistGrid = o.optBoolean("artistGrid", true)
             albumGrid = o.optBoolean("albumGrid", true)
+            sortPrefs = o.optJSONObject("sortPrefs")?.let { j -> j.keys().asSequence().associateWith { j.optInt(it) } }.orEmpty()
+            autoUpdate = o.optBoolean("autoUpdate", true)
             eqAsked = o.optBoolean("eqAsked", false)
             sortBy = try { SortBy.valueOf(o.optString("sortBy", "Title")) } catch (e: Exception) { SortBy.Title }
             sortLevel = o.optInt("sortLevel", 0)
@@ -249,6 +257,8 @@ object Store {
         o.put("fadeMinutes", fadeMinutes)
         o.put("artistGrid", artistGrid)
         o.put("albumGrid", albumGrid)
+        o.put("sortPrefs", JSONObject(sortPrefs))
+        o.put("autoUpdate", autoUpdate)
         o.put("eqAsked", eqAsked)
         o.put("sortBy", sortBy.name)
         o.put("sortLevel", sortLevel)
@@ -609,6 +619,9 @@ object Store {
     }
 
     fun setAlbumGrid(ctx: Context, grid: Boolean) { albumGrid = grid; save(ctx) }
+    fun sortPref(key: String, default: Int): Int = sortPrefs[key] ?: default
+    fun setSortPref(ctx: Context, key: String, value: Int) { if (sortPrefs[key] != value) { sortPrefs = sortPrefs + (key to value); save(ctx) } }
+    fun setAutoUpdate(ctx: Context, on: Boolean) { autoUpdate = on; save(ctx) }
 
     fun setArtistGrid(ctx: Context, grid: Boolean) {
         artistGrid = grid

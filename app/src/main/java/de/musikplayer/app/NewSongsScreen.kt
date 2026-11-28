@@ -70,7 +70,7 @@ fun NewSongsPage(vm: MusicViewModel, actions: TrackActions, onBack: () -> Unit) 
     // Beim Öffnen sofort nachsehen, ob etwas Neues da ist
     LaunchedEffect(Unit) { vm.refresh() }
     var view by rememberSaveable { mutableIntStateOf(1) } // 0 Einzeln, 1 Liste, 2 Kacheln
-    var sortIdx by rememberSaveable { mutableIntStateOf(0) }
+    var sortIdx by rememberSaveable { mutableIntStateOf(Store.sortPref("newSongs", 0)) }
     val sel = remember { Selection() }
     val existing = remember(vm.tracks, vm.seenTick) { vm.existingArtists() }
     val fresh = remember(vm.tracks, vm.seenTick, sortIdx) {
@@ -95,7 +95,7 @@ fun NewSongsPage(vm: MusicViewModel, actions: TrackActions, onBack: () -> Unit) 
         } else {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("${fresh.size} neu", Modifier.weight(1f).padding(start = 4.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                SortMenu("Sortierung: " + NEW_SORTS[sortIdx], NEW_SORTS, sortIdx) { sortIdx = it }
+                SortMenu("Sortierung: " + NEW_SORTS[sortIdx], NEW_SORTS, sortIdx) { sortIdx = it; vm.saveSort("newSongs", it) }
             }
             if (sel.active && view == 2) {
                 SelectionBar(

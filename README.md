@@ -47,10 +47,17 @@ Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im 
 - **Sichtbarkeit:** Mit „Im WLAN sichtbar“ schaltest du das Finden und die Pop-ups ab.
 - Für das Streaming im lokalen Netz erlaubt die App unverschlüsselte Verbindungen (`http`). Das betrifft nur Verbindungen zwischen den Handys im WLAN, der Zugang ist durch einen Jam-Schlüssel geschützt.
 
+## App-Update
+
+- Die App sucht beim Start in den GitHub-Releases nach einer neuen Version. Gibt es eine, erscheint „Update bereit“ → „Installieren“, danach kommt die Bestätigung von Android.
+- In Optionen → App-Update siehst du die installierte Version, kannst die automatische Suche abschalten oder „Jetzt suchen“ tippen.
+- Das funktioniert nur, wenn das Repository öffentlich ist.
+
 ## Bibliothek, Suche und Aufbau
 
 - Die Bibliothek hat drei Reiter: **Bibliothek** (alle Titel), **Interpreten** und **Alben**.
 - Das Suchfeld oben in der Bibliothek sucht überall, genau wie der Such-Reiter: Titel, Interpreten, Alben, Playlists und Hörbücher, mit Vorschlägen.
+- Die gewählte Sortierung bleibt auch nach einem Neustart erhalten.
 - Alle Reiter sind gleich aufgebaut:
   1. Suchfeld.
   2. Oranger Knopf (Umschalter bzw. „+ Neue Playlist“).

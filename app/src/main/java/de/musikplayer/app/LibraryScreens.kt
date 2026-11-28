@@ -308,7 +308,7 @@ fun AlbumsTab(vm: MusicViewModel, actions: TrackActions, reset: Int, switch: @Co
     OnReset(reset) { scope.launch { if (vm.albumGrid) gridState.animateScrollToItem(0) else listState.animateScrollToItem(0) } }
     var query by rememberSaveable { mutableStateOf("") }
     var letter by rememberSaveable { mutableStateOf<String?>(null) }
-    var sortIdx by rememberSaveable { mutableIntStateOf(0) }
+    var sortIdx by rememberSaveable { mutableIntStateOf(Store.sortPref("albums", 0)) }
     val sorts = listOf("Meistgehört", "Name A–Z", "Name Z–A", "Interpret A–Z", "Meiste Lieder", "Zuletzt hinzugefügt")
     var lastSort by rememberSaveable { mutableIntStateOf(sortIdx) }
     LaunchedEffect(sortIdx) { if (sortIdx != lastSort) { lastSort = sortIdx; gridState.scrollToItem(0); listState.scrollToItem(0) } }
@@ -337,7 +337,7 @@ fun AlbumsTab(vm: MusicViewModel, actions: TrackActions, reset: Int, switch: @Co
             IconButton(onClick = { vm.showAlbumsAsGrid(!vm.albumGrid) }) {
                 Icon(if (vm.albumGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.albumGrid) "Listenansicht" else "Kachelansicht")
             }
-            SortMenu("Sortierung: " + sorts[sortIdx], sorts, sortIdx) { sortIdx = it }
+            SortMenu("Sortierung: " + sorts[sortIdx], sorts, sortIdx) { sortIdx = it; vm.saveSort("albums", it) }
         }
     }
     Column(Modifier.fillMaxSize()) {
@@ -406,7 +406,7 @@ fun ArtistsTab(
     }
     var query by rememberSaveable { mutableStateOf("") }
     var letter by rememberSaveable { mutableStateOf<String?>(null) }
-    var aSort by rememberSaveable { mutableIntStateOf(3) } // 0 A–Z, 1 Z–A, 2 meiste Lieder, 3 meistgehört (Standard), 4 keine Sortierung
+    var aSort by rememberSaveable { mutableIntStateOf(Store.sortPref("artists", 3)) } // 0 A–Z, 1 Z–A, 2 meiste Lieder, 3 meistgehört (Standard), 4 keine Sortierung
     var lastSort by rememberSaveable { mutableIntStateOf(aSort) }
     LaunchedEffect(aSort) {
         if (aSort != lastSort) {
@@ -459,7 +459,7 @@ fun ArtistsTab(
                 IconButton(onClick = { vm.showArtistsAsGrid(!vm.artistGrid) }) {
                     Icon(if (vm.artistGrid) Icons.Filled.ViewList else Icons.Filled.GridView, if (vm.artistGrid) "Listenansicht" else "Kachelansicht")
                 }
-                SortMenu("Sortierung: " + sortOptions[aSort], sortOptions, aSort) { aSort = it }
+                SortMenu("Sortierung: " + sortOptions[aSort], sortOptions, aSort) { aSort = it; vm.saveSort("artists", it) }
             }
         }
         Column(Modifier.fillMaxSize()) {
@@ -742,7 +742,8 @@ fun PlaylistsTab(
         val base = vm.playlistsByUse().filter { it.audio == audio }
         var query by rememberSaveable { mutableStateOf("") }
         var letter by rememberSaveable { mutableStateOf("") }
-        var sortIdx by rememberSaveable { mutableIntStateOf(0) }
+        val sortKey = if (audio) "audiobooks" else "playlists"
+        var sortIdx by rememberSaveable { mutableIntStateOf(Store.sortPref(sortKey, 0)) }
         val sorts = listOf("Meistgehört", "Name A–Z", "Name Z–A", "Zuletzt hinzugefügt", "Anzahl Lieder")
         val available = remember(base) { base.map { Names.letterOf(it.name) }.toSet() }
         val fq = Names.fold(query.trim())
@@ -769,7 +770,7 @@ fun PlaylistsTab(
                 IconButton(onClick = { vm.showPlaylistsAsGrid(!grid, audio) }) {
                     Icon(if (grid) Icons.Filled.ViewList else Icons.Filled.GridView, if (grid) "Listenansicht" else "Kachelansicht")
                 }
-                SortMenu("Sortierung: " + sorts[sortIdx], sorts, sortIdx) { sortIdx = it }
+                SortMenu("Sortierung: " + sorts[sortIdx], sorts, sortIdx) { sortIdx = it; vm.saveSort(sortKey, it) }
             }
             if (ordered.isEmpty() && (fq.isNotEmpty() || letter.isNotEmpty())) {
                 Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) { Text("Nichts gefunden") }
@@ -804,7 +805,7 @@ fun PlaylistsTab(
     } else {
         val entries = vm.playlistEntries(open.id)
         val ctx = "p:${open.id}"
-        var mode by rememberSaveable { mutableIntStateOf(0) } // 0 eigene Reihenfolge, 1 zuletzt hinzugefügt, 2 Titel, 3 Interpret, 4 Länge
+        var mode by rememberSaveable { mutableIntStateOf(Store.sortPref("playlistDetail", 0)) } // 0 eigene Reihenfolge, 1 zuletzt hinzugefügt, 2 Titel, 3 Interpret, 4 Länge
         val modes = listOf("Eigene Reihenfolge", "Zuletzt hinzugefügt", "Titel", "Interpret", "Länge")
         val order = remember(entries) { entries.toMutableStateList() }
         val shown: List<Pair<Int, Track>> = when (mode) {
@@ -843,7 +844,7 @@ fun PlaylistsTab(
             val selecting = pick || psel.active
             val rmLabel = if (open.audio) "Aus Hörbuch entfernen" else "Aus Playlist entfernen"
             if (!collapsed || selecting) Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                SortMenu("Sortierung: " + modes[mode], modes, mode) { mode = it }
+                SortMenu("Sortierung: " + modes[mode], modes, mode) { mode = it; vm.saveSort("playlistDetail", it) }
                 Spacer(Modifier.weight(1f))
                 if (!selecting) TextButton(onClick = { pick = true }) { Text("Auswählen") }
             }
