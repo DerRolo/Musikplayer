@@ -1,10 +1,7 @@
 package de.musikplayer.app
 
-import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -21,7 +18,8 @@ import java.net.URL
 /**
  * App-Update direkt aus den GitHub-Releases des Projekts (wie sie der Workflow baut: Tag „v1.0.<Nummer>“ + APK).
  * Beim Start (abschaltbar in Optionen → App-Update) wird im Hintergrund nachgesehen; gibt es eine neuere Nummer,
- * erscheint „Update bereit“ mit „Installieren“. Android zeigt danach seine eigene Bestätigung.
+ * erscheint „Update bereit“ mit „Installieren“. Die App lädt die APK und öffnet den normalen Android-Installer;
+ * dort bestätigt man einmal „Aktualisieren“. Voraussetzung: jede Version mit demselben Schlüssel signiert (debug.keystore).
  * Voraussetzung: Das Repository ist öffentlich (sonst liefert GitHub ohne Anmeldung keine Releases).
  */
 object Updater {
@@ -41,8 +39,6 @@ object Updater {
         private set
     /** „Später“ gewählt: für diese Version in dieser Sitzung nicht mehr nachfragen. */
     var dismissedTag by mutableStateOf<String?>(null)
-    /** Die Installation im Hintergrund wurde abgebrochen: Knopf „Mit Android-Installer“ anbieten. */
-    var classicOffer by mutableStateOf(false)
     private var checkedThisStart = false
 
     fun installedNumber(ctx: Context): Int = try {
@@ -140,29 +136,9 @@ object Updater {
         }
         progress = -1f
         if (!ok) { status = "Download fehlgeschlagen – bitte nochmal versuchen."; return }
-        // Ist die Installation im Hintergrund auf diesem Handy schon einmal abgebrochen (z. B. Xiaomi/HyperOS),
-        // gleich den normalen Android-Installer nehmen – wie beim Öffnen der APK im Dateimanager.
-        if (Store.updateClassic) { installClassic(app); return }
-        status = "Installation wird gestartet …"
-        val started = withContext(Dispatchers.IO) {
-            try {
-                val installer = app.packageManager.packageInstaller
-                val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-                params.setAppPackageName(app.packageName)
-                // Ab Android 12: Hat die App ihre aktuelle Version selbst installiert, darf sie sich ohne Rückfrage
-                // aktualisieren. Beim allerersten Update (installiert über Browser/Dateimanager) fragt Android noch.
-                if (Build.VERSION.SDK_INT >= 31) params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
-                val id = installer.createSession(params)
-                installer.openSession(id).use { s ->
-                    s.openWrite("base.apk", 0, file.length()).use { out -> file.inputStream().use { it.copyTo(out) }; s.fsync(out) }
-                    val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
-                    val pi = PendingIntent.getBroadcast(app, 7, Intent(app, UpdateReceiver::class.java), flags)
-                    s.commit(pi.intentSender)
-                }
-                true
-            } catch (e: Exception) { false }
-        }
-        if (!started) { classicOffer = true; status = "Installation konnte nicht gestartet werden – versuch „Mit Android-Installer“." }
+        // Wie beim Haushaltsbuch: die APK dem normalen Android-Installer geben (FileProvider + ACTION_VIEW).
+        // Der frühere Weg über PackageInstaller-Sitzungen brach auf Xiaomi/HyperOS nach „Quelle vertrauen“ ab.
+        installClassic(app)
     }
 
     private fun apkFile(ctx: Context) = File(ctx.applicationContext.cacheDir, "update.apk")
@@ -177,37 +153,11 @@ object Updater {
             val i = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
             app.startActivity(i)
-            status = "Android-Installer geöffnet – dort auf „Installieren“ bzw. „Aktualisieren“ tippen."
+            status = "Fertig geladen – bestätige jetzt „Aktualisieren“. Die App schließt sich dabei kurz, deine Daten bleiben."
             true
         } catch (e: Exception) {
             status = "Android-Installer ließ sich nicht öffnen. Lade die APK unter github.com/${repo(app)}/releases und öffne sie."
             false
-        }
-    }
-}
-
-/** Rückmeldung von Android: Bestätigung anzeigen, Erfolg oder Fehler. */
-class UpdateReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
-            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                @Suppress("DEPRECATION")
-                val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
-                confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                try { context.startActivity(confirm) } catch (e: Exception) { Updater.status = "Bestätigung konnte nicht geöffnet werden." }
-            }
-            PackageInstaller.STATUS_SUCCESS -> Updater.status = "Update installiert."
-            else -> {
-                // Abgebrochen oder fehlgeschlagen (passiert z. B. auf Xiaomi mit dem eigenen Sicherheits-Installer):
-                // ab jetzt den normalen Android-Installer verwenden und ihn gleich anbieten.
-                val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-                Store.load(context) // falls die App gerade erst gestartet wurde – sonst würde leer gespeichert
-                Store.setUpdateClassic(context, true)
-                Updater.classicOffer = true
-                Updater.status = (if (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -1) == PackageInstaller.STATUS_FAILURE_ABORTED)
-                    "Installation abgebrochen." else "Installation fehlgeschlagen" + (msg?.let { ": $it" } ?: ".")) +
-                    " Tippe auf „Mit Android-Installer“."
-            }
         }
     }
 }

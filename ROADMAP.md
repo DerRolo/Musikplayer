@@ -34,10 +34,11 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ## Fix – App-Update „Installation abgebrochen“ *(umgesetzt, Gerätetest offen)*
 
-- [~] Auf manchen Handys (vermutlich Xiaomi/HyperOS mit eigenem Sicherheits-Installer) bricht die Installation im Hintergrund nach „Quelle vertrauen“ ab.
-  - Bricht sie ab, bietet die App jetzt **„Mit Android-Installer“** an. Das öffnet die heruntergeladene APK im normalen Installer, so wie aus dem Dateimanager.
-  - Die App merkt sich das und nimmt auf diesem Handy ab dann gleich diesen Weg.
-  - Wichtig: Die schon installierte Version hat diesen Ausweg noch nicht. Diese eine Version muss man von Hand installieren (APK von GitHub-Releases herunterladen und öffnen).
+- [~] Auf Xiaomi/HyperOS brach die Installation nach „Quelle vertrauen“ ab. Ursache: Seit Update 17 lief das Update über eine PackageInstaller-Sitzung im Hintergrund, und die bricht Xiaomis Sicherheits-Installer ab.
+- [~] Jetzt wie beim Haushaltsbuch (dort klappt es zuverlässig): Die App lädt die APK selbst (mit Fortschritt), gibt sie über einen FileProvider frei und öffnet den **normalen Android-Installer**. Dort einmal „Aktualisieren“ bestätigen, die App schließt sich kurz, die Daten bleiben.
+- [x] Die Hintergrund-Installation ohne Nachfrage (Update 17) ist dafür entfernt.
+- Die schon installierte Version hat den neuen Weg noch nicht: Diese eine Version einmal von Hand installieren (APK aus den GitHub-Releases herunterladen und öffnen). Ab dann geht es aus der App.
+- Feste Signatur ist schon da (gleicher `debug.keystore` in jedem Build), wie im Haushaltsbuch verlangt.
 
 ## Update 20 – Jam-Reiter, Versionen 1.1, 1.2 … *(umgesetzt, Gerätetest offen)*
 
@@ -92,7 +93,7 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
   - In der Bibliothek geht es reihum: natürliche Richtung → umgekehrt → aus.
   - Auch Ordner, Neue Lieder und die geöffnete Playlist haben jetzt Symbole und das offene Menü.
   - Hinweis: Weil die Möglichkeiten neu zusammengefasst sind, startet die gemerkte Sortierung dieser Ansichten einmal neu mit „Meistgehört“.
-- [~] **App-Update ohne Android-Nachfrage** (ab Android 12): Hat die App ihre Version selbst installiert, aktualisiert sie sich nach „Installieren“ ohne weitere Abfrage. Beim ersten In-App-Update fragt Android noch einmal. Ob Xiaomi seinen eigenen Scan trotzdem zeigt, entscheidet das Handy. Er lässt sich unter Einstellungen → Apps → System-App-Einstellungen → Sicherheit → Sicherheitsscan → „Vor Installation durchsuchen“ abschalten.
+- [ ] ~~**App-Update ohne Android-Nachfrage**~~ – wieder entfernt, siehe „Fix – App-Update“ (brach auf Xiaomi ab). Früher: Hat die App ihre Version selbst installiert, aktualisiert sie sich nach „Installieren“ ohne weitere Abfrage. Beim ersten In-App-Update fragt Android noch einmal. Ob Xiaomi seinen eigenen Scan trotzdem zeigt, entscheidet das Handy. Er lässt sich unter Einstellungen → Apps → System-App-Einstellungen → Sicherheit → Sicherheitsscan → „Vor Installation durchsuchen“ abschalten.
 
 ## Update 16 – Feste Leisten, Herz-Filter, Kachel-Bibliothek, Design *(umgesetzt, Gerätetest offen)*
 
