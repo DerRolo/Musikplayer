@@ -139,6 +139,9 @@ object Updater {
                 val installer = app.packageManager.packageInstaller
                 val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
                 params.setAppPackageName(app.packageName)
+                // Ab Android 12: Hat die App ihre aktuelle Version selbst installiert, darf sie sich ohne Rückfrage
+                // aktualisieren. Beim allerersten Update (installiert über Browser/Dateimanager) fragt Android noch.
+                if (Build.VERSION.SDK_INT >= 31) params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
                 val id = installer.createSession(params)
                 installer.openSession(id).use { s ->
                     s.openWrite("base.apk", 0, file.length()).use { out -> file.inputStream().use { it.copyTo(out) }; s.fsync(out) }

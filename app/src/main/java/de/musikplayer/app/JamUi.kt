@@ -1,5 +1,10 @@
 package de.musikplayer.app
 
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.SortByAlpha
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -416,7 +421,13 @@ private fun JamLibraryPage(vm: MusicViewModel, owner: String, onBack: () -> Unit
     // Pro Reiter eigene Scroll-Position, Buchstabe und Sortierung – bleiben beim Öffnen eines Albums/einer Playlist und Zurück erhalten
     val states = remember { LibTab.values().associateWith { androidx.compose.foundation.lazy.LazyListState() } }
     val letters = remember { androidx.compose.runtime.mutableStateMapOf<LibTab, String>() }
-    val sorts = remember { androidx.compose.runtime.mutableStateMapOf<LibTab, Int>() }
+    // Pro Reiter eine Sortierung mit Richtung (gemerkt): Lieder 5 Möglichkeiten, Gruppen 3
+    val sorts = remember {
+        LibTab.values().associateWith { t ->
+            if (t == LibTab.Songs) sortChoiceFor(vm, "jam2:" + t.name, listOf(true, false, false, true, true))
+            else sortChoiceFor(vm, "jam2:" + t.name, listOf(true, false, true))
+        }
+    }
     val g = openGroup
     if (g != null) {
         BackHandler { openGroup = null }
@@ -441,30 +452,34 @@ private fun JamLibraryPage(vm: MusicViewModel, owner: String, onBack: () -> Unit
         val f = Names.fold(query.trim())
         fun hit(vararg s: String) = f.isEmpty() || s.any { Names.fold(it).contains(f) }
         val letter = letters[tab]
-        val sortIdx = sorts[tab] ?: Store.sortPref("jam:" + tab.name, 0)
+        val sort = sorts.getValue(tab)
+        val sortIdx = sort.index * 2 + (if (sort.desc) 1 else 0)
         val listState = states.getValue(tab)
         fun played(n: Int) = if (n > 0) " · ${n}× gehört" else ""
         if (tab == LibTab.Songs) {
-            val opts = listOf("Meistgehört von $name", "Titel A–Z", "Interpret A–Z", "Länge", "Zuletzt hinzugefügt")
+            val opts = listOf(
+                SortOpt("Meistgehört von $name", Icons.Filled.Headphones), SortOpt("Titel", Icons.Filled.SortByAlpha),
+                SortOpt("Interpret", Icons.Filled.Person), SortOpt("Länge", Icons.Filled.Timer), SortOpt("Hinzugefügt", Icons.Filled.CalendarMonth)
+            )
             val avail = remember(l) { l.tracks.map { Names.letterOf(it.title) }.toSet() }
             val active = letter?.takeIf { it in avail }
             val list = remember(l, f, active, sortIdx) {
                 val x = l.tracks.filter { hit(it.title, it.artist, it.albumName) && (active == null || Names.letterOf(it.title) == active) }
-                when (sortIdx) {
+                sort.apply(when (sort.index) {
                     1 -> x.sortedBy { Names.fold(it.title) }
                     2 -> x.sortedWith(compareBy({ Names.fold(it.artist) }, { Names.fold(it.title) }))
-                    3 -> x.sortedByDescending { it.durationMs }
-                    4 -> x.sortedByDescending { it.added }
-                    else -> x.sortedWith(compareByDescending<RemoteTrack> { it.plays }.thenBy { Names.fold(it.title) })
-                }
+                    3 -> x.sortedBy { it.durationMs }
+                    4 -> x.sortedBy { it.added }
+                    else -> x.sortedWith(compareBy<RemoteTrack> { it.plays }.thenByDescending { Names.fold(it.title) })
+                })
             }
             LetterBar(active, avail) { if (it == null) letters.remove(tab) else letters[tab] = it }
-            JamSortRow("${list.size} Lieder · ${owned.size} hast du schon", opts, sortIdx) { sorts[tab] = it; vm.saveSort("jam:" + tab.name, it) }
+            ListToolbar("${list.size} Lieder · ${owned.size} hast du schon", sort = { SortMenu(opts, sort) })
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 items(list, key = { it.id }) { t -> RemoteTrackRow(owner, t, owned[t.id] != null, onPlay = { Jam.playEntries(list.map { JamEntry.of(owner, it) }, list.indexOf(t)) }) }
             }
         } else {
-            val opts = listOf("Meistgehört von $name", "Name A–Z", "Name Z–A", "Meiste Lieder")
+            val opts = listOf(SortOpt("Meistgehört von $name", Icons.Filled.Headphones), SortOpt("Name", Icons.Filled.SortByAlpha), SortOpt("Meiste Lieder", Icons.Filled.FormatListNumbered))
             val groups = remember(l, tab, owned) {
                 when (tab) {
                     LibTab.Albums -> l.tracks.filter { it.albumName.isNotBlank() }.groupBy { it.artist + "\u0000" + it.albumName }.map { (k, ts) ->
@@ -487,15 +502,14 @@ private fun JamLibraryPage(vm: MusicViewModel, owner: String, onBack: () -> Unit
             val active = letter?.takeIf { it in avail }
             val shown = remember(groups, f, active, sortIdx) {
                 val x = groups.filter { gr -> hit(gr.name, gr.sub) && (active == null || Names.letterOf(gr.name) == active) }
-                when (sortIdx) {
+                sort.apply(when (sort.index) {
                     1 -> x.sortedBy { Names.fold(it.name) }
-                    2 -> x.sortedByDescending { Names.fold(it.name) }
-                    3 -> x.sortedWith(compareByDescending<RemoteGroup> { it.tracks.size }.thenBy { Names.fold(it.name) })
-                    else -> x.sortedWith(compareByDescending<RemoteGroup> { gr -> gr.tracks.sumOf { it.plays } }.thenBy { Names.fold(it.name) })
-                }
+                    2 -> x.sortedWith(compareBy<RemoteGroup> { it.tracks.size }.thenByDescending { Names.fold(it.name) })
+                    else -> x.sortedWith(compareBy<RemoteGroup> { gr -> gr.tracks.sumOf { it.plays } }.thenByDescending { Names.fold(it.name) })
+                })
             }
             LetterBar(active, avail) { if (it == null) letters.remove(tab) else letters[tab] = it }
-            JamSortRow("${shown.size} " + tab.label, opts, sortIdx) { sorts[tab] = it; vm.saveSort("jam:" + tab.name, it) }
+            ListToolbar("${shown.size} " + tab.label, sort = { SortMenu(opts, sort) })
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 items(shown, key = { it.key }) { gr ->
                     Row(Modifier.fillMaxWidth().clickable { openGroup = gr }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -512,12 +526,6 @@ private fun JamLibraryPage(vm: MusicViewModel, owner: String, onBack: () -> Unit
             }
         }
     }
-}
-
-/** Anzahl links, Sortierung rechts – wie in der eigenen Bibliothek. */
-@Composable
-private fun JamSortRow(count: String, options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-    ListToolbar(count, options[selected], options, selected, onSelect)
 }
 
 @Composable

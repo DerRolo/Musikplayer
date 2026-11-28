@@ -1,5 +1,14 @@
 package de.musikplayer.app
 
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.SortByAlpha
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -116,38 +125,67 @@ fun GridScrollbar(state: LazyGridState, modifier: Modifier = Modifier) {
     )
 }
 
+/** Eine Sortier-Möglichkeit mit Symbol. */
+data class SortOpt(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+
+/** Passendes Symbol zu einer Sortier-Beschriftung (für ältere Aufrufe, die nur Texte liefern). */
+fun sortIcon(label: String): androidx.compose.ui.graphics.vector.ImageVector {
+    val l = label.lowercase()
+    return when {
+        "meistgehört" in l || "wiedergabe" in l -> Icons.Filled.Headphones
+        "hinzugefügt" in l || "datum" in l || "neueste" in l || "älteste" in l -> Icons.Filled.CalendarMonth
+        "länge" in l || "dauer" in l -> Icons.Filled.Timer
+        "interpret" in l -> Icons.Filled.Person
+        "album" in l -> Icons.Filled.Album
+        "titel" in l || "name" in l || "a–z" in l || "z–a" in l -> Icons.Filled.SortByAlpha
+        "anzahl" in l || "meiste" in l || "größe" in l -> Icons.Filled.FormatListNumbered
+        "ordner" in l -> Icons.Filled.Folder
+        "eigene" in l || "reihenfolge" in l -> Icons.Filled.DragHandle
+        else -> Icons.Filled.SwapVert
+    }
+}
+
 /**
- * Einheitliche Sortier-Auswahl: ein Knopf mit der aktuellen Sortierung (ohne das Wort „Sortierung“ – das Symbol
- * zeigt es), öffnet eine Liste und schließt sich nach der Wahl. Feste Breite, damit sich daneben nichts verschiebt.
+ * Einheitlicher Sortier-Knopf: nur ⇅ mit Aufklapp-Pfeil (spart Platz). Aufgeklappt: jede Möglichkeit mit Symbol,
+ * die gewählte mit Richtung (↑/↓). Antippen wählt bzw. dreht die Richtung um – das Menü BLEIBT offen, damit man schnell
+ * wechseln kann, und schließt sich erst beim Tippen daneben.
+ * [direction]: Richtung der gewählten Sortierung (true = absteigend ↓, false = aufsteigend ↑, null = keine Richtung).
  */
 @Composable
-fun SortMenu(label: String, options: List<String>, selected: Int, onPick: (Int) -> Unit) {
+fun SortMenu(options: List<SortOpt>, selected: Int, direction: Boolean?, onPick: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    val shown = label.removePrefix("Sortierung: ")
     Box {
         Row(
-            Modifier.width(148.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceVariant)
+            Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceVariant)
                 .clickable { open = true }.padding(start = 10.dp, end = 2.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Filled.SwapVert, "Sortierung", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                shown, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(start = 6.dp)
-            )
+            Icon(Icons.Filled.SwapVert, "Sortierung: " + (options.getOrNull(selected)?.label ?: ""), Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Icon(Icons.Filled.ArrowDropDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEachIndexed { i, text ->
+            options.forEachIndexed { i, o ->
+                val on = i == selected
                 DropdownMenuItem(
-                    text = { Text(text) },
-                    leadingIcon = { if (i == selected) Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary) else Box(Modifier.size(24.dp)) },
-                    onClick = { open = false; onPick(i) }
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(o.label, color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                            if (on && direction != null) Text(if (direction) "  ↓" else "  ↑", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+                        }
+                    },
+                    leadingIcon = { Icon(o.icon, null, tint = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) },
+                    trailingIcon = { if (on) Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary) else Box(Modifier.size(24.dp)) },
+                    onClick = { onPick(i) }
                 )
             }
         }
     }
+}
+
+/** Ältere Form (nur Texte, ohne Richtung): bekommt automatisch Symbole und dasselbe Verhalten. */
+@Composable
+fun SortMenu(label: String, options: List<String>, selected: Int, onPick: (Int) -> Unit) {
+    SortMenu(options.map { SortOpt(it, sortIcon(it)) }, selected, null, onPick)
 }
 
 /** Album-Kachel: Cover (falls Bilder in den Liedern stecken), Name und Anzahl. */
@@ -179,10 +217,42 @@ fun AlbumTile(
  * damit sie beim Scrollen, Filtern und Wechsel Kachel/Liste immer an derselben Stelle bleibt.
  */
 @Composable
-fun ListToolbar(count: String, sortLabel: String, sortOptions: List<String>, sortSelected: Int, onSort: (Int) -> Unit, icons: @Composable () -> Unit = {}) {
+fun ListToolbar(count: String, sort: @Composable () -> Unit, icons: @Composable () -> Unit = {}) {
     Row(Modifier.fillMaxWidth().height(48.dp).padding(start = 12.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(count, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         icons()
-        SortMenu(sortLabel, sortOptions, sortSelected, onSort)
+        sort()
     }
 }
+
+/**
+ * Gewählte Sortierung mit Richtung, wird dauerhaft gemerkt. Antippen der gewählten Möglichkeit dreht die Richtung um,
+ * eine andere Möglichkeit startet mit ihrer natürlichen Richtung ([defaults]: true = absteigend, z. B. Meistgehört).
+ */
+class SortChoice(private val save: (Int, Boolean) -> Unit, private val defaults: List<Boolean>, idx: Int, desc: Boolean) {
+    var index by androidx.compose.runtime.mutableIntStateOf(idx)
+        private set
+    var desc by mutableStateOf(desc)
+        private set
+    fun pick(i: Int) {
+        if (i == index) desc = !desc else { index = i; desc = defaults.getOrElse(i) { false } }
+        save(index, desc)
+    }
+    /** Liste in der gewählten Richtung: [ascending] ist die aufsteigende Reihenfolge. */
+    fun <T> apply(ascending: List<T>): List<T> = if (desc) ascending.asReversed() else ascending
+}
+
+/** Gespeicherte Sortierung laden (ohne Compose, z. B. für mehrere Reiter auf einmal). */
+fun sortChoiceFor(vm: MusicViewModel, key: String, defaults: List<Boolean>, defaultIndex: Int = 0): SortChoice {
+    val i = Store.sortPref(key, defaultIndex).coerceIn(0, defaults.lastIndex)
+    val d = Store.sortPref("$key.d", if (defaults[i]) 1 else 0) == 1
+    return SortChoice({ idx, desc -> vm.saveSort(key, idx); vm.saveSort("$key.d", if (desc) 1 else 0) }, defaults, i, d)
+}
+
+@Composable
+fun rememberSortChoice(vm: MusicViewModel, key: String, defaults: List<Boolean>, defaultIndex: Int = 0): SortChoice =
+    remember(key) { sortChoiceFor(vm, key, defaults, defaultIndex) }
+
+/** Sortier-Knopf für eine [SortChoice]. */
+@Composable
+fun SortMenu(options: List<SortOpt>, choice: SortChoice) = SortMenu(options, choice.index, choice.desc) { choice.pick(it) }

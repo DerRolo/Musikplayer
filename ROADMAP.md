@@ -32,6 +32,18 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
+## Update 17 – Kompakter Sortier-Knopf, Update ohne Nachfrage *(umgesetzt, Gerätetest offen)*
+
+- [~] **Sortier-Knopf** überall nur noch als ⇅ mit Aufklapp-Pfeil, ohne Text. Das spart Platz, die Anzahl in der Bibliothek passt wieder.
+  - Aufgeklappt hat jede Möglichkeit ein Symbol: 🎧 Meistgehört, A↓ Name/Titel, 👤 Interpret, 📅 Hinzugefügt, ⏱ Länge, ≡ Meiste Lieder bzw. Anzahl.
+  - Die gewählte Möglichkeit ist markiert und zeigt ihre Richtung **↑/↓**.
+  - Nochmal antippen dreht die Richtung um. Das Menü **bleibt dabei offen** und schließt sich erst beim Tippen daneben.
+  - „Name A–Z“ und „Name Z–A“ sind jetzt **eine** Möglichkeit „Name“ mit Richtung. Das gilt für Interpreten, Alben, Playlists, Hörbücher und die Jam-Bibliothek.
+  - In der Bibliothek geht es reihum: natürliche Richtung → umgekehrt → aus.
+  - Auch Ordner, Neue Lieder und die geöffnete Playlist haben jetzt Symbole und das offene Menü.
+  - Hinweis: Weil die Möglichkeiten neu zusammengefasst sind, startet die gemerkte Sortierung dieser Ansichten einmal neu mit „Meistgehört“.
+- [~] **App-Update ohne Android-Nachfrage** (ab Android 12): Hat die App ihre Version selbst installiert, aktualisiert sie sich nach „Installieren“ ohne weitere Abfrage. Beim ersten In-App-Update fragt Android noch einmal. Ob Xiaomi seinen eigenen Scan trotzdem zeigt, entscheidet das Handy. Er lässt sich unter Einstellungen → Apps → System-App-Einstellungen → Sicherheit → Sicherheitsscan → „Vor Installation durchsuchen“ abschalten.
+
 ## Update 16 – Feste Leisten, Herz-Filter, Kachel-Bibliothek, Design *(umgesetzt, Gerätetest offen)*
 
 - [~] **Feste Werkzeugleiste**, überall gleich (Bibliothek, Interpreten, Alben, Playlists, Hörbücher, Jam-Bibliothek):
