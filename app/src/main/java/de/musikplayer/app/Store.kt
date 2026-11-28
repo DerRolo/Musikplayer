@@ -48,8 +48,6 @@ object Store {
     var autoUpdate: Boolean = true
     /** Download: nur geprüfte, legale Seiten anbieten (freie Websuche gesperrt). */
     var dlVerifiedOnly: Boolean = true
-    /** App-Update über den normalen Android-Installer statt im Hintergrund (nach einem Abbruch, z. B. auf Xiaomi). */
-    var updateClassic: Boolean = false
     /** Download: Zeitpunkt der letzten Suche nach neuen Dateien im Download-Ordner (ms). */
     var dlLastScan: Long = 0L
         private set
@@ -191,7 +189,6 @@ object Store {
             sortPrefs = o.optJSONObject("sortPrefs")?.let { j -> j.keys().asSequence().associateWith { j.optInt(it) } }.orEmpty()
             autoUpdate = o.optBoolean("autoUpdate", true)
             dlVerifiedOnly = o.optBoolean("dlVerifiedOnly", true)
-            updateClassic = o.optBoolean("updateClassic", false)
             dlLastScan = o.optLong("dlLastScan", 0L)
             restoreOffered = o.optBoolean("restoreOffered", true)
             autoBackup = o.optBoolean("autoBackup", true)
@@ -291,7 +288,6 @@ object Store {
         o.put("sortPrefs", JSONObject(sortPrefs))
         o.put("autoUpdate", autoUpdate)
         o.put("dlVerifiedOnly", dlVerifiedOnly)
-        o.put("updateClassic", updateClassic)
         o.put("dlLastScan", dlLastScan)
         o.put("restoreOffered", restoreOffered)
         o.put("autoBackup", autoBackup)
@@ -674,7 +670,6 @@ object Store {
     fun setSortPref(ctx: Context, key: String, value: Int) { if (sortPrefs[key] != value) { sortPrefs = sortPrefs + (key to value); save(ctx) } }
     fun setAutoUpdate(ctx: Context, on: Boolean) { autoUpdate = on; save(ctx) }
     fun setDlVerifiedOnly(ctx: Context, on: Boolean) { dlVerifiedOnly = on; save(ctx) }
-    fun setUpdateClassic(ctx: Context, on: Boolean) { updateClassic = on; save(ctx) }
     fun setDlLastScan(ctx: Context, t: Long) { dlLastScan = t; save(ctx) }
 
     fun setArtistGrid(ctx: Context, grid: Boolean) {

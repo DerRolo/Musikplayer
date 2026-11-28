@@ -59,10 +59,7 @@ fun UpdateDialog() {
                 Updater.status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = ORANGE) }
             }
         },
-        confirmButton = {
-            if (Updater.classicOffer) TextButton(onClick = { Updater.installClassic(ctx) }, enabled = !busy) { Text("Mit Android-Installer") }
-            else TextButton(onClick = { scope.launch { Updater.install(ctx, rel) } }, enabled = !busy) { Text("Installieren") }
-        },
+        confirmButton = { TextButton(onClick = { scope.launch { Updater.install(ctx, rel) } }, enabled = !busy) { Text("Installieren") } },
         dismissButton = { TextButton(onClick = { Updater.dismissedTag = rel.tag }, enabled = !busy) { Text("Später") } }
     )
 }
@@ -90,9 +87,6 @@ fun UpdatePage(onBack: () -> Unit) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { scope.launch { Updater.check(ctx, manual = true) } }, enabled = Updater.progress < 0f) { Text("Jetzt suchen") }
             if (rel != null) Button(onClick = { scope.launch { Updater.install(ctx, rel) } }, enabled = Updater.progress < 0f) { Text("Version ${rel.name} installieren") }
-        }
-        if (rel != null && Updater.classicOffer) Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-            OutlinedButton(onClick = { Updater.installClassic(ctx) }) { Text("Mit Android-Installer") }
         }
         if (Updater.progress >= 0f) LinearProgressIndicator(progress = { Updater.progress }, modifier = Modifier.fillMaxWidth().padding(16.dp))
         Updater.status?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = ORANGE, modifier = Modifier.padding(16.dp)) }
