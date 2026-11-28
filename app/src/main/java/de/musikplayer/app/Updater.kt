@@ -41,6 +41,8 @@ object Updater {
         private set
     /** „Später“ gewählt: für diese Version in dieser Sitzung nicht mehr nachfragen. */
     var dismissedTag by mutableStateOf<String?>(null)
+    /** Die Installation im Hintergrund wurde abgebrochen: Knopf „Mit Android-Installer“ anbieten. */
+    var classicOffer by mutableStateOf(false)
     private var checkedThisStart = false
 
     fun installedNumber(ctx: Context): Int = try {
@@ -112,7 +114,7 @@ object Updater {
         }
         status = "Lade Version ${rel.name} …"
         progress = 0f
-        val file = File(app.cacheDir, "update.apk")
+        val file = apkFile(app)
         val ok = withContext(Dispatchers.IO) {
             try {
                 val c = URL(rel.apkUrl).openConnection() as HttpURLConnection
@@ -138,6 +140,9 @@ object Updater {
         }
         progress = -1f
         if (!ok) { status = "Download fehlgeschlagen – bitte nochmal versuchen."; return }
+        // Ist die Installation im Hintergrund auf diesem Handy schon einmal abgebrochen (z. B. Xiaomi/HyperOS),
+        // gleich den normalen Android-Installer nehmen – wie beim Öffnen der APK im Dateimanager.
+        if (Store.updateClassic) { installClassic(app); return }
         status = "Installation wird gestartet …"
         val started = withContext(Dispatchers.IO) {
             try {
@@ -157,7 +162,27 @@ object Updater {
                 true
             } catch (e: Exception) { false }
         }
-        if (!started) status = "Installation konnte nicht gestartet werden."
+        if (!started) { classicOffer = true; status = "Installation konnte nicht gestartet werden – versuch „Mit Android-Installer“." }
+    }
+
+    private fun apkFile(ctx: Context) = File(ctx.applicationContext.cacheDir, "update.apk")
+
+    /** Heruntergeladene APK mit dem normalen Android-Installer öffnen (zeigt „Installieren“ wie im Dateimanager). */
+    fun installClassic(ctx: Context): Boolean {
+        val app = ctx.applicationContext
+        val file = apkFile(app)
+        if (!file.isFile || file.length() == 0L) { status = "Update-Datei fehlt – bitte nochmal auf „Installieren“ tippen."; return false }
+        return try {
+            val uri = androidx.core.content.FileProvider.getUriForFile(app, app.packageName + ".files", file)
+            val i = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            app.startActivity(i)
+            status = "Android-Installer geöffnet – dort auf „Installieren“ bzw. „Aktualisieren“ tippen."
+            true
+        } catch (e: Exception) {
+            status = "Android-Installer ließ sich nicht öffnen. Lade die APK unter github.com/${repo(app)}/releases und öffne sie."
+            false
+        }
     }
 }
 
@@ -172,8 +197,17 @@ class UpdateReceiver : BroadcastReceiver() {
                 try { context.startActivity(confirm) } catch (e: Exception) { Updater.status = "Bestätigung konnte nicht geöffnet werden." }
             }
             PackageInstaller.STATUS_SUCCESS -> Updater.status = "Update installiert."
-            PackageInstaller.STATUS_FAILURE_ABORTED -> Updater.status = "Installation abgebrochen."
-            else -> Updater.status = "Installation fehlgeschlagen: " + (intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "unbekannter Fehler")
+            else -> {
+                // Abgebrochen oder fehlgeschlagen (passiert z. B. auf Xiaomi mit dem eigenen Sicherheits-Installer):
+                // ab jetzt den normalen Android-Installer verwenden und ihn gleich anbieten.
+                val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
+                Store.load(context) // falls die App gerade erst gestartet wurde – sonst würde leer gespeichert
+                Store.setUpdateClassic(context, true)
+                Updater.classicOffer = true
+                Updater.status = (if (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -1) == PackageInstaller.STATUS_FAILURE_ABORTED)
+                    "Installation abgebrochen." else "Installation fehlgeschlagen" + (msg?.let { ": $it" } ?: ".")) +
+                    " Tippe auf „Mit Android-Installer“."
+            }
         }
     }
 }

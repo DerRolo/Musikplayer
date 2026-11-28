@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- nur die heruntergeladene Update-APK im Cache -->
+    <cache-path name="update" path="." />
+</paths>

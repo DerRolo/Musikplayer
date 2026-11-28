@@ -32,6 +32,13 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
+## Fix – App-Update „Installation abgebrochen“ *(umgesetzt, Gerätetest offen)*
+
+- [~] Auf manchen Handys (vermutlich Xiaomi/HyperOS mit eigenem Sicherheits-Installer) bricht die Installation im Hintergrund nach „Quelle vertrauen“ ab.
+  - Bricht sie ab, bietet die App jetzt **„Mit Android-Installer“** an. Das öffnet die heruntergeladene APK im normalen Installer, so wie aus dem Dateimanager.
+  - Die App merkt sich das und nimmt auf diesem Handy ab dann gleich diesen Weg.
+  - Wichtig: Die schon installierte Version hat diesen Ausweg noch nicht. Diese eine Version muss man von Hand installieren (APK von GitHub-Releases herunterladen und öffnen).
+
 ## Update 20 – Jam-Reiter, Versionen 1.1, 1.2 … *(umgesetzt, Gerätetest offen)*
 
 - [~] **Reiter unten neu:** Bibliothek · Playlists · Hörbücher · Jam · Optionen. Der Such-Reiter ist weg, die Suche steckt im Suchfeld oben in der Bibliothek (findet dasselbe).
