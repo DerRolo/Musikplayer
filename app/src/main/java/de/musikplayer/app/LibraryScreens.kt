@@ -2,6 +2,7 @@
 
 package de.musikplayer.app
 
+import androidx.compose.material3.SegmentedButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.width
@@ -199,7 +200,7 @@ fun LibrarySwitch(mode: Int, onMode: (Int) -> Unit) {
     val icons = listOf(Icons.Filled.LibraryMusic, Icons.Filled.Person, Icons.Filled.Album)
     androidx.compose.material3.SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)) {
         labels.forEachIndexed { i, l ->
-            androidx.compose.material3.SegmentedButton(
+            SegmentedButton(
                 selected = mode == i,
                 onClick = { onMode(i) },
                 shape = androidx.compose.material3.SegmentedButtonDefaults.itemShape(i, labels.size),
