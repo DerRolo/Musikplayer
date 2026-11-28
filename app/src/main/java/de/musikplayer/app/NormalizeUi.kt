@@ -51,7 +51,7 @@ fun NormalizeDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -> Un
                         "Das dauert pro Lied einige Sekunden und lässt sich bei jedem Lied wieder zurücknehmen."
                 )
             },
-            confirmButton = { TextButton(onClick = { vm.normalizeMany(tracks); onDismiss() }) { Text("Angleichen", color = ORANGE) } },
+            confirmButton = { TextButton(onClick = { vm.normalizeMany(tracks); vm.selectionDone(); onDismiss() }) { Text("Angleichen", color = ORANGE) } },
             dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
         )
         return

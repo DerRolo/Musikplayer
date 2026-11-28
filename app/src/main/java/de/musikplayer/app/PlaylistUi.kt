@@ -281,10 +281,7 @@ fun PlaylistHeader(
             }
             IconButton(onClick = { vm.next() }, Modifier.size(48.dp), enabled = thisPlaying) { Icon(Icons.Filled.SkipNext, "Weiter", Modifier.size(30.dp)) }
             IconButton(onClick = { vm.cycleRepeat("p:${p.id}") }, Modifier.size(44.dp)) {
-                Icon(
-                    if (vm.repeatFor("p:${p.id}") == RepeatMode.One) Icons.Filled.RepeatOne else Icons.Filled.Repeat, "Wiederholen",
-                    tint = if (vm.repeatFor("p:${p.id}") == RepeatMode.Off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
-                )
+                RepeatIcon(vm.repeatFor("p:${p.id}"))
             }
         }
     }
@@ -338,7 +335,13 @@ fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -
     var showAudio by remember { mutableStateOf(false) }
     var q by remember { mutableStateOf("") }
     val fq = Names.fold(q.trim())
+    // Wie viele der Lieder schon drin sind (Stand beim Öffnen, damit beim Antippen nichts herumspringt)
+    val already = remember(tracks) {
+        vm.playlists.associate { p -> val have = p.trackPaths.toHashSet(); p.id to paths.count { it in have } }
+    }
+    // Erst Playlists, die die Lieder schon ganz enthalten, dann teilweise, dann die übrige gewohnte Reihenfolge
     val ordered = vm.orderedPlaylists().filter { it.audio == showAudio && (fq.isEmpty() || fq in Names.fold(it.name)) }
+        .sortedByDescending { p -> val n = already[p.id] ?: 0; if (n == 0) 0 else if (n >= paths.size) 2 else 1 }
     val toAdd = checked.filter { it !in initial }
     val toRemove = initial.filter { it !in checked }
     AlertDialog(
@@ -370,9 +373,15 @@ fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -
                             PlaylistCover(p, remember(p) { vm.playlistTracks(p.id) }, Modifier.padding(start = 10.dp).size(52.dp).clip(RoundedCornerShape(8.dp)), 120)
                             Column(Modifier.padding(start = 12.dp).weight(1f)) {
                                 Text(p.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                val n = already[p.id] ?: 0
                                 Text(
-                                    "${p.trackPaths.size} Lieder",
-                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    "${p.trackPaths.size} Lieder" + when {
+                                        n == 0 -> ""
+                                        n >= paths.size -> if (paths.size == 1) " · schon drin" else " · alle schon drin"
+                                        else -> " · $n von ${paths.size} schon drin"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (n > 0) ORANGE else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             if (p.pinned) Icon(Icons.Filled.PushPin, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
@@ -383,7 +392,7 @@ fun AddToPlaylistDialog(vm: MusicViewModel, tracks: List<Track>, onDismiss: () -
         },
         confirmButton = {
             TextButton(
-                onClick = { vm.addToPlaylists(toAdd, tracks, toRemove); onDismiss() },
+                onClick = { vm.addToPlaylists(toAdd, tracks, toRemove); vm.selectionDone(); onDismiss() },
                 enabled = toAdd.isNotEmpty() || toRemove.isNotEmpty()
             ) { Text("Fertig") }
         },

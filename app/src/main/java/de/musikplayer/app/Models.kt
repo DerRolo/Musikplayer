@@ -55,7 +55,21 @@ data class FolderInfo(
 
 enum class SortBy(val label: String) { Title("Titel"), Artist("Interpret"), Added("Hinzugefügt"), Duration("Länge"), Plays("Meistgehört") }
 
-enum class RepeatMode { Off, All, One }
+/** Off = Liste einmal durch, All = Liste wiederholen, One = Lied wiederholen, Once = nur dieses Lied, dann Stopp. */
+enum class RepeatMode { Off, All, One, Once }
+
+/** Wiederholen-Modus „Nur dieses Lied“: Der Player hält am Ende des Lieds an (ExoPlayer pauseAtEndOfMediaItems). */
+object PlayOnce {
+    @Volatile var player: androidx.media3.exoplayer.ExoPlayer? = null
+    @Volatile var on: Boolean = false
+        set(v) {
+            field = v
+            player?.let { p -> android.os.Handler(p.applicationLooper).post { p.pauseAtEndOfMediaItems = v } }
+        }
+}
+
+/** Gespeicherter Wiederholen-Wert (0–3) → Modus. */
+fun repeatModeOf(r: Int): RepeatMode = when (r) { 1 -> RepeatMode.All; 2 -> RepeatMode.One; 3 -> RepeatMode.Once; else -> RepeatMode.Off }
 
 fun formatDuration(ms: Long): String {
     val s = ms / 1000

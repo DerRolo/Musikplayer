@@ -85,6 +85,8 @@ fun NewSongsPage(vm: MusicViewModel, actions: TrackActions, onDownload: (() -> U
     }
     var edit by remember { mutableStateOf<Track?>(null) }
     BackHandler(enabled = sel.active) { sel.clear() }
+    val selStart = remember(sel.active) { vm.selectionDoneTick }
+    LaunchedEffect(vm.selectionDoneTick) { if (sel.active && vm.selectionDoneTick != selStart) sel.clear() }
     val chosen = { fresh.filter { it.id in sel.ids } }
 
     Column(Modifier.fillMaxSize()) {
@@ -104,12 +106,12 @@ fun NewSongsPage(vm: MusicViewModel, actions: TrackActions, onDownload: (() -> U
                     count = sel.ids.size,
                     onClose = { sel.clear() },
                     onSelectAll = { sel.setAll(fresh.map { it.id }) },
-                    onPlaylist = { actions.onAddManyToPlaylist(chosen()); sel.clear() },
+                    onPlaylist = { actions.onAddManyToPlaylist(chosen()) },
                     onQueue = { vm.addToQueue(chosen()); sel.clear() },
                     onPlayNext = { vm.playNext(chosen()); sel.clear() },
-                    onDelete = { actions.onDeleteMany(chosen()); sel.clear() },
+                    onDelete = { actions.onDeleteMany(chosen()) },
                     onBlock = { actions.onBlockMany(chosen()); sel.clear() },
-                    onAssign = { actions.onAssignMany(chosen()); sel.clear() }
+                    onAssign = { actions.onAssignMany(chosen()) }
                 )
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {

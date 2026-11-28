@@ -169,7 +169,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         repeat = when (c.repeatMode) {
             Player.REPEAT_MODE_ALL -> RepeatMode.All
             Player.REPEAT_MODE_ONE -> RepeatMode.One
-            else -> RepeatMode.Off
+            else -> if (PlayOnce.on) RepeatMode.Once else RepeatMode.Off
         }
         currentIndex = c.currentMediaItemIndex
         nextItem = c.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET }?.let { c.getMediaItemAt(it) }
@@ -291,7 +291,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun shuffleFor(key: String): Boolean { modeVersion; return Store.modeOf(key).first }
     fun repeatFor(key: String): RepeatMode {
         modeVersion
-        return when (Store.modeOf(key).second) { 1 -> RepeatMode.All; 2 -> RepeatMode.One; else -> RepeatMode.Off }
+        return repeatModeOf(Store.modeOf(key).second)
     }
 
     /** Gespeicherten Modus (Shuffle + Wiederholen) eines Kontexts auf den Player anwenden. */
@@ -299,6 +299,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         val (s, r) = Store.modeOf(key)
         shuffle = s
         controller?.repeatMode = when (r) { 1 -> Player.REPEAT_MODE_ALL; 2 -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF }
+        PlayOnce.on = r == 3
     }
 
     /** Liste starten mit dem gespeicherten Modus ihres Kontexts (Bibliothek bzw. Playlist). */
@@ -509,7 +510,8 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         val c = controller ?: return
         val k = key ?: keyOf(playingContext)
         val (s, r) = Store.modeOf(k)
-        val next = (r + 1) % 3
+        // Aus → Liste wiederholen → Lied wiederholen → Nur dieses Lied → Aus
+        val next = (r + 1) % 4
         Store.setMode(app, k, s, next)
         modeVersion++
         if (isLive(k)) {
@@ -518,7 +520,9 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
                 2 -> Player.REPEAT_MODE_ONE
                 else -> Player.REPEAT_MODE_OFF
             }
-            repeat = when (next) { 1 -> RepeatMode.All; 2 -> RepeatMode.One; else -> RepeatMode.Off }
+            PlayOnce.on = next == 3
+            repeat = repeatModeOf(next)
+            message = when (next) { 1 -> "Liste wiederholen"; 2 -> "Lied wiederholen"; 3 -> "Nur dieses Lied – danach Stopp"; else -> "Wiederholen aus" }
         }
     }
 
@@ -598,7 +602,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         positionMs = Jam.estimatedPosition()
         durationMs = s?.current?.durationMs ?: 0L
         shuffle = s?.shuffle == true
-        repeat = when (s?.repeat) { Player.REPEAT_MODE_ALL -> RepeatMode.All; Player.REPEAT_MODE_ONE -> RepeatMode.One; else -> RepeatMode.Off }
+        repeat = when (s?.repeat) { Player.REPEAT_MODE_ALL -> RepeatMode.All; Player.REPEAT_MODE_ONE -> RepeatMode.One; 3 -> RepeatMode.Once; else -> RepeatMode.Off }
         val next = s?.upcoming.orEmpty().map { jamItem(it) }
         queue = listOfNotNull(cur) + next
         currentIndex = 0
@@ -890,6 +894,12 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Auswahl „Zu Playlist“ von außen öffnen (z. B. alle Lieder einer Playlist in eine andere). */
     var pickerRequest by mutableStateOf<List<Track>?>(null)
 
+    /** Wird erhöht, wenn eine Aktion aus einem Dialog (Playlist, Löschen, Interpret, Cover, Angleichen) wirklich
+     *  ausgeführt wurde. Offene Auswahlen heben sich erst dann auf – „Abbrechen“ lässt die Auswahl stehen. */
+    var selectionDoneTick by mutableIntStateOf(0)
+        private set
+    fun selectionDone() { selectionDoneTick++ }
+
     /** Tippen auf die „hinzugefügt“-Meldung öffnet diese Playlist. */
     var linkLabel: String? = null
     /** "pl:<id>" = Playlist öffnen, "blocked" = Sperrliste in den Einstellungen. */
@@ -1061,12 +1071,15 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
                     failed += r.failed
                     r.map[cur.path]?.let { cur = cur.copy(path = it) }
                 }
-                if (nameChanged) failed += Library.renameFiles(app, listOf(cur to newBaseName)).failed
+                if (nameChanged) {
+                    val r = Library.renameFiles(app, listOf(cur to newBaseName))
+                    failed += r.failed
+                    r.map[cur.path]?.let { cur = cur.copy(path = it) }
+                }
                 Library.load(app)
-                val coverTarget = Library.allTracks.firstOrNull { candidate ->
-                    candidate.title == t.title && candidate.artist == (art ?: t.artist) &&
-                        (candidate.fileName.substringBeforeLast('.') == newBaseName || candidate.folder == cur.folder)
-                }?.path ?: cur.path
+                // Cover an den neuen Pfad hängen (nach Verschieben/Umbenennen). Früher wurde hier geraten –
+                // bei geändertem Namen landete das Cover am alten Pfad und war danach „weg“.
+                val coverTarget = cur.path
                 if (coverSelected) {
                     if (coverReset) Store.setTrackCover(app, listOf(coverTarget), null)
                     else {

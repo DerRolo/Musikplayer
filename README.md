@@ -18,7 +18,7 @@ Die App ist nicht nur ein Player, sondern auch ein Aufräumwerkzeug für eine un
 - **Warteschlange:** zeigt Cover, Titel, Interpret, Album und Länge. Gedrückt halten und schieben sortiert um, das Drei-Punkte-Menü bietet „Jetzt abspielen“ und „Entfernen“.
 - **Ausgabegerät wählen:** Im großen Player bei der Warteschlange rechts oben. Angezeigt werden nur verbundene Geräte (Handy, Bluetooth, Kopfhörer, USB). „Automatisch“ überlässt Android die Wahl.
 
-- Hintergrundwiedergabe mit Benachrichtigung, Warteschlange, Shuffle, Wiederholen (aus, alle, eines).
+- Hintergrundwiedergabe mit Benachrichtigung, Warteschlange, Shuffle, Wiederholen (aus, Liste, Lied, **nur dieses Lied** →| – danach Stopp).
 - Vollbild-Player mit drehender Schallplatte, echtem Equalizer und Wischen für nächstes und voriges Lied.
 - Der Equalizer zeigt das Spektrum der gespielten Musik. Dafür verlangt Android die Berechtigung „Audio aufnehmen“. Das Mikrofon wird nicht abgehört, ohne die Berechtigung läuft eine Animation.
 - Mini-Leiste, Android Auto (Alle Titel, Interpreten, Playlists) und Cover in der Auto-Anzeige.
@@ -154,7 +154,9 @@ Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im 
 ### Cover
 
 - Lieder, Interpreten, Playlists und Alben haben Cover. Fehlt eines, wird automatisch ein Bild aus den enthaltenen Liedern zusammengesetzt. Eigene Bilder gehen vor.
-- **Cover-Suche:** sucht live über iTunes und Deezer, mit dem aktuellen Namen und Interpreten. Das ist der einzige Teil der App, der das Internet nutzt.
+- **Cover-Suche:** sucht live über iTunes, Deezer und MusicBrainz (Alben, Lieder und Interpreten-Fotos), seitenweise mit „Seite x von y“. Ein Tipp auf einen Vorschlag sucht nur nach Interpret, Album oder Titel. „Im Browser suchen“ öffnet die Bildersuche; ein gespeichertes Bild wählt man dann über „Aus meinen Bildern“.
+- **Zu Playlist hinzufügen:** Playlists, die das Lied schon enthalten, stehen oben und sind mit „schon drin“ markiert.
+- **Markieren:** Solange Lieder markiert sind, öffnet ein Tipp auf den Interpreten nicht dessen Seite. Bricht man einen Dialog ab (Playlist, Löschen, Interpret, Cover), bleibt die Auswahl erhalten.
 - Cover lassen sich einzeln und für mehrere Lieder gleichzeitig ändern.
 - Ein interner Cover-Dienst reicht die Bilder auch an Android Auto weiter.
 

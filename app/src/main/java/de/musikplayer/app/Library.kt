@@ -385,7 +385,7 @@ object Library {
     /** Lieder, deren Dateiname vom Namen in der App abweicht. */
     fun renameCandidates(): List<Track> = tracks.filter { File(it.path).name != proposedFileName(it) }
 
-    data class RenameResult(val renamed: Int, val failed: Int, val skipped: Int)
+    data class RenameResult(val renamed: Int, val failed: Int, val skipped: Int, val map: Map<String, String> = emptyMap())
 
     /** Benennt Dateien um (Titel, neuer Name ohne Endung). Playlists und Zuordnungen ziehen mit. */
     fun renameFiles(ctx: Context, items: List<Pair<Track, String>>): RenameResult {
@@ -414,7 +414,7 @@ object Library {
         }
         Store.remapPaths(ctx, map)
         rescan(ctx, map.keys.toList() + map.values.toList())
-        return RenameResult(map.size, failed, skipped)
+        return RenameResult(map.size, failed, skipped, map)
     }
 
     /**

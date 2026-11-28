@@ -2,6 +2,9 @@
 
 package de.musikplayer.app
 
+import androidx.compose.material.icons.filled.KeyboardTab
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -208,7 +211,8 @@ fun TrackRow(
         val muted = MaterialTheme.colorScheme.onSurfaceVariant
         val titleColor = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
         val openArtist = actions.onOpenArtist
-        val canOpen = openArtist != null && track.artist != UNKNOWN_ARTIST
+        // Beim Markieren führt ein Tipp auf Interpret/Album nicht weg, sondern (de)markiert die Zeile
+        val canOpen = openArtist != null && track.artist != UNKNOWN_ARTIST && !selectionMode
         val fav = actions.isFavorite(track)
         val jamLocked = Jam.editLocked
         val plays = Store.playCounts[track.path] ?: 0
@@ -552,4 +556,19 @@ fun rememberSwipeAllowed(state: androidx.compose.foundation.lazy.LazyListState):
         if (scrolling) locked = true else { kotlinx.coroutines.delay(450); locked = false }
     }
     return !locked && !scrolling
+}
+
+
+/**
+ * Wiederholen-Knopf überall gleich: ⟳ Liste, ⟳1 Lied, →| nur dieses Lied (danach Stopp), grau = aus.
+ */
+@Composable
+fun RepeatIcon(mode: RepeatMode, modifier: Modifier = Modifier, offTint: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
+    val (icon, label) = when (mode) {
+        RepeatMode.One -> Icons.Filled.RepeatOne to "Lied wiederholen"
+        RepeatMode.Once -> Icons.Filled.KeyboardTab to "Nur dieses Lied, danach Stopp"
+        RepeatMode.All -> Icons.Filled.Repeat to "Liste wiederholen"
+        RepeatMode.Off -> Icons.Filled.Repeat to "Wiederholen aus"
+    }
+    Icon(icon, label, modifier, tint = if (mode == RepeatMode.Off) offTint else MaterialTheme.colorScheme.primary)
 }

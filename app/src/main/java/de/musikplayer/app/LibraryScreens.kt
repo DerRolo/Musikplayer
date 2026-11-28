@@ -139,18 +139,21 @@ fun groupActions(vm: MusicViewModel, list: List<Track>, context: String, actions
 fun TrackSelectionBar(vm: MusicViewModel, list: List<Track>, actions: TrackActions, sel: Selection, removeLabel: String? = null, onRemove: () -> Unit = {}, onDone: () -> Unit = {}) {
     val done = { sel.clear(); onDone() }
     val chosen = { list.filter { it.id in sel.ids } }
+    // Aktionen mit Dialog heben die Auswahl erst nach dem Bestätigen auf (nicht schon beim Öffnen)
+    val startTick = remember { vm.selectionDoneTick }
+    LaunchedEffect(vm.selectionDoneTick) { if (vm.selectionDoneTick != startTick) done() }
     SelectionBar(
         count = sel.ids.size,
         onClose = { done() },
         onSelectAll = { sel.setAll(list.map { it.id }) },
-        onPlaylist = { actions.onAddManyToPlaylist(chosen()); done() },
+        onPlaylist = { actions.onAddManyToPlaylist(chosen()) },
         onQueue = { vm.addToQueue(chosen()); done() },
         onPlayNext = { vm.playNext(chosen()); done() },
-        onDelete = { actions.onDeleteMany(chosen()); done() },
+        onDelete = { actions.onDeleteMany(chosen()) },
         onBlock = { actions.onBlockMany(chosen()); done() },
-        onAssign = { actions.onAssignMany(chosen()); done() },
-        onCover = { actions.onCoverMany(chosen()); done() },
-        onNormalize = actions.onNormalize?.let { nz -> { nz(chosen()); done() } },
+        onAssign = { actions.onAssignMany(chosen()) },
+        onCover = { actions.onCoverMany(chosen()) },
+        onNormalize = actions.onNormalize?.let { nz -> { nz(chosen()) } },
         removeLabel = removeLabel,
         onRemove = { onRemove(); done() }
     )
@@ -579,6 +582,7 @@ fun ArtistsTab(
         albumCover?.let { (an, tl) ->
             CoverPickerDialog(
                 initialQuery = "$artist $an",
+                suggestions = listOf(artist, an),
                 onDismiss = { albumCover = null },
                 onUri = { vm.setTrackCover(tl, uri = it) },
                 onUrl = { vm.setTrackCover(tl, url = it) },

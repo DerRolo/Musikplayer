@@ -46,6 +46,8 @@ class PlaybackService : MediaLibraryService() {
         SleepTimer.player = player
         player.addListener(resumeSaver)
         Jam.player = player
+        PlayOnce.player = player
+        player.pauseAtEndOfMediaItems = PlayOnce.on
         player.addListener(Jam.errorSkipper)
         Output.start(this)
         // Lautstärke-Angleichung beim Abspielen (für Formate, die nicht in der Datei geändert werden können)
@@ -79,6 +81,7 @@ class PlaybackService : MediaLibraryService() {
         session?.player?.removeListener(resumeSaver)
         session?.player?.removeListener(Jam.errorSkipper)
         if (Jam.player === session?.player) Jam.player = null
+        if (PlayOnce.player === session?.player) PlayOnce.player = null
         SleepTimer.cancel()
         Normalize.release()
         SleepTimer.player = null

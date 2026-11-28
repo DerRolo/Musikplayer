@@ -203,10 +203,7 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Tr
                 }
                 IconButton(onClick = { vm.next() }, Modifier.size(44.dp)) { Icon(Icons.Filled.SkipNext, "Weiter", Modifier.size(30.dp)) }
                 IconButton(onClick = { vm.cycleRepeat() }, Modifier.size(40.dp)) {
-                    Icon(
-                        if (vm.repeat == RepeatMode.One) Icons.Filled.RepeatOne else Icons.Filled.Repeat, "Wiederholen",
-                        tint = if (vm.repeat == RepeatMode.Off) LocalContentColor.current.copy(alpha = 0.6f) else MaterialTheme.colorScheme.primary
-                    )
+                    RepeatIcon(vm.repeat, offTint = LocalContentColor.current.copy(alpha = 0.6f))
                 }
             }
             androidx.compose.material3.Slider(
@@ -519,10 +516,7 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
             }
             IconButton(onClick = { vm.next() }, Modifier.size(64.dp)) { Icon(Icons.Filled.SkipNext, "Weiter", Modifier.size(44.dp)) }
             IconButton(onClick = { vm.cycleRepeat() }, Modifier.size(56.dp)) {
-                Icon(
-                    if (vm.repeat == RepeatMode.One) Icons.Filled.RepeatOne else Icons.Filled.Repeat, "Wiederholen", Modifier.size(30.dp),
-                    tint = if (vm.repeat == RepeatMode.Off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
-                )
+                RepeatIcon(vm.repeat, Modifier.size(30.dp))
             }
             IconButton(onClick = { showQueue = !showQueue }, Modifier.size(56.dp)) {
                 Icon(Icons.Filled.QueueMusic, "Warteschlange", Modifier.size(30.dp), tint = if (showQueue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)

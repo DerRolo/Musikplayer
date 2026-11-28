@@ -301,6 +301,10 @@ fun MusicApp(vm: MusicViewModel) {
         CoverPickerDialog(
             initialQuery = coverQuery ?: listOf(t.artist, t.title).filter { it.isNotBlank() }.joinToString(" "),
             onDismiss = { coverFor = null; coverQuery = null },
+            suggestions = run {
+                val a = t.artist.takeIf { it != UNKNOWN_ARTIST }.orEmpty()
+                listOf("$a ${t.albumName}", a, t.title, t.albumName, "$a ${t.title}").map { it.trim() }
+            },
             onUri = { if (renameTrack != null) { stagedCoverUri = it; stagedCoverUrl = null; stagedCoverReset = false } else vm.setTrackCover(listOf(t), uri = it) },
             onUrl = { if (renameTrack != null) { stagedCoverUrl = it; stagedCoverUri = null; stagedCoverReset = false } else vm.setTrackCover(listOf(t), url = it) },
             onReset = if (vm.hasOwnCover(listOf(t)) || stagedCoverUri != null || stagedCoverUrl != null) ({ if (renameTrack != null) { stagedCoverUri = null; stagedCoverUrl = null; stagedCoverReset = true } else vm.setTrackCover(listOf(t)) }) else null
@@ -310,16 +314,17 @@ fun MusicApp(vm: MusicViewModel) {
         CoverPickerDialog(
             initialQuery = list.firstOrNull()?.let { listOf(it.artist.takeIf { a -> a != UNKNOWN_ARTIST } ?: "", it.albumName).filter { s -> s.isNotBlank() }.joinToString(" ") }.orEmpty(),
             onDismiss = { coverMany = null },
-            onUri = { vm.setTrackCover(list, uri = it) },
-            onUrl = { vm.setTrackCover(list, url = it) },
-            onReset = if (vm.hasOwnCover(list)) ({ vm.setTrackCover(list) }) else null
+            suggestions = list.firstOrNull()?.let { listOf(it.artist.takeIf { a -> a != UNKNOWN_ARTIST }.orEmpty(), it.albumName, it.title) }.orEmpty(),
+            onUri = { vm.setTrackCover(list, uri = it); vm.selectionDone() },
+            onUrl = { vm.setTrackCover(list, url = it); vm.selectionDone() },
+            onReset = if (vm.hasOwnCover(list)) ({ vm.setTrackCover(list); vm.selectionDone() }) else null
         )
     }
     assignMany?.let { list ->
         AssignArtistDialog(
             list.size, remember(vm.tracks) { vm.existingArtists().sortedBy { Names.fold(it) } },
             onDismiss = { assignMany = null },
-            onConfirm = { a, mv -> vm.assignTracks(list, a, mv); assignMany = null }
+            onConfirm = { a, mv -> vm.assignTracks(list, a, mv); vm.selectionDone(); assignMany = null }
         )
     }
     if (newAudioList) {
@@ -330,6 +335,6 @@ fun MusicApp(vm: MusicViewModel) {
         )
     }
     delete?.let { list ->
-        DeleteDialog(list, onDismiss = { delete = null }, onConfirm = { vm.deleteTracks(list); delete = null })
+        DeleteDialog(list, onDismiss = { delete = null }, onConfirm = { vm.deleteTracks(list); vm.selectionDone(); delete = null })
     }
 }

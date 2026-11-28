@@ -32,6 +32,25 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
+## Update 19 – Markieren, „Nur dieses Lied“, Cover-Suche, Playlist-Dialog *(umgesetzt, Gerätetest offen)*
+
+- [~] **Markieren:** Ein Tipp auf Interpret oder Album in einer Liedzeile markiert nur noch die Zeile, statt zum Interpreten zu springen.
+- [~] **Auswahl bleibt erhalten:** Zu Playlist, Löschen, Interpret zuordnen, Cover und Angleichen heben die Auswahl erst nach dem Bestätigen auf. „Abbrechen“ oder Zurück lässt sie stehen. Warteschlange, Als Nächstes und Sperren heben sie wie bisher sofort auf.
+- [~] **Neuer Wiederholen-Modus „Nur dieses Lied“** (Symbol →|): Das Lied spielt zu Ende, dann hält der Player an. Play spielt danach das nächste Lied.
+  - Reihenfolge beim Antippen: Aus → Liste wiederholen → Lied wiederholen → Nur dieses Lied → Aus. Eine kurze Meldung sagt, welcher Modus jetzt gilt.
+  - Gilt wie die anderen Modi pro Bibliothek bzw. Playlist und wird im Jam angezeigt.
+- [~] **Cover-Suche erweitert:**
+  - Mehr Quellen gleichzeitig: iTunes (Alben und Lieder), Deezer (Alben, Lieder, Interpreten-Fotos), MusicBrainz / Cover Art Archive. Statt bis zu 50 jetzt mehrere hundert Treffer. Doppelte fallen weg, passende stehen vorn.
+  - Früher suchte die App bei Liedern nur nach Alben – „Interpret + Liedtitel“ fand deshalb oft nichts. Jetzt wird auch nach Liedern gesucht.
+  - **Seiten:** 9 Cover pro Seite, wischen oder ‹ ›, Anzeige „Seite x von y · n Treffer“. Größerer Dialog, mit Beschriftung unter jedem Cover.
+  - Vorschläge zum Antippen (nur Interpret, Interpret + Album, nur Titel …) und Filter Alle / Cover / Interpreten-Fotos.
+  - „Im Browser suchen“ öffnet die Google-Bildersuche.
+- [~] **Zu Playlist hinzufügen:** Playlists, die die Lieder schon ganz enthalten, stehen oben, danach teilweise („2 von 5 schon drin“), danach die gewohnte Reihenfolge.
+- [~] **Cover verschwand:** Gefunden. Hat man im Bearbeiten-Dialog gleichzeitig den Namen und das Cover geändert, wurde das Cover an den alten Dateipfad gehängt und war nach dem Speichern weg. Jetzt hängt es am neuen Pfad. Außerdem wird ein Cover für einen veralteten Pfad auf den aktuellen umgelenkt, und gleichzeitige Änderungen können sich nicht mehr gegenseitig überschreiben.
+  - Falls es danach noch passiert: bitte sagen, was vorher gemacht wurde (Einsortieren, Umbenennen, Duplikate, Jam …).
+
+**Test:** Lieder markieren → auf Interpret tippen (bleibt in der Liste). Zu Playlist → Abbrechen (Auswahl bleibt). Wiederholen viermal tippen → →| → Lied endet und stoppt. Cover ändern → wischen / Seitenanzeige / Vorschlag „Interpret“. Lied bearbeiten: Namen und Cover zusammen ändern → Cover bleibt.
+
 ## Update 18 – Musik herunterladen (legal) *(umgesetzt, Gerätetest offen)*
 
 - [~] **Musik herunterladen** (Optionen → direkt über „Neue Lieder“, und als ⬇ oben auf der Seite „Neue Lieder“).

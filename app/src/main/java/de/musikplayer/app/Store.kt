@@ -429,13 +429,17 @@ object Store {
 
     // ---------- Zähler, Filter, Suchverlauf ----------
 
+    @Synchronized
     fun setArtistCover(ctx: Context, artist: String, file: String?) {
         artistCovers = if (file.isNullOrBlank()) artistCovers - artist else artistCovers + (artist to file)
         save(ctx)
     }
 
+    @Synchronized
     fun setTrackCover(ctx: Context, paths: List<String>, file: String?) {
-        trackCovers = if (file == null) trackCovers - paths.toSet() else trackCovers + paths.associateWith { file }
+        // alte Pfade (z. B. aus einer noch nicht aktualisierten Liste) auf den aktuellen Pfad umlenken
+        val cur = paths.map { resolve(it) }
+        trackCovers = if (file == null) trackCovers - cur.toSet() - paths.toSet() else trackCovers + cur.associateWith { file }
         save(ctx)
     }
 

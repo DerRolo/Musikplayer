@@ -441,7 +441,7 @@ object Jam {
         val playing = p != null && (p.isPlaying || (p.playWhenReady && p.playbackState == Player.STATE_BUFFERING))
         return EngineInfo(
             Output.devices, Output.selected, Output.active, entryOf(cur), upcoming, playing,
-            (p?.currentPosition ?: 0L) + clipStart(cur), host?.jamShuffleOn ?: false, p?.repeatMode ?: Player.REPEAT_MODE_OFF,
+            (p?.currentPosition ?: 0L) + clipStart(cur), host?.jamShuffleOn ?: false, if (PlayOnce.on) 3 else (p?.repeatMode ?: Player.REPEAT_MODE_OFF),
             System.currentTimeMillis(), Store.devJamEdit, myName,
             SleepTimer.sleepRemainingMs.value, SleepTimer.fadeRemainingMs.value
         )
