@@ -32,6 +32,20 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
+## Update 18 – Musik herunterladen (legal) *(umgesetzt, Gerätetest offen)*
+
+- [~] **Musik herunterladen** (Optionen → direkt über „Neue Lieder“, und als ⬇ oben auf der Seite „Neue Lieder“).
+  - Die App lädt selbst nichts herunter. Sie öffnet die Seite im **Standard-Browser**.
+  - **Geprüfte Seiten:** Jamendo, Free Music Archive, Internet Archive (Audio), Bandcamp, ccMixter, Musopen.
+  - **Hinweis „Was ist okay – und was nicht?“** steht auf der Seite und erscheint noch einmal vor dem Freischalten der Websuche.
+- [~] **Schalter „Nur geprüfte Seiten“** (Standard: an). Dann ist die freie Websuche gesperrt. Ausschalten nur nach Bestätigung des Hinweises; danach gibt es ein Suchfeld (öffnet die Suche im Browser).
+  - Ehrlich gesagt: Der Schalter sperrt nur, was die App öffnet. Im Browser selbst kann man weiterhin überall hin.
+- [~] **Torrents** über eine Torrent-App. Ist eine installiert, gibt es „<App> öffnen“. Sonst schlägt die App **LibreTorrent** vor (kostenlos, Open Source, ohne Werbung; Play Store, auch auf F-Droid). Legale Torrents gibt es z. B. beim Internet Archive.
+- [~] **Neue Downloads finden:** Kommst du zur App zurück, sucht sie im Download-Ordner (mit Unterordnern) nach neuen Audiodateien, meldet sie Android und zeigt „X neue Lieder heruntergeladen – siehe Neue Lieder“. Beim allerersten Start merkt sie sich nur den Zeitpunkt.
+  - Bekannte Grenze: Lädt eine Torrent-App noch, kann ein halb fertiges Lied schon einmal gemeldet werden und nach dem Fertigwerden noch einmal.
+
+**Test:** Optionen → Musik herunterladen → Jamendo → ein Lied herunterladen → zurück zur App → Meldung erscheint → Neue Lieder zeigt das Lied. Schalter ausschalten → Hinweis → Suchfeld erscheint. Ohne Torrent-App: „LibreTorrent installieren“ öffnet den Play Store.
+
 ## Update 17 – Kompakter Sortier-Knopf, Update ohne Nachfrage *(umgesetzt, Gerätetest offen)*
 
 - [~] **Sortier-Knopf** überall nur noch als ⇅ mit Aufklapp-Pfeil, ohne Text. Das spart Platz, die Anzahl in der Bibliothek passt wieder.
@@ -219,7 +233,8 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ## Später – Download-Funktion
 
-- [ ] Download von Webseiten bzw. YouTube als MP3/WAV, mit eigener Download-Liste. **Bewusst noch nicht gebaut.**
+- [x] Legale Downloads über geprüfte Seiten und Torrent-App → siehe Update 18.
+- [ ] Download von YouTube als MP3/WAV. **Bewusst nicht gebaut.**
   - Das Herunterladen von YouTube verstößt gegen die YouTube-Nutzungsbedingungen. In Deutschland hat das LG Hamburg 2021 entschieden, dass ein YouTube-Downloader eine wirksame technische Schutzmaßnahme umgeht (§ 95a UrhG).
   - Technik: Für MP3 braucht es einen eigenen Encoder (FFmpeg/LAME), der die APK vergrößert. WAV ginge ohne.
   - Für Musik aus dem Jam ist die Download-Liste schon gelöst: Übernommene Lieder landen in „Neue Lieder“.

@@ -32,6 +32,13 @@ Die App ist nicht nur ein Player, sondern auch ein Aufräumwerkzeug für eine un
 - **Fortsetzen:** Die Play-Taste an Kopfhörer, Bluetooth oder im Auto startet das zuletzt gespielte Lied an der gemerkten Stelle, auch wenn die App gerade nicht läuft.
 - Android selbst hat keinen eigenen Schalter „Standard-Musik-App“ wie beim Browser. Die bevorzugte App wird über „Öffnen mit → Immer“ festgelegt. Manche Hersteller bieten zusätzliche Auswahlmöglichkeiten.
 
+## Musik herunterladen
+
+- **Optionen → Musik herunterladen** (oder ⬇ auf der Seite „Neue Lieder“) öffnet geprüfte, legale Seiten im Standard-Browser: Jamendo, Free Music Archive, Internet Archive, Bandcamp, ccMixter, Musopen.
+- **Nur geprüfte Seiten** (Standard: an) sperrt die freie Websuche. Wer sie freischaltet, bestätigt vorher den Hinweis, was erlaubt ist und was nicht.
+- **Torrents** öffnet eine Torrent-App. Ist keine installiert, schlägt die App LibreTorrent vor (kostenlos, Open Source).
+- Heruntergeladenes landet im Download-Ordner. Beim Zurückkehren findet die App neue Lieder und zeigt sie unter **Neue Lieder**.
+
 ## Jam (zusammen hören im WLAN)
 
 Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im selben WLAN ist.

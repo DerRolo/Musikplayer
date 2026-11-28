@@ -46,6 +46,10 @@ object Store {
         private set
     /** App-Updates: beim Start automatisch auf GitHub nach einer neuen Version suchen. */
     var autoUpdate: Boolean = true
+    /** Download: nur geprüfte, legale Seiten anbieten (freie Websuche gesperrt). */
+    var dlVerifiedOnly: Boolean = true
+    /** Download: Zeitpunkt der letzten Suche nach neuen Dateien im Download-Ordner (ms). */
+    var dlLastScan: Long = 0L
         private set
     var artistGrid: Boolean = true
         private set
@@ -184,6 +188,8 @@ object Store {
             themeId = o.optString("themeId", "musikplayer")
             sortPrefs = o.optJSONObject("sortPrefs")?.let { j -> j.keys().asSequence().associateWith { j.optInt(it) } }.orEmpty()
             autoUpdate = o.optBoolean("autoUpdate", true)
+            dlVerifiedOnly = o.optBoolean("dlVerifiedOnly", true)
+            dlLastScan = o.optLong("dlLastScan", 0L)
             restoreOffered = o.optBoolean("restoreOffered", true)
             autoBackup = o.optBoolean("autoBackup", true)
             eqAsked = o.optBoolean("eqAsked", false)
@@ -281,6 +287,8 @@ object Store {
         o.put("themeId", themeId)
         o.put("sortPrefs", JSONObject(sortPrefs))
         o.put("autoUpdate", autoUpdate)
+        o.put("dlVerifiedOnly", dlVerifiedOnly)
+        o.put("dlLastScan", dlLastScan)
         o.put("restoreOffered", restoreOffered)
         o.put("autoBackup", autoBackup)
         o.put("eqAsked", eqAsked)
@@ -657,6 +665,8 @@ object Store {
     fun sortPref(key: String, default: Int): Int = sortPrefs[key] ?: default
     fun setSortPref(ctx: Context, key: String, value: Int) { if (sortPrefs[key] != value) { sortPrefs = sortPrefs + (key to value); save(ctx) } }
     fun setAutoUpdate(ctx: Context, on: Boolean) { autoUpdate = on; save(ctx) }
+    fun setDlVerifiedOnly(ctx: Context, on: Boolean) { dlVerifiedOnly = on; save(ctx) }
+    fun setDlLastScan(ctx: Context, t: Long) { dlLastScan = t; save(ctx) }
 
     fun setArtistGrid(ctx: Context, grid: Boolean) {
         artistGrid = grid

@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
@@ -66,7 +67,7 @@ private val NEW_SORTS = listOf("Kürzlich hinzugefügt", "Titel", "Interpret", "
  * In Liste und Kacheln lassen sich mehrere Lieder markieren (gedrückt halten) und gemeinsam bearbeiten.
  */
 @Composable
-fun NewSongsPage(vm: MusicViewModel, actions: TrackActions, onBack: () -> Unit) {
+fun NewSongsPage(vm: MusicViewModel, actions: TrackActions, onDownload: (() -> Unit)? = null, onBack: () -> Unit) {
     // Beim Öffnen sofort nachsehen, ob etwas Neues da ist
     LaunchedEffect(Unit) { vm.refresh() }
     var view by rememberSaveable { mutableIntStateOf(1) } // 0 Einzeln, 1 Liste, 2 Kacheln
@@ -88,6 +89,7 @@ fun NewSongsPage(vm: MusicViewModel, actions: TrackActions, onBack: () -> Unit) 
 
     Column(Modifier.fillMaxSize()) {
         PageHeader("Neue Lieder", onBack) {
+            if (onDownload != null) IconButton(onClick = onDownload) { Icon(Icons.Filled.Download, "Musik herunterladen", tint = ORANGE) }
             ViewToggle(listOf(VIEW_SINGLE, VIEW_LIST, VIEW_GRID), view) { view = it; sel.clear() }
         }
         if (fresh.isEmpty()) {

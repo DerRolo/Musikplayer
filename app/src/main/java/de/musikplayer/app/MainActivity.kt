@@ -107,6 +107,11 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         granted = hasAccess()
+        // Aus dem Browser / der Torrent-App zurück: neue Downloads finden und unter „Neue Lieder“ zeigen
+        if (granted) Downloads.check(this) { n ->
+            vm.refresh()
+            vm.message = if (n == 1) "1 neues Lied heruntergeladen – siehe Neue Lieder" else "$n neue Lieder heruntergeladen – siehe Neue Lieder"
+        }
     }
 
     /** Zugriff auf alle Dateien (wie im Dateimanager) – nötig zum Einsortieren und Löschen. */

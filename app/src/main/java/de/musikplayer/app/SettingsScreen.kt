@@ -56,6 +56,7 @@ import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.FiberNew
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.size
@@ -77,7 +78,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Jam, Trash, Profile, Update, Backup, Theme }
+private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Jam, Trash, Profile, Update, Backup, Theme, Download }
 
 @Composable
 fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset: Int) {
@@ -102,6 +103,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
                 "Im Jam sind die Werkzeuge zum Bearbeiten gesperrt, damit sich nichts ändert, während andere zuhören.",
                 style = MaterialTheme.typography.bodySmall, color = ORANGE, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
+            MenuEntry(Icons.Filled.Download, "Musik herunterladen", "Geprüfte, legale Seiten im Browser öffnen · Torrent-App") { page = Page.Download }
             MenuEntry(Icons.Filled.FiberNew, "Neue Lieder", "Neu gefundene Lieder: Interpret zuordnen, umbenennen, einsortieren") { page = Page.New }
             MenuEntry(Icons.Filled.Person, "Interpreten & Ordner", "Ordner prüfen, Interpret zuordnen", enabled = !locked) { page = Page.Folders }
             MenuEntry(Icons.Filled.DriveFileMove, "Nach Interpret einsortieren", "Zugeordnete Lieder in Musik/<Interpret> verschieben", enabled = !locked) { page = Page.Sort }
@@ -151,7 +153,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
         }
         Page.Folders -> FoldersPage(vm, actions) { page = Page.Menu }
         Page.Sort -> SortPage(vm) { page = Page.Menu }
-        Page.New -> NewSongsPage(vm, actions) { page = Page.Menu }
+        Page.New -> NewSongsPage(vm, actions, onDownload = { page = Page.Download }) { page = Page.Menu }
         Page.Names -> NamesPage(vm) { page = Page.Menu }
         Page.Dupes -> DupesPage(vm) { page = Page.Menu }
         Page.Cleanup -> CleanupPage(vm) { page = Page.Menu }
@@ -165,6 +167,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
         Page.Update -> UpdatePage { page = Page.Menu }
         Page.Backup -> BackupPage { page = Page.Menu }
         Page.Theme -> ThemePage { page = Page.Menu }
+        Page.Download -> DownloadPage(onBack = { page = Page.Menu }, onOpenNew = { page = Page.New })
     }
 }
 
