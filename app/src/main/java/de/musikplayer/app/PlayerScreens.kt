@@ -2,6 +2,10 @@
 
 package de.musikplayer.app
 
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.ui.zIndex
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.offset
@@ -132,7 +136,8 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Tr
         positionalThreshold = { total -> total * 0.25f },
         confirmValueChange = { v ->
             when (v) {
-                androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> trackNow?.let(onEditNow)
+                // im Jam kein Bearbeiten per Wischen
+                androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> if (!Jam.editLocked) trackNow?.let(onEditNow)
                 androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> vm.clearQueue()
                 else -> {}
             }
@@ -178,7 +183,7 @@ fun MiniPlayer(vm: MusicViewModel, onAddToPlaylist: (Track) -> Unit, onEdit: (Tr
                     )
                 }
                 if (track != null) {
-                    IconButton(onClick = { vm.blockTracks(listOf(track)) }, Modifier.size(36.dp)) {
+                    if (!Jam.editLocked) IconButton(onClick = { vm.blockTracks(listOf(track)) }, Modifier.size(36.dp)) {
                         Icon(Icons.Filled.Block, "Sperren", Modifier.size(22.dp), tint = MaterialTheme.colorScheme.error)
                     }
                     IconButton(onClick = { vm.toggleFavorite(track.path) }, Modifier.size(36.dp)) {
@@ -277,19 +282,22 @@ private fun PlayerFullPage(
                 item, vm.isPlaying, Modifier.weight(1f).fillMaxWidth(),
                 onTitle = if (track != null && nav != null) ({ nav.onLocate(track) }) else null,
                 onArtist = if (track != null && nav != null && track.artist != UNKNOWN_ARTIST) ({ nav.onArtist(track.artist) }) else null,
-                onCover = if (track != null) ({ actions.onCover(track) }) else null
+                onCover = if (track != null && !Jam.editLocked) ({ actions.onCover(track) }) else null
             )
         }
         if (track != null) {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { actions.onBlock(track) }) { Icon(Icons.Filled.Block, "Sperren", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(26.dp)) }
-                Spacer(Modifier.size(24.dp))
+                // Im Jam sind Bearbeiten-Funktionen aus dem großen Player herausgenommen
+                if (!Jam.editLocked) {
+                    IconButton(onClick = { actions.onBlock(track) }) { Icon(Icons.Filled.Block, "Sperren", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(26.dp)) }
+                    Spacer(Modifier.size(24.dp))
+                }
                 IconButton(onClick = { vm.toggleFavorite(track.path) }) { Icon(if (favorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Lieblingssong", tint = if (favorite) HEART else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp)) }
                 Spacer(Modifier.size(24.dp))
                 IconButton(onClick = { onAddToPlaylist(track) }) { Icon(Icons.Filled.Add, "Zu Playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(30.dp)) }
             }
             Box(Modifier.fillMaxWidth().height(38.dp), contentAlignment = Alignment.Center) {
-                if (proposed != null && base != null && proposed != base) {
+                if (proposed != null && base != null && proposed != base && !Jam.editLocked) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             MarqueeText(proposed, MaterialTheme.typography.labelLarge, Modifier.fillMaxWidth(), color = ORANGE, align = TextAlign.Start)
@@ -432,13 +440,17 @@ fun NowPlayingScreen(vm: MusicViewModel, actions: TrackActions, onAddToPlaylist:
                             if (fav) "Aus Lieblingssongs entfernen" else "Zu Lieblingssongs",
                             if (fav) Icons.Outlined.FavoriteBorder else Icons.Filled.Favorite
                         ) { menu = false; actions.onToggleFavorite(track) }
-                        MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
-                        MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
-                        actions.onNormalize?.let { nz -> MenuItem("Lautstärke angleichen …", Icons.Filled.GraphicEq, warn = true) { menu = false; nz(listOf(track)) } }
-                        MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }
+                        if (!Jam.editLocked) {
+                            MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
+                            MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                            actions.onNormalize?.let { nz -> MenuItem("Lautstärke angleichen …", Icons.Filled.GraphicEq, warn = true) { menu = false; nz(listOf(track)) } }
+                            MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }
+                        }
                         MenuItem("Datei im Ordner zeigen", Icons.Filled.FolderOpen) { menu = false; actions.onShowFile(track) }
-                        MenuItem("Sperren", Icons.Filled.Block, danger = true) { menu = false; actions.onBlock(track) }
-                        MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
+                        if (!Jam.editLocked) {
+                            MenuItem("Sperren", Icons.Filled.Block, danger = true) { menu = false; actions.onBlock(track) }
+                            MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
+                        }
                     }
                 }
             }
@@ -705,35 +717,104 @@ internal fun MarqueeText(
 
 // ---------- Warteschlange ----------
 
+/**
+ * Warteschlange wie eine Liedliste: Cover, Titel, Interpret · Album · Länge. Gedrückt halten und schieben
+ * ändert die Reihenfolge (wie beim Bearbeiten von Playlists), Tippen springt zum Lied, das Drei-Punkte-Menü
+ * bietet „Jetzt abspielen“, „Aus der Warteschlange entfernen“ und im Jam „Übernehmen“.
+ * Im Jam steht zusätzlich, wer das Lied eingereiht hat. Eingereihte Lieder („Als Nächstes“) sind markiert.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun QueueList(vm: MusicViewModel, modifier: Modifier) {
     val start = (vm.currentIndex + 1).coerceAtMost(vm.queue.size)
     val queued = vm.queuedCount
-    LazyColumn(modifier) {
-        if (queued > 0) item(key = "hq") {
-            Text("Deine Warteschlange", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp, bottom = 4.dp))
+    // Lokale Reihenfolge während des Ziehens: (Position in der Warteschlange, Eintrag)
+    val order = remember(vm.queue, start) { vm.queue.drop(start).mapIndexed { i, m -> (start + i) to m }.toMutableStateList() }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val rs = remember(listState) { ReorderState(listState) { from, to -> order.add(to, order.removeAt(from)) } }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    ReorderEffects(rs)
+    Column(modifier) {
+        if (order.isEmpty()) {
+            Text("Danach kommt nichts mehr.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp))
+            return@Column
         }
-        for (i in start until vm.queue.size) {
-            val m = vm.queue[i]
-            if (queued > 0 && i == start + queued) item(key = "hn") {
-                Text(
-                    "Wiedergabeliste", style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp)
-                )
-            }
-            item(key = "$i:${m.mediaId}") {
-                Row(Modifier.fillMaxWidth().clickable { vm.jumpTo(i) }.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(m.mediaMetadata.title?.toString().orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            m.mediaMetadata.artist?.toString().orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+        Text(
+            "Gedrückt halten und schieben zum Sortieren" + if (queued > 0) " · ● = von dir/euch eingereiht, kommt zuerst" else "",
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 8.dp, top = 6.dp, bottom = 2.dp)
+        )
+        LazyColumn(Modifier.fillMaxWidth().weight(1f), state = listState) {
+            itemsIndexed(order, key = { _, e -> "${e.first}:${e.second.mediaId}" }) { i, (qi, m) ->
+                val pos by androidx.compose.runtime.rememberUpdatedState(i)
+                val isDrag = rs.dragging == i
+                Box(
+                    Modifier.fillMaxWidth()
+                        .then(
+                            if (isDrag) Modifier.zIndex(1f).graphicsLayer { translationY = rs.delta; shadowElevation = 16f }
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                            else Modifier.animateItemPlacement()
                         )
-                    }
-                    IconButton(onClick = { vm.moveInQueue(i, i - 1) }, enabled = i > start) { Icon(Icons.Filled.ArrowUpward, "Nach oben") }
-                    IconButton(onClick = { vm.moveInQueue(i, i + 1) }, enabled = i < vm.queue.lastIndex) { Icon(Icons.Filled.ArrowDownward, "Nach unten") }
-                    IconButton(onClick = { vm.removeFromQueue(i) }) { Icon(Icons.Filled.Close, "Entfernen") }
+                        .pointerInput(qi) {
+                            androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress(
+                                onDragStart = { haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); rs.start(pos) },
+                                onDrag = { change, offset -> change.consume(); rs.drag(offset.y) },
+                                onDragEnd = { rs.end(scope) { from, to -> vm.moveInQueue(start + from, start + to) } },
+                                onDragCancel = { rs.end(scope) { from, to -> vm.moveInQueue(start + from, start + to) } }
+                            )
+                        }
+                ) {
+                    QueueRow(vm, m, isQueued = qi < start + queued, onJump = { vm.jumpTo(qi) }, onRemove = { vm.removeFromQueue(qi) })
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueueRow(vm: MusicViewModel, m: MediaItem, isQueued: Boolean, onJump: () -> Unit, onRemove: () -> Unit) {
+    val t = remember(m.mediaId, vm.tracks) { trackOf(m) }
+    val e = remember(m.mediaId) { Jam.entryInfo(m) }
+    val title = m.mediaMetadata.title?.toString().orEmpty()
+    var menu by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().clickable(onClick = onJump).padding(start = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        val coverMod = Modifier.size(44.dp).clip(RoundedCornerShape(6.dp))
+        when {
+            t != null -> Cover(listOf(t), title, coverMod, sizePx = 120)
+            e != null && e.owner != Jam.myId -> RemoteCover(e.owner, e.trackId, title, coverMod)
+            else -> {
+                val art = rememberForeignArt(m, 120)
+                if (art != null) androidx.compose.foundation.Image(art, null, coverMod, contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                else Cover(emptyList(), title, coverMod, sizePx = 120)
+            }
+        }
+        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isQueued) Text("● ", color = ORANGE, style = MaterialTheme.typography.bodyMedium)
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+            }
+            val album = t?.albumName?.takeIf { it.isNotBlank() } ?: e?.album?.takeIf { it.isNotBlank() }
+            val dur = t?.durationMs ?: e?.durationMs ?: 0L
+            Text(
+                listOfNotNull(m.mediaMetadata.artist?.toString()?.takeIf { it.isNotBlank() }, album, if (dur > 0) formatDuration(dur) else null).joinToString(" · "),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            // Im Jam: wer es eingereiht hat (und von wessen Handy das Lied kommt, wenn das jemand anderes ist)
+            if (Jam.active && e != null && e.by.isNotBlank()) Text(
+                "eingereiht von ${Jam.memberName(e.by)}" + if (e.owner != e.by) " · Lied von ${Jam.memberName(e.owner)}" else "",
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Box {
+            IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Aktionsmenü") }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                MenuItem("Jetzt abspielen", Icons.Filled.PlayArrow) { menu = false; onJump() }
+                MenuItem("Aus der Warteschlange entfernen", Icons.Filled.RemoveCircleOutline) { menu = false; onRemove() }
+                // Lied eines anderen im Jam: schon vor dem Hören übernehmen können
+                if (e != null && e.owner != Jam.myId && Jam.active) MenuItem("Übernehmen", Icons.Filled.Download, warn = true) { menu = false; Jam.importEntry(e) }
             }
         }
     }

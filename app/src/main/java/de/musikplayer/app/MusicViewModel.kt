@@ -406,7 +406,11 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun togglePlay() {
         val c = controller ?: return
         if (jamRemote) { Jam.cmd(if (isPlaying) "pause" else "play"); isPlaying = !isPlaying; return }
-        if (c.isPlaying) c.pause() else c.play()
+        if (c.isPlaying) { c.pause(); return }
+        // Nach einer Unterbrechung (Anruf, Video in einer anderen App) neu anstoßen, damit es sicher weitergeht
+        if (c.playbackState == Player.STATE_IDLE) c.prepare()
+        if (c.playWhenReady) c.pause()
+        c.play()
     }
 
     fun next() {
@@ -534,16 +538,19 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         message = "Zur Warteschlange hinzugefügt"
     }
 
-    fun removeFromQueue(index: Int) { if (!jamRemote) controller?.removeMediaItem(index) }
+    fun removeFromQueue(index: Int) {
+        if (jamRemote) { Jam.queueCmd("remove", index - currentIndex, 0, queue.getOrNull(index)); return }
+        controller?.removeMediaItem(index)
+    }
 
     fun moveInQueue(from: Int, to: Int) {
-        if (jamRemote) return
+        if (jamRemote) { Jam.queueCmd("move", from - currentIndex, to - currentIndex, queue.getOrNull(from)); return }
         val c = controller ?: return
         if (from in 0 until c.mediaItemCount && to in 0 until c.mediaItemCount) c.moveMediaItem(from, to)
     }
 
     fun jumpTo(index: Int) {
-        if (jamRemote) return
+        if (jamRemote) { Jam.queueCmd("jump", index - currentIndex, 0, queue.getOrNull(index)); return }
         val c = controller ?: return
         c.seekToDefaultPosition(index)
         c.play()
@@ -556,6 +563,18 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     // ---------- Jam ----------
+
+    /**
+     * Im Jam ist Bearbeiten gesperrt (Dateien, Tags, Cover, Interpreten, Sperren, Löschen, Angleichen, Papierkorb),
+     * damit sich nichts unvorhergesehen ändert, während andere zuhören. Ausnahme: Developer Option, die ALLE an haben.
+     */
+    val jamEditLocked: Boolean get() = Jam.editLocked
+
+    private fun editLocked(): Boolean {
+        if (!Jam.editLocked) return false
+        message = "Im Jam ist Bearbeiten gesperrt"
+        return true
+    }
 
     /** Gast-Anzeige: Einträge je Lied zwischenspeichern, damit sich Cover und Anzeige nicht ständig neu aufbauen. */
     private val jamItems = HashMap<String, MediaItem>()
@@ -658,7 +677,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun renameCandidates(): List<Track> = Library.renameCandidates()
 
-    fun renameFiles(items: List<Pair<Track, String>>) {
+    fun renameFiles(items: List<Pair<Track, String>>) { if (editLocked()) return;
         undo = null
         if (items.isEmpty()) return
         loading = true
@@ -676,7 +695,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Schnell-Umbenennen aus dem Player: mit Meldung und „Rückgängig“. */
-    fun quickRename(t: Track, newBase: String) {
+    fun quickRename(t: Track, newBase: String) { if (editLocked()) return;
         val oldBase = t.fileName.substringBeforeLast('.')
         val ext = t.fileName.substringAfterLast('.', "")
         val newName = Names.fileBaseName(newBase) + if (ext.isEmpty()) "" else ".$ext"
@@ -766,7 +785,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     } catch (e: Exception) { null }
 
     /** Playlist-Cover aus Galerie-Bild (uri) oder Web-Bild (url). */
-    fun setCover(id: String, uri: android.net.Uri? = null, url: String? = null) {
+    fun setCover(id: String, uri: android.net.Uri? = null, url: String? = null) { if (editLocked()) return;
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) {
                 val out = fetchBytes(uri, url)?.let { squareBitmap(it) } ?: return@withContext false
@@ -781,7 +800,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Eigenes, unabhängiges Interpret-Cover speichern oder zurücksetzen. */
-    fun setArtistCover(artist: String, uri: android.net.Uri? = null, url: String? = null, reset: Boolean = false) {
+    fun setArtistCover(artist: String, uri: android.net.Uri? = null, url: String? = null, reset: Boolean = false) { if (editLocked()) return;
         viewModelScope.launch {
             if (reset) {
                 val old = Store.artistCovers[artist]
@@ -810,7 +829,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Eigenes Cover für Lieder (auch ganze Alben): Galerie-Bild, Web-Bild oder (beides null) zurücksetzen. */
-    fun setTrackCover(tracks: List<Track>, uri: android.net.Uri? = null, url: String? = null) {
+    fun setTrackCover(tracks: List<Track>, uri: android.net.Uri? = null, url: String? = null) { if (editLocked()) return;
         val paths = tracks.map { it.path }
         viewModelScope.launch {
             if (uri == null && url == null) {
@@ -838,7 +857,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun hasOwnCover(tracks: List<Track>) = tracks.any { it.path in Store.trackCovers }
 
-    fun removeCover(id: String) {
+    fun removeCover(id: String) { if (editLocked()) return;
         java.io.File(java.io.File(app.filesDir, "covers"), "$id.jpg").delete()
         Store.setCoverStamp(app, id, 0L)
         syncPlaylists()
@@ -956,13 +975,13 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     // ---------- Interpret-Zuordnung & Einsortieren ----------
 
     /** Interpret für einen ganzen Ordner festlegen (gilt für alle Lieder ohne Interpret im Tag). */
-    fun assignFolder(folder: String, artist: String?) {
+    fun assignFolder(folder: String, artist: String?) { if (editLocked()) return;
         Store.setFolderArtist(app, folder, artist)
         reindex()
     }
 
     /** Interpret für ein Lied; mit [move] wandert die Datei danach in den Interpreten-Ordner. */
-    fun assignTrack(path: String, artist: String?, move: Boolean = false) {
+    fun assignTrack(path: String, artist: String?, move: Boolean = false) { if (editLocked()) return;
         val t = tracks.firstOrNull { it.path == path }
         if (move && t != null && !artist.isNullOrBlank()) { assignTracks(listOf(t), artist, true); return }
         Store.setTrackArtist(app, path, artist)
@@ -978,7 +997,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun sortCandidates(): List<Track> = Library.sortCandidates()
 
-    fun sortIntoFolders(list: List<Track>) {
+    fun sortIntoFolders(list: List<Track>) { if (editLocked()) return;
         if (list.isEmpty()) return
         loading = true
         viewModelScope.launch {
@@ -996,7 +1015,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     // ---------- Datei bearbeiten ----------
 
     /** Name (Datei), Interpret und Verschieben in den Interpreten-Ordner in einem Schritt. */
-    fun editTrack(t: Track, newBaseName: String, artist: String?, move: Boolean = false, coverUri: android.net.Uri? = null, coverUrl: String? = null, coverSelected: Boolean = false, coverReset: Boolean = false) {
+    fun editTrack(t: Track, newBaseName: String, artist: String?, move: Boolean = false, coverUri: android.net.Uri? = null, coverUrl: String? = null, coverSelected: Boolean = false, coverReset: Boolean = false) { if (editLocked()) return;
         val art = artist?.takeIf { it.isNotBlank() }
         val nameChanged = newBaseName.isNotBlank() && newBaseName != t.fileName.substringBeforeLast('.')
         val artistChanged = (art ?: "") != (if (t.artist == UNKNOWN_ARTIST) "" else t.artist)
@@ -1044,7 +1063,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Interpret für viele Lieder auf einmal; optional gleich in den Interpreten-Ordner verschieben. */
-    fun assignTracks(list: List<Track>, artist: String?, move: Boolean = false) {
+    fun assignTracks(list: List<Track>, artist: String?, move: Boolean = false) { if (editLocked()) return;
         if (list.isEmpty()) return
         val art = artist?.takeIf { it.isNotBlank() }
         Store.setTrackArtists(app, list.map { it.path }, art)
@@ -1067,7 +1086,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Albumname für die Lieder ändern (nur in der App, Dateien bleiben unberührt). */
-    fun renameAlbum(list: List<Track>, name: String) {
+    fun renameAlbum(list: List<Track>, name: String) { if (editLocked()) return;
         if (list.isEmpty() || name.isBlank()) return
         Store.setAlbum(app, list.map { it.path }, name)
         reindex()
@@ -1104,7 +1123,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         undo = undoAction
     }
 
-    fun blockTracks(list: List<Track>) {
+    fun blockTracks(list: List<Track>) { if (editLocked()) return;
         if (list.isEmpty()) return
         val paths = list.map { it.path }
         Store.softBlockTracks(app, paths)
@@ -1116,30 +1135,30 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun blockArtist(name: String) {
+    fun blockArtist(name: String) { if (editLocked()) return;
         val affected = tracks.filter { it.artist == name }
         Store.softBlockArtist(app, name)
         afterBlock("Aus Mediathek gesperrt: $name", affected, promote = { Store.promoteArtistToHard(app, name); blockTick++; reindex(); message = "Interpret vollständig gesperrt" }) { Store.softUnblockArtist(app, name); blockTick++; reindex() }
     }
 
-    fun blockFolder(path: String) {
+    fun blockFolder(path: String) { if (editLocked()) return;
         val affected = tracks.filter { it.folder == path }
         Store.softBlockFolder(app, path)
         afterBlock("Ordner aus Mediathek gesperrt: ${path.substringAfterLast('/')}", affected, promote = { Store.promoteFolderToHard(app, path); blockTick++; reindex(); message = "Ordner vollständig gesperrt" }) { Store.softUnblockFolder(app, path); blockTick++; reindex() }
     }
 
 
-    fun hardBlockTrack(path: String) { Store.promoteTrackToHard(app, path); blockTick++; reindex(); message = "Vollständig gesperrt" }
-    fun hardBlockArtist(name: String) { Store.promoteArtistToHard(app, name); blockTick++; reindex(); message = "Interpret vollständig gesperrt" }
-    fun hardBlockFolder(path: String) { Store.promoteFolderToHard(app, path); blockTick++; reindex(); message = "Ordner vollständig gesperrt" }
+    fun hardBlockTrack(path: String) { if (editLocked()) return; Store.promoteTrackToHard(app, path); blockTick++; reindex(); message = "Vollständig gesperrt" }
+    fun hardBlockArtist(name: String) { if (editLocked()) return; Store.promoteArtistToHard(app, name); blockTick++; reindex(); message = "Interpret vollständig gesperrt" }
+    fun hardBlockFolder(path: String) { if (editLocked()) return; Store.promoteFolderToHard(app, path); blockTick++; reindex(); message = "Ordner vollständig gesperrt" }
 
-    fun unblockTracks(paths: List<String>) { Store.unblockTracks(app, paths); blockTick++; reindex(); message = "Entsperrt" }
-    fun unblockArtist(name: String) { Store.unblockArtist(app, name); blockTick++; reindex(); message = "Entsperrt: $name" }
-    fun unblockFolder(path: String) { Store.unblockFolder(app, path); blockTick++; reindex(); message = "Ordner entsperrt" }
+    fun unblockTracks(paths: List<String>) { if (editLocked()) return; Store.unblockTracks(app, paths); blockTick++; reindex(); message = "Entsperrt" }
+    fun unblockArtist(name: String) { if (editLocked()) return; Store.unblockArtist(app, name); blockTick++; reindex(); message = "Entsperrt: $name" }
+    fun unblockFolder(path: String) { if (editLocked()) return; Store.unblockFolder(app, path); blockTick++; reindex(); message = "Ordner entsperrt" }
 
     // ---------- Filterliste für Namen, Suchverlauf ----------
 
-    fun setStripStrings(list: List<String>) {
+    fun setStripStrings(list: List<String>) { if (editLocked()) return;
         Store.setStripStrings(app, list)
         blockTick++
         reindex()
@@ -1193,7 +1212,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ---------- Löschen (immer nach Bestätigung in der Oberfläche) ----------
 
-    fun deleteTracks(list: List<Track>) {
+    fun deleteTracks(list: List<Track>) { if (editLocked()) return;
         if (list.isEmpty()) return
         loading = true
         viewModelScope.launch {
@@ -1258,7 +1277,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Gemessene Änderung anwenden (ein Lied). */
-    fun applyNormalize(p: Normalize.Plan) {
+    fun applyNormalize(p: Normalize.Plan) { if (editLocked()) return;
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) { Normalize.apply(app, p) }
             normTick++
@@ -1268,7 +1287,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Mehrere Lieder nacheinander messen und angleichen (im Hintergrund, mit Fortschritt). */
-    fun normalizeMany(list: List<Track>) {
+    fun normalizeMany(list: List<Track>) { if (editLocked()) return;
         if (list.isEmpty() || normProgress != null) return
         viewModelScope.launch {
             var done = 0; var failed = 0
@@ -1285,7 +1304,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Zurück zur Original-Lautstärke. */
-    fun undoNormalize(t: Track) {
+    fun undoNormalize(t: Track) { if (editLocked()) return;
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) { Normalize.undo(app, t.path) }
             normTick++
@@ -1302,7 +1321,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Inhalt des Papierkorbs, neueste zuerst. */
     fun trashItems(): List<TrashItem> { trashTick; return Store.trash.sortedByDescending { it.deletedAt } }
 
-    fun restoreTrash(items: List<TrashItem>) {
+    fun restoreTrash(items: List<TrashItem>) { if (editLocked()) return;
         if (items.isEmpty()) return
         viewModelScope.launch {
             val n = withContext(Dispatchers.IO) { val r = Trash.restore(app, items); Library.load(app); r }
@@ -1312,7 +1331,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun deleteTrashForever(items: List<TrashItem>) {
+    fun deleteTrashForever(items: List<TrashItem>) { if (editLocked()) return;
         if (items.isEmpty()) return
         viewModelScope.launch {
             val n = withContext(Dispatchers.IO) { Trash.deleteForever(app, items) }
@@ -1325,7 +1344,7 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
     fun playTrash(item: TrashItem) = playExternal(android.net.Uri.fromFile(java.io.File(item.file)))
 
     /** Aufräumen (erweitert): erst löschen, dann umbenennen (vermeidet Namenskonflikte). Nur nach Bestätigung aufrufen. */
-    fun cleanup(delete: List<Track>, rename: List<Pair<Track, String>>) {
+    fun cleanup(delete: List<Track>, rename: List<Pair<Track, String>>) { if (editLocked()) return;
         if (delete.isEmpty() && rename.isEmpty()) return
         loading = true
         viewModelScope.launch {
@@ -1357,19 +1376,22 @@ class MusicViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun startSleep(minutes: Int) {
         Store.setSleepMinutes(app, minutes)
+        // Im Jam gilt der Timer für die gemeinsame Ausgabe (dort, wo gespielt wird)
+        if (jamRemote) { Jam.command(org.json.JSONObject().put("cmd", "sleep").put("min", minutes)); message = "Sleep-Timer gilt für den ganzen Jam"; return }
         SleepTimer.startSleep(minutes)
     }
 
-    fun cancelSleep() = SleepTimer.cancelSleep()
+    fun cancelSleep() { if (jamRemote) Jam.cmd("sleepOff") else SleepTimer.cancelSleep() }
 
     // ---------- Ausfaden (Lautstärke sinkt linear über die eingestellte Zeit) ----------
 
     fun startFade(minutes: Int) {
         Store.setFadeMinutes(app, minutes)
+        if (jamRemote) { Jam.command(org.json.JSONObject().put("cmd", "fade").put("min", minutes)); message = "Ausfaden gilt für den ganzen Jam"; return }
         SleepTimer.startFade(minutes)
     }
 
-    fun cancelFade() = SleepTimer.cancelFade()
+    fun cancelFade() { if (jamRemote) Jam.cmd("fadeOff") else SleepTimer.cancelFade() }
 
     override fun onCleared() {
         if (Jam.host === jamHost) Jam.host = null

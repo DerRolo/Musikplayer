@@ -77,16 +77,26 @@ data class RemoteLibrary(val ownerId: String, val ownerName: String, val tracks:
     }
 }
 
-/** Ein Eintrag in der gemeinsamen Warteschlange: welches Lied von welchem Gerät. */
-data class JamEntry(val owner: String, val trackId: Long, val title: String, val artist: String, val durationMs: Long) {
+/**
+ * Ein Eintrag in der gemeinsamen Warteschlange: welches Lied von welchem Gerät ([owner]), wer es gestartet bzw.
+ * eingereiht hat ([by], leer = unbekannt) und ob es von Hand eingereiht wurde ([queued]).
+ */
+data class JamEntry(
+    val owner: String, val trackId: Long, val title: String, val artist: String, val durationMs: Long,
+    val by: String = "", val album: String = "", val queued: Boolean = false
+) {
     val key: String get() = "$owner/$trackId"
 
     fun toJson(): JSONObject = JSONObject().put("o", owner).put("id", trackId).put("t", title).put("a", artist).put("d", durationMs)
+        .put("by", by).put("al", album).put("q", queued)
 
     companion object {
-        fun from(o: JSONObject) = JamEntry(o.getString("o"), o.getLong("id"), o.optString("t"), o.optString("a"), o.optLong("d"))
-        fun of(owner: String, t: Track) = JamEntry(owner, t.id, t.title, t.artist, t.durationMs)
-        fun of(owner: String, t: RemoteTrack) = JamEntry(owner, t.id, t.title, t.artist, t.durationMs)
+        fun from(o: JSONObject) = JamEntry(
+            o.getString("o"), o.getLong("id"), o.optString("t"), o.optString("a"), o.optLong("d"),
+            o.optString("by"), o.optString("al"), o.optBoolean("q")
+        )
+        fun of(owner: String, t: Track) = JamEntry(owner, t.id, t.title, t.artist, t.durationMs, album = t.albumName)
+        fun of(owner: String, t: RemoteTrack) = JamEntry(owner, t.id, t.title, t.artist, t.durationMs, album = t.albumName)
         fun list(arr: JSONArray?): List<JamEntry> = if (arr == null) emptyList() else List(arr.length()) { from(arr.getJSONObject(it)) }
         fun array(list: List<JamEntry>) = JSONArray().also { a -> list.forEach { a.put(it.toJson()) } }
     }
@@ -120,7 +130,12 @@ data class JamState(
     val outputs: List<JamOutput> = emptyList(),
     /** „<Mitglied>/<Geräte-ID>“ der gewählten bzw. tatsächlich genutzten Ausgabe. */
     val outSelected: String = "",
-    val outActive: String = ""
+    val outActive: String = "",
+    /** Bearbeiten im Jam erlaubt? Nur wenn ALLE im Jam es in den Developer Options eingeschaltet haben. */
+    val editAllowed: Boolean = false,
+    /** Sleep-Timer bzw. Ausfaden an der Ausgabe: verbleibende ms (0 = aus). */
+    val sleepLeft: Long = 0L,
+    val fadeLeft: Long = 0L
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("jam", jamId).put("host", hostId).put("hostName", hostName)
@@ -132,6 +147,7 @@ data class JamState(
         .put("speaker", speaker)
         .put("outs", JSONArray().also { a -> outputs.forEach { a.put(it.toJson()) } })
         .put("outSel", outSelected).put("outAct", outActive)
+        .put("edit", editAllowed).put("sleep", sleepLeft).put("fade", fadeLeft)
 
     companion object {
         fun from(o: JSONObject): JamState {
@@ -146,11 +162,15 @@ data class JamState(
                 o.optBoolean("shuffle"), o.optInt("repeat"),
                 o.optString("speaker"),
                 List(outs.length()) { i -> JamOutput.from(outs.getJSONObject(i)) },
-                o.optString("outSel"), o.optString("outAct")
+                o.optString("outSel"), o.optString("outAct"),
+                o.optBoolean("edit"), o.optLong("sleep"), o.optLong("fade")
             )
         }
     }
 }
+
+/** Beitrittsanfrage (nur von Leuten, die der Host vorher entfernt hatte). */
+data class JamRequest(val id: String, val name: String, val url: String)
 
 /** Ein anderes Gerät mit der App im selben WLAN. */
 data class JamPeer(val id: String, val name: String, val url: String, val hostingJam: String?)
@@ -179,13 +199,20 @@ data class EngineInfo(
     val shuffle: Boolean,
     val repeat: Int,
     /** Host-Uhrzeit, zu der [positionMs] galt (wird vom Host beim Empfang gesetzt). */
-    val snapTime: Long = 0L
+    val snapTime: Long = 0L,
+    /** Hat dieses Gerät „Bearbeiten im Jam“ in den Developer Options eingeschaltet? */
+    val editOk: Boolean = false,
+    /** Aktueller Profilname (kann sich während des Jams ändern). */
+    val name: String = "",
+    val sleepLeft: Long = 0L,
+    val fadeLeft: Long = 0L
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("outs", JSONArray().also { a -> outputs.forEach { a.put(JSONObject().put("id", it.id).put("n", it.name).put("k", it.kind)) } })
         .put("sel", selected).put("act", active)
         .put("cur", current?.toJson() ?: JSONObject.NULL).put("next", JamEntry.array(upcoming))
         .put("playing", playing).put("pos", positionMs).put("shuffle", shuffle).put("repeat", repeat)
+        .put("edit", editOk).put("name", name).put("sleep", sleepLeft).put("fade", fadeLeft)
 
     companion object {
         fun from(o: JSONObject, snapTime: Long): EngineInfo {
@@ -194,7 +221,8 @@ data class EngineInfo(
                 List(outs.length()) { i -> outs.getJSONObject(i).let { OutputDev(it.getInt("id"), it.optString("n"), it.optString("k")) } },
                 o.optInt("sel", Output.AUTO), o.optInt("act", Output.AUTO),
                 o.optJSONObject("cur")?.let { JamEntry.from(it) }, JamEntry.list(o.optJSONArray("next")),
-                o.optBoolean("playing"), o.optLong("pos"), o.optBoolean("shuffle"), o.optInt("repeat"), snapTime
+                o.optBoolean("playing"), o.optLong("pos"), o.optBoolean("shuffle"), o.optInt("repeat"), snapTime,
+                o.optBoolean("edit"), o.optString("name"), o.optLong("sleep"), o.optLong("fade")
             )
         }
     }

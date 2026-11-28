@@ -199,6 +199,7 @@ fun SelectionBar(
     onNormalize: (() -> Unit)? = null
 ) {
     var more by remember { mutableStateOf(false) }
+    val jamLocked = Jam.editLocked
     Surface(tonalElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.Filled.Close, "Auswahl beenden") }
@@ -207,16 +208,19 @@ fun SelectionBar(
             IconButton(onClick = onPlaylist, enabled = count > 0) { Icon(Icons.Filled.PlaylistAdd, "Zu Playlist") }
             IconButton(onClick = onQueue, enabled = count > 0) { Icon(Icons.Filled.QueueMusic, "Zur Warteschlange") }
             if (removeLabel != null) IconButton(onClick = onRemove, enabled = count > 0) { Icon(Icons.Filled.RemoveCircleOutline, removeLabel) }
-            else IconButton(onClick = onDelete, enabled = count > 0) { Icon(Icons.Filled.Delete, "Löschen", tint = MaterialTheme.colorScheme.error) }
+            else IconButton(onClick = onDelete, enabled = count > 0 && !jamLocked) { Icon(Icons.Filled.Delete, "Löschen", tint = if (jamLocked) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f) else MaterialTheme.colorScheme.error) }
             Box {
                 IconButton(onClick = { more = true }, enabled = count > 0) { Icon(Icons.Filled.MoreVert, "Mehr") }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
                     MenuItem("Als Nächstes spielen", Icons.Filled.PlaylistPlay) { more = false; onPlayNext() }
-                    MenuItem("Interpret zuordnen …", Icons.Filled.Person) { more = false; onAssign() }
-                    if (onCover != null) MenuItem("Cover ändern …", Icons.Filled.Image) { more = false; onCover() }
-                    if (onNormalize != null) MenuItem("Lautstärke angleichen …", Icons.Filled.GraphicEq, warn = true) { more = false; onNormalize() }
-                    MenuItem("Sperren", Icons.Filled.Lock, warn = true) { more = false; onBlock() }
-                    MenuItem(if (removeLabel != null) "Datei löschen …" else "Löschen …", Icons.Filled.Delete, danger = true) { more = false; onDelete() }
+                    // Im Jam: keine Bearbeiten-Funktionen (wie im Aktionsmenü der Lieder)
+                    if (!jamLocked) {
+                        MenuItem("Interpret zuordnen …", Icons.Filled.Person) { more = false; onAssign() }
+                        if (onCover != null) MenuItem("Cover ändern …", Icons.Filled.Image) { more = false; onCover() }
+                        if (onNormalize != null) MenuItem("Lautstärke angleichen …", Icons.Filled.GraphicEq, warn = true) { more = false; onNormalize() }
+                        MenuItem("Sperren", Icons.Filled.Lock, warn = true) { more = false; onBlock() }
+                        MenuItem(if (removeLabel != null) "Datei löschen …" else "Löschen …", Icons.Filled.Delete, danger = true) { more = false; onDelete() }
+                    }
                 }
             }
         }

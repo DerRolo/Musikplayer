@@ -6,6 +6,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
@@ -71,7 +73,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Jam, Trash }
+private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Jam, Trash, Profile }
 
 @Composable
 fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset: Int) {
@@ -86,14 +88,21 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
     when (page) {
         Page.Menu -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+            MenuEntry(Icons.Filled.AccountCircle, "Profil", "Name und Profilbild, die andere im Jam sehen") { page = Page.Profile }
             MenuEntry(Icons.Filled.Groups, "Jam", "Mit Handys im selben WLAN zusammen hören und Musik übernehmen") { page = Page.Jam }
+            // Im Jam sind die Bearbeiten-Werkzeuge gesperrt (außer alle erlauben es in den Developer Options)
+            val locked = Jam.editLocked
+            if (locked) Text(
+                "Im Jam sind die Werkzeuge zum Bearbeiten gesperrt, damit sich nichts ändert, während andere zuhören.",
+                style = MaterialTheme.typography.bodySmall, color = ORANGE, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
             MenuEntry(Icons.Filled.FiberNew, "Neue Lieder", "Neu gefundene Lieder: Interpret zuordnen, umbenennen, einsortieren") { page = Page.New }
-            MenuEntry(Icons.Filled.Person, "Interpreten & Ordner", "Ordner prüfen, Interpret zuordnen") { page = Page.Folders }
-            MenuEntry(Icons.Filled.DriveFileMove, "Nach Interpret einsortieren", "Zugeordnete Lieder in Musik/<Interpret> verschieben") { page = Page.Sort }
-            MenuEntry(Icons.Filled.Edit, "Dateinamen übernehmen", "Dateien so benennen, wie sie in der App angezeigt werden") { page = Page.Names }
-            MenuEntry(Icons.Filled.ContentCopy, "Duplikate", "Ähnliche Lieder finden und aufräumen") { page = Page.Dupes }
-            MenuEntry(Icons.Filled.Build, "Aufräumen", "Duplikate und Dateinamen zusammen: pro Version behalten, säubern oder löschen") { page = Page.Cleanup }
-            MenuEntry(Icons.Filled.FilterAlt, "Namen-Filter", "Texte, die aus Titeln entfernt werden (z. B. „Official Video“)") { page = Page.Strip }
+            MenuEntry(Icons.Filled.Person, "Interpreten & Ordner", "Ordner prüfen, Interpret zuordnen", enabled = !locked) { page = Page.Folders }
+            MenuEntry(Icons.Filled.DriveFileMove, "Nach Interpret einsortieren", "Zugeordnete Lieder in Musik/<Interpret> verschieben", enabled = !locked) { page = Page.Sort }
+            MenuEntry(Icons.Filled.Edit, "Dateinamen übernehmen", "Dateien so benennen, wie sie in der App angezeigt werden", enabled = !locked) { page = Page.Names }
+            MenuEntry(Icons.Filled.ContentCopy, "Duplikate", "Ähnliche Lieder finden und aufräumen", enabled = !locked) { page = Page.Dupes }
+            MenuEntry(Icons.Filled.Build, "Aufräumen", "Duplikate und Dateinamen zusammen: pro Version behalten, säubern oder löschen", enabled = !locked) { page = Page.Cleanup }
+            MenuEntry(Icons.Filled.FilterAlt, "Namen-Filter", "Texte, die aus Titeln entfernt werden (z. B. „Official Video“)", enabled = !locked) { page = Page.Strip }
             MenuEntry(Icons.Filled.DeleteOutline, "Papierkorb", "Gelöschte Lieder ${Trash.DAYS} Tage lang wiederherstellen, anhören oder endgültig löschen") { page = Page.Trash }
             MenuEntry(Icons.Filled.Lock, "Gesperrt", "Gesperrte Lieder, Interpreten und Ordner ansehen und entsperren") { page = Page.Blocked }
             MenuEntry(Icons.Filled.Tune, "Developer Options", "Developer tools and UI settings") { page = Page.Developer }
@@ -140,6 +149,7 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
         Page.DeveloperPreview -> DeveloperPreviewPage(vm) { page = Page.Developer }
         Page.Jam -> JamPage(vm) { page = Page.Menu }
         Page.Trash -> TrashPage(vm) { page = Page.Menu }
+        Page.Profile -> ProfilePage { page = Page.Menu }
     }
 }
 
@@ -154,6 +164,17 @@ private fun DeveloperOptionsPage(vm: MusicViewModel, onOpenPreview: () -> Unit, 
                 Text("UI Preview", style = MaterialTheme.typography.titleMedium)
                 Text("Preview the actual song-list row and quick actions", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+        var jamEdit by remember { mutableStateOf(Store.devJamEdit) }
+        Row(Modifier.fillMaxWidth().clickable { jamEdit = !jamEdit; Store.setDevJamEdit(appContext, jamEdit) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Allow editing in Jam", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Edit files, tags, covers, block and delete while in a Jam. Only takes effect if everyone in the Jam has this enabled. Off by default.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            androidx.compose.material3.Switch(checked = jamEdit, onCheckedChange = { jamEdit = it; Store.setDevJamEdit(appContext, it) })
         }
         var showAlbum by remember { mutableStateOf(Store.showAlbum) }
         Row(Modifier.fillMaxWidth().clickable { showAlbum = !showAlbum; Store.setShowAlbum(appContext, showAlbum) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -200,8 +221,9 @@ private fun DeveloperPreviewPage(vm: MusicViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun MenuEntry(icon: ImageVector, title: String, sub: String, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun MenuEntry(icon: ImageVector, title: String, sub: String, enabled: Boolean = true, onClick: () -> Unit) {
+    // Ausgegraut, wenn gerade nicht verfügbar (z. B. Bearbeiten im Jam)
+    Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).padding(16.dp).then(if (enabled) Modifier else Modifier.alpha(0.4f)), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 16.dp))
         Column {
             Text(title, style = MaterialTheme.typography.titleMedium)

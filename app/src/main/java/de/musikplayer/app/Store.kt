@@ -122,6 +122,14 @@ object Store {
     /** Papierkorb: gelöschte Lieder (30 Tage wiederherstellbar). */
     var trash: List<TrashItem> = emptyList()
         private set
+    /** Profil: eigener Name (leer = Gerätename) und Profilbild (0 = keins, sonst Zeitstempel). */
+    var profileName: String = ""
+        private set
+    var profileStamp: Long = 0L
+        private set
+    /** Developer Option: Bearbeiten im Jam erlauben (Standard aus; wirkt nur, wenn alle im Jam es an haben). */
+    var devJamEdit: Boolean = false
+        private set
     /** Für andere im WLAN sichtbar (Jam-Einladungen). */
     var jamVisible: Boolean = true
         private set
@@ -171,6 +179,9 @@ object Store {
             resumePosMs = o.optLong("resumePos", 0L)
             deviceId = o.optString("deviceId", "")
             jamVisible = o.optBoolean("jamVisible", true)
+            profileName = o.optString("profileName", "")
+            profileStamp = o.optLong("profileStamp", 0L)
+            devJamEdit = o.optBoolean("devJamEdit", false)
             normInfo = o.optJSONObject("normInfo").toMap()
             trash = o.optJSONArray("trash")?.let { a -> List(a.length()) { TrashItem.from(a.getJSONObject(it)) } }.orEmpty()
             Names.extraStrip = stripStrings
@@ -273,6 +284,9 @@ object Store {
         o.put("resumePos", resumePosMs)
         o.put("deviceId", deviceId)
         o.put("jamVisible", jamVisible)
+        o.put("profileName", profileName)
+        o.put("profileStamp", profileStamp)
+        o.put("devJamEdit", devJamEdit)
         o.put("normInfo", JSONObject(normInfo))
         o.put("trash", JSONArray().also { a -> trash.forEach { a.put(it.toJson()) } })
         o.put("known", JSONArray().also { a -> knownPaths.forEach { a.put(it) } })
@@ -416,6 +430,9 @@ object Store {
     }
 
     fun setJamVisible(ctx: Context, on: Boolean) { jamVisible = on; save(ctx) }
+    fun setProfileName(ctx: Context, name: String) { profileName = name.trim().take(40); save(ctx) }
+    fun setProfileStamp(ctx: Context, stamp: Long) { profileStamp = stamp; save(ctx) }
+    fun setDevJamEdit(ctx: Context, on: Boolean) { devJamEdit = on; save(ctx) }
 
     @Synchronized
     fun addTrash(ctx: Context, items: List<TrashItem>) { trash = items + trash; save(ctx) }

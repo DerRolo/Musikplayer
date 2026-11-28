@@ -102,6 +102,17 @@ fun rememberForeignArt(item: MediaItem?, size: Int = 512): ImageBitmap? {
     return bmp
 }
 
+/** Profilbild (rund); ohne Bild der Anfangsbuchstabe auf Farbe – wie bei Interpreten. */
+@Composable
+fun JamAvatar(id: String, name: String, size: androidx.compose.ui.unit.Dp = 40.dp) {
+    val bmp by produceState<ImageBitmap?>(null, id, Jam.avatarTick) { value = Jam.avatar(id)?.asImageBitmap() }
+    Box(Modifier.size(size).clip(androidx.compose.foundation.shape.CircleShape).background(placeholderColor(name)), contentAlignment = Alignment.Center) {
+        val b = bmp
+        if (b != null) Image(b, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        else Text(name.trim().take(1).uppercase().ifEmpty { "?" }, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.42f).sp)
+    }
+}
+
 // ---------- Leiste über der Mini-Leiste ----------
 
 @Composable
@@ -134,12 +145,25 @@ private fun personen(n: Int) = if (n == 1) "1 Person" else "$n Personen"
 /** Pop-up „Jemand in der Nähe“ bzw. „Jam beitreten“. [onOpenJam] öffnet die Jam-Seite. */
 @Composable
 fun JamDialogs(onOpenJam: () -> Unit) {
+    // Host: jemand, der vorher entfernt wurde, möchte wieder rein
+    val req = Jam.requests.firstOrNull()
+    if (req != null && Jam.role == Jam.Role.Host) {
+        AlertDialog(
+            onDismissRequest = {},
+            icon = { JamAvatar(req.id, req.name) },
+            title = { Text("${req.name} möchte wieder beitreten") },
+            text = { Text("Du hattest ${req.name} aus dem Jam entfernt. Soll ${req.name} wieder mitmachen dürfen?") },
+            confirmButton = { TextButton(onClick = { Jam.accept(req) }) { Text("Beitreten lassen") } },
+            dismissButton = { TextButton(onClick = { Jam.decline(req) }) { Text("Ablehnen") } }
+        )
+        return
+    }
     val p = Jam.invite ?: return
     if (Jam.role != Jam.Role.None) return
     val hosting = p.hostingJam != null
     AlertDialog(
         onDismissRequest = { Jam.dismissInvite() },
-        icon = { Icon(Icons.Filled.Wifi, null) },
+        icon = { JamAvatar(p.id, p.name, 48.dp) },
         title = { Text(if (hosting) "Jam in der Nähe" else "Jemand in der Nähe") },
         text = {
             Text(
@@ -246,7 +270,8 @@ private fun NotInJam() {
     }
     for (p in peers) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+            JamAvatar(p.id, p.name)
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(p.name, style = MaterialTheme.typography.titleMedium)
                 Text(if (p.hostingJam != null) "hat einen Jam gestartet" else "in der Nähe, kein Jam", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -268,7 +293,7 @@ private fun InJam(vm: MusicViewModel, onBrowse: (String) -> Unit) {
             EntryCover(cur, Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)))
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(cur.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${cur.artist} · von ${Jam.memberName(cur.owner)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${cur.artist} · " + whoText(cur), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             val playing = s?.playing == true
             IconButton(onClick = { vm.togglePlay() }) { Icon(if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (playing) "Pause" else "Abspielen") }
@@ -281,6 +306,15 @@ private fun InJam(vm: MusicViewModel, onBrowse: (String) -> Unit) {
         Text("Ausgabe", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         OutputChip()
     }
+    // Sleep-Timer / Ausfaden gelten für den ganzen Jam (laufen an der Ausgabe)
+    if ((s?.sleepLeft ?: 0L) > 0 || (s?.fadeLeft ?: 0L) > 0) Text(
+        listOfNotNull(
+            s?.sleepLeft?.takeIf { it > 0 }?.let { "Sleep-Timer: noch ${(it / 60000) + 1} Min." },
+            s?.fadeLeft?.takeIf { it > 0 }?.let { "Ausfaden: noch ${(it / 60000) + 1} Min." }
+        ).joinToString(" · "),
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+    )
     val next = s?.upcoming.orEmpty()
     if (next.isNotEmpty()) {
         SectionTitle("Als Nächstes")
@@ -289,7 +323,7 @@ private fun InJam(vm: MusicViewModel, onBrowse: (String) -> Unit) {
                 EntryCover(e, Modifier.size(36.dp).clip(RoundedCornerShape(6.dp)))
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
                     Text(e.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${e.artist} · von ${Jam.memberName(e.owner)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${e.artist} · " + whoText(e), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -300,7 +334,8 @@ private fun InJam(vm: MusicViewModel, onBrowse: (String) -> Unit) {
     for (m in s?.members.orEmpty()) {
         val me = m.id == Jam.myId
         Row(Modifier.fillMaxWidth().then(if (me) Modifier else Modifier.clickable { onBrowse(m.id) }).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+            JamAvatar(m.id, m.name)
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(m.name + if (me) " (du)" else "", style = MaterialTheme.typography.titleMedium)
                 Text((if (m.id == s?.hostId) "Host" else "Gast") + if (m.id == s?.speaker) " · spielt gerade ab" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -315,7 +350,7 @@ private fun InJam(vm: MusicViewModel, onBrowse: (String) -> Unit) {
         AlertDialog(
             onDismissRequest = { kick = null },
             title = { Text("${m.name} entfernen?") },
-            text = { Text("${m.name} fliegt aus dem Jam und kann diesem Jam nicht wieder beitreten. Bei einem neuen Jam geht es wieder.") },
+            text = { Text("${m.name} fliegt aus dem Jam. Will ${m.name} wieder rein, bekommst du eine Anfrage und entscheidest selbst.") },
             confirmButton = { TextButton(onClick = { Jam.kick(m.id); kick = null }) { Text("Entfernen", color = ORANGE) } },
             dismissButton = { TextButton(onClick = { kick = null }) { Text("Abbrechen") } }
         )
@@ -341,6 +376,12 @@ private fun InJam(vm: MusicViewModel, onBrowse: (String) -> Unit) {
     ) { Text(if (host) "Jam beenden" else "Jam verlassen", color = ORANGE) }
 }
 
+/** „eingereiht von Max · Lied von Tablet“ (Lied-Herkunft nur, wenn das jemand anderes ist). */
+private fun whoText(e: JamEntry): String {
+    val by = e.by.ifBlank { e.owner }
+    return "eingereiht von ${Jam.memberName(by)}" + if (e.owner != by) " · Lied von ${Jam.memberName(e.owner)}" else ""
+}
+
 @Composable
 private fun EntryCover(e: JamEntry, modifier: Modifier) {
     if (e.owner == Jam.myId) {
@@ -356,7 +397,7 @@ private fun SectionTitle(text: String) {
 
 // ---------- Bibliothek eines anderen ----------
 
-private enum class LibTab(val label: String) { Songs("Lieder"), Albums("Alben"), Artists("Interpreten"), Playlists("Playlists") }
+private enum class LibTab(val label: String) { Songs("Lieder"), Albums("Alben"), Artists("Interpreten"), Playlists("Playlists"), Audiobooks("Hörbücher") }
 
 /** Gruppe in der fremden Bibliothek (Album, Interpret oder Playlist). */
 private data class RemoteGroup(val key: String, val name: String, val sub: String, val tracks: List<RemoteTrack>, val playlist: RemotePlaylist? = null)
@@ -414,10 +455,11 @@ private fun JamLibraryPage(vm: MusicViewModel, owner: String, onBack: () -> Unit
                         LibTab.Artists -> l.tracks.groupBy { it.artist }.map { (a, ts) ->
                             RemoteGroup("a:$a", a, "${ts.size} Lieder · ${ts.count { owned[it.id] != null }} vorhanden", ts.sortedBy { Names.fold(it.title) })
                         }
-                        else -> l.playlists.map { p ->
+                        // Playlists und Hörbücher/Podcasts getrennt – wie in der eigenen Bibliothek
+                        else -> l.playlists.filter { it.audio == (tab == LibTab.Audiobooks) }.map { p ->
                             val ts = p.trackIds.mapNotNull { l.byId[it] }
                             RemotePlaylist(p.id, if (p.favorites) "Lieblingssongs" else p.name, p.audio, p.favorites, p.trackIds).let { pl ->
-                                RemoteGroup("p:${p.id}", pl.name, (if (p.audio) "Hörbuch/Podcast · " else "") + "${ts.size} Lieder · ${ts.count { owned[it.id] != null }} vorhanden", ts, p)
+                                RemoteGroup("p:${p.id}", pl.name, "${ts.size} " + (if (p.audio) "Titel" else "Lieder") + " · ${ts.count { owned[it.id] != null }} vorhanden", ts, p)
                             }
                         }
                     }.filter { gr -> hit(gr.name, gr.sub) }.sortedBy { Names.fold(it.name) }
@@ -463,8 +505,8 @@ private fun GroupPage(owner: String, g: RemoteGroup, owned: Map<Long, Track>, on
             Icon(Icons.Filled.Download, null); Spacer(Modifier.width(6.dp))
             Text(
                 when {
-                    isList && missing.isEmpty() -> "Playlist übernehmen (alle Lieder schon da)"
-                    isList -> "Playlist übernehmen · ${missing.size} Lieder laden"
+                    isList && missing.isEmpty() -> (if (g.playlist?.audio == true) "Hörbuch" else "Playlist") + " übernehmen (alles schon da)"
+                    isList -> (if (g.playlist?.audio == true) "Hörbuch" else "Playlist") + " übernehmen · ${missing.size} laden"
                     missing.isEmpty() -> "Alles schon vorhanden"
                     else -> "Übernehmen · ${missing.size} Lieder laden"
                 }

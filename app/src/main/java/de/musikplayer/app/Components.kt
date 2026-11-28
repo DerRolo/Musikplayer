@@ -209,6 +209,7 @@ fun TrackRow(
         val openArtist = actions.onOpenArtist
         val canOpen = openArtist != null && track.artist != UNKNOWN_ARTIST
         val fav = actions.isFavorite(track)
+        val jamLocked = Jam.editLocked
         val plays = Store.playCounts[track.path] ?: 0
         val showAlbum = Store.showAlbum && track.albumName.isNotBlank()
         val subStyle = MaterialTheme.typography.bodySmall.copy(fontSize = subSp)
@@ -276,8 +277,8 @@ fun TrackRow(
                                 if (!compact) IconButton(onClick = { actions.onAddToPlaylist(track) }, modifier = Modifier.size(btnW, btnH)) {
                                     Icon(Icons.Filled.Add, "Zu Playlist", Modifier.size(iconDp), tint = muted)
                                 }
-                                IconButton(onClick = { actions.onBlock(track) }, modifier = Modifier.size(btnW, btnH)) {
-                                    Icon(Icons.Filled.Lock, "Sperren", Modifier.size(iconDp), tint = ORANGE)
+                                IconButton(onClick = { actions.onBlock(track) }, enabled = !jamLocked, modifier = Modifier.size(btnW, btnH)) {
+                                    Icon(Icons.Filled.Lock, "Sperren", Modifier.size(iconDp), tint = if (jamLocked) muted.copy(alpha = 0.35f) else ORANGE)
                                 }
                             }
                         }
@@ -293,8 +294,8 @@ fun TrackRow(
                     IconButton(onClick = { actions.onToggleFavorite(track) }, modifier = Modifier.size(btnW, btnH)) {
                         Icon(if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Lieblingssong", Modifier.size(iconDp), tint = if (fav) HEART_PINK else muted)
                     }
-                    IconButton(onClick = { actions.onBlock(track) }, modifier = Modifier.size(btnW, btnH)) {
-                        Icon(Icons.Filled.Lock, "Sperren", Modifier.size(iconDp), tint = ORANGE)
+                    IconButton(onClick = { actions.onBlock(track) }, enabled = !jamLocked, modifier = Modifier.size(btnW, btnH)) {
+                        Icon(Icons.Filled.Lock, "Sperren", Modifier.size(iconDp), tint = if (jamLocked) muted.copy(alpha = 0.35f) else ORANGE)
                     }
                 }
                 Box {
@@ -307,16 +308,24 @@ fun TrackRow(
                             if (fav) "Aus Lieblingssongs entfernen" else "Zu Lieblingssongs",
                             if (fav) Icons.Outlined.FavoriteBorder else Icons.Filled.Favorite
                         ) { menu = false; actions.onToggleFavorite(track) }
-                        MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
+                        // Im Jam sind alle Bearbeiten-Funktionen ausgeblendet (außer alle erlauben es in den Developer Options)
+                        if (!jamLocked) MenuItem("Interpret zuordnen", Icons.Filled.Person) { menu = false; actions.onAssignArtist(track) }
                         actions.onRemoveFromPlaylist?.let { rm ->
                             MenuItem(actions.removeLabel, Icons.Filled.RemoveCircleOutline) { menu = false; rm(track) }
                         }
-                        MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
-                        actions.onNormalize?.let { nz -> MenuItem("Lautstärke angleichen …", Icons.Filled.GraphicEq, warn = true) { menu = false; nz(listOf(track)) } }
-                        MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }
+                        if (!jamLocked) {
+                            MenuItem("Datei bearbeiten …", Icons.Filled.Edit, warn = true) { menu = false; actions.onRename(track) }
+                            actions.onNormalize?.let { nz -> MenuItem("Lautstärke angleichen …", Icons.Filled.GraphicEq, warn = true) { menu = false; nz(listOf(track)) } }
+                            MenuItem("Cover ändern …", Icons.Filled.Image) { menu = false; actions.onCover(track) }
+                        }
                         MenuItem("Datei im Ordner zeigen", Icons.Filled.FolderOpen) { menu = false; actions.onShowFile(track) }
-                        MenuItem("Sperren", Icons.Filled.Lock, warn = true) { menu = false; actions.onBlock(track) }
-                        MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
+                        if (!jamLocked) {
+                            MenuItem("Sperren", Icons.Filled.Lock, warn = true) { menu = false; actions.onBlock(track) }
+                            MenuItem("Löschen …", Icons.Filled.Delete, danger = true) { menu = false; actions.onDelete(track) }
+                        } else Text(
+                            "Bearbeiten ist im Jam aus", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
                     }
                 }
             }
