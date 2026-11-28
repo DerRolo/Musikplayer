@@ -32,6 +32,16 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
 
 ---
 
+## Update 20 – Jam-Reiter, Versionen 1.1, 1.2 … *(umgesetzt, Gerätetest offen)*
+
+- [~] **Reiter unten neu:** Bibliothek · Playlists · Hörbücher · Jam · Optionen. Der Such-Reiter ist weg, die Suche steckt im Suchfeld oben in der Bibliothek (findet dasselbe).
+  - Der Jam ist aus den Optionen in seinen eigenen Reiter gezogen. Pop-up und Jam-Leiste öffnen ihn direkt. Nochmal auf den Reiter tippen führt aus einer fremden Bibliothek zurück zur Jam-Übersicht.
+- [~] **Versionsnummern:** statt 1.0.102 jetzt **1.1, 1.2, 1.3 …** – jeder Build auf GitHub zählt eins hoch. Der Build sucht dafür die letzte 1.x-Version unter den Releases.
+  - Auf GitHub heißt der Release „Musikplayer 1.3“, die APK `Musikplayer-1.3.apk`. Der Tag lautet `v1.3-build.105`: Die Build-Nummer am Ende braucht Android für die Reihenfolge, und so finden auch die bisher installierten Versionen das Update.
+  - In der App (Optionen → App-Update, Update-Dialog) steht nur „1.3“.
+
+**Test:** Nach dem Build auf GitHub: Release heißt „Musikplayer 1.1“. In der App: Update-Dialog zeigt „Neue Version 1.1“, nach dem Installieren steht „Version 1.1“. Reiter unten prüfen, Jam-Pop-up öffnet den Jam-Reiter.
+
 ## Update 19 – Markieren, „Nur dieses Lied“, Cover-Suche, Playlist-Dialog *(umgesetzt, Gerätetest offen)*
 
 - [~] **Markieren:** Ein Tipp auf Interpret oder Album in einer Liedzeile markiert nur noch die Zeile, statt zum Interpreten zu springen.
@@ -145,7 +155,7 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
   - Sortierung: „Meistgehört von <Name>“ (Standard), Name, Interpret, Länge, Zuletzt hinzugefügt bzw. Meiste Lieder.
   - Die Wiedergabezahlen des anderen werden angezeigt („12× gehört“), nur zum Entdecken. Beim Übernehmen kommen sie nicht mit.
 - Kleinigkeit: Der Leertext bei Playlists sprach von Hörbüchern, das ist korrigiert.
-- **Offen zur Entscheidung:** Der Such-Reiter unten ist jetzt doppelt, weil die Bibliothek dasselbe kann. Vorschlag: ihn durch einen **Jam-Reiter** ersetzen und den Jam aus den Optionen dorthin holen.
+- [x] Such-Reiter durch Jam-Reiter ersetzt → siehe Update 20.
 
 ## Update 12 – Jam-Feinschliff nach dem ersten Test *(umgesetzt, Gerätetest offen)*
 
@@ -208,7 +218,7 @@ Abhakliste für alle geplanten Updates. Wird bei jedem Update mitgepflegt.
   - Hat jemand einen Jam gestartet → „Jam beitreten“.
 - [~] **Beitreten ohne Bestätigung:** Jeder im WLAN kann einem laufenden Jam beitreten.
 - [~] Der Host sieht auf der Jam-Seite, wer im Jam ist und wer sonst im WLAN ist. Er kann Leute entfernen, die dann diesem Jam nicht wieder beitreten können. Ein neuer Jam beginnt frisch.
-- [~] Schalter „Im WLAN sichtbar“ (Optionen → Jam).
+- [~] Schalter „Im WLAN sichtbar“ (Reiter Jam).
 - [~] Die Bibliothek jedes anderen Mitglieds ansehen: Lieder, Alben, Interpreten, Playlists und Hörbücher, mit Suche und Covern.
 - [~] **Komplett übernehmen** (Lied, Album, Interpret, Playlist, auch direkt aus dem Player):
   - Die Dateien kommen gleich an den richtigen Ort: `Music/<Interpret>/<Album>/`, ohne Album nach `Music/<Interpret>/`.

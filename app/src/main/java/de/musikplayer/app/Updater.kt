@@ -26,7 +26,10 @@ import java.net.URL
  */
 object Updater {
 
-    data class Release(val tag: String, val number: Int, val notes: String, val apkUrl: String, val size: Long)
+    data class Release(val tag: String, val number: Int, val notes: String, val apkUrl: String, val size: Long) {
+        /** Anzeige-Version, z. B. „1.3“ aus dem Tag „v1.3-build.105“ (alte Tags „v1.0.102“ bleiben „1.0.102“). */
+        val name: String get() = tag.removePrefix("v").substringBefore("-build")
+    }
 
     /** Gefundenes neueres Update (null = keins bzw. noch nicht gesucht). */
     var available by mutableStateOf<Release?>(null)
@@ -75,6 +78,8 @@ object Updater {
                     }
                     val o = JSONObject(c.inputStream.use { String(it.readBytes()) })
                     val tag = o.optString("tag_name")
+                    // Build-Nummer = Zahl nach dem letzten Punkt („v1.3-build.105“ → 105). So erkennen auch ältere
+                    // App-Versionen, die nur diese Regel kennen, das neue Update.
                     val num = tag.substringAfterLast('.').filter { it.isDigit() }.toIntOrNull() ?: 0
                     val assets = o.optJSONArray("assets")
                     var url = ""; var size = 0L
@@ -105,7 +110,7 @@ object Updater {
             try { app.startActivity(i) } catch (e: Exception) { }
             return
         }
-        status = "Lade ${rel.tag} …"
+        status = "Lade Version ${rel.name} …"
         progress = 0f
         val file = File(app.cacheDir, "update.apk")
         val ok = withContext(Dispatchers.IO) {

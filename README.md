@@ -41,7 +41,7 @@ Die App ist nicht nur ein Player, sondern auch ein Aufräumwerkzeug für eine un
 
 ## Jam (zusammen hören im WLAN)
 
-Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im selben WLAN ist.
+Im eigenen Reiter **Jam** unten, oder über das Pop-up, sobald jemand mit der App im selben WLAN ist.
 
 - **Jam erstellen oder beitreten** wie bei Spotify. Jeder im WLAN kann einem Jam ohne Bestätigung beitreten. Der Host sieht, wer dabei ist (und wer sonst noch im WLAN ist), und kann Leute wieder entfernen.
 - **Eine gemeinsame Ausgabe:** Gespielt wird an genau einer Stelle, zum Beispiel am Handy des Hosts, an der Bluetooth-Box des Hosts oder am Handy bzw. der Box eines Gasts. Jeder im Jam kann sie wählen (großer Player → Warteschlange → Ausgabe-Knopf rechts oben, oder auf der Jam-Seite). Beim Wechsel zieht die Wiedergabe samt Warteschlange und Stelle auf das neue Gerät um.
@@ -68,13 +68,13 @@ Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im 
 ## App-Update
 
 - Die App sucht beim Start in den GitHub-Releases nach einer neuen Version. Gibt es eine, erscheint „Update bereit“ → „Installieren“, danach kommt die Bestätigung von Android.
-- In Optionen → App-Update siehst du die installierte Version, kannst die automatische Suche abschalten oder „Jetzt suchen“ tippen.
+- Versionen heißen 1.1, 1.2, 1.3 … (jeder Build auf GitHub zählt eins hoch). In Optionen → App-Update siehst du die installierte Version, kannst die automatische Suche abschalten oder „Jetzt suchen“ tippen.
 - Das funktioniert nur, wenn das Repository öffentlich ist.
 
 ## Bibliothek, Suche und Aufbau
 
 - Die Bibliothek hat drei Reiter: **Bibliothek** (alle Titel), **Interpreten** und **Alben**.
-- Das Suchfeld oben in der Bibliothek sucht überall, genau wie der Such-Reiter: Titel, Interpreten, Alben, Playlists und Hörbücher, mit Vorschlägen.
+- Das Suchfeld oben in der Bibliothek sucht überall: Titel, Interpreten, Alben, Playlists und Hörbücher, mit Vorschlägen. Einen eigenen Such-Reiter gibt es dafür nicht mehr.
 - Die gewählte Sortierung bleibt auch nach einem Neustart erhalten.
 - Alle Reiter sind gleich aufgebaut:
   1. Suchfeld.
@@ -85,7 +85,7 @@ Unter **Optionen → Jam**, oder über das Pop-up, sobald jemand mit der App im 
 
 ## Bibliothek und Ordnung
 
-- **Reiter:** Bibliothek, Interpreten (Liste oder Kacheln, mit A–Z-Leiste), Playlists, Suche, Einstellungen.
+- **Reiter unten:** Bibliothek (mit Interpreten und Alben), Playlists, Hörbücher, Jam, Optionen.
 - **Interpreten:** eigene Seite mit Profilbild, „Alle Songs abspielen“, Shuffle, Meistgehört und Alben. Mit einem Stern markierst du Favoriten-Interpreten und kannst die Liste darauf filtern.
 - **Playlists und Hörbücher/Podcasts:** getrennte Listen, ineinander umwandelbar. Alles liegt nur in der App, es werden keine Dateien kopiert. Lieblingssongs sind eine eigene Liste mit Herz.
 - **Suche:** sucht live in Titeln, Interpreten und Playlists, ohne Rücksicht auf Akzente und Groß- oder Kleinschreibung.

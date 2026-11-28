@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Search
@@ -37,7 +38,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 
-private val TAB_TITLES = listOf("Bibliothek", "Suche", "Playlists", "Hörbücher", "Optionen")
+// Die Suche steckt in der Bibliothek (Suchfeld oben); dafür hat der Jam einen eigenen Reiter.
+private val TAB_TITLES = listOf("Bibliothek", "Playlists", "Hörbücher", "Jam", "Optionen")
 
 @Composable
 fun MusicApp(vm: MusicViewModel) {
@@ -102,7 +104,7 @@ fun MusicApp(vm: MusicViewModel) {
     LaunchedEffect(Jam.message) {
         Jam.message?.let { vm.message = it; Jam.message = null }
     }
-    val openJam = { vm.settingsPageRequest = "jam"; backTo = null; tab = 4; showPlayer = false }
+    val openJam = { backTo = null; tab = 3; showPlayer = false }
 
     val actions = TrackActions(
         onPlayNext = { vm.playNext(listOf(it)) },
@@ -149,7 +151,7 @@ fun MusicApp(vm: MusicViewModel) {
                             else if (tg != null && tg.startsWith("pl:")) {
                                 val id = tg.removePrefix("pl:")
                                 playlistToOpen = id
-                                tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 3 else 2
+                                tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 2 else 1
                                 showPlayer = false
                                 data.dismiss()
                             }
@@ -181,7 +183,7 @@ fun MusicApp(vm: MusicViewModel) {
                 JamBar(onOpen = openJam)
                 if (!showPlayer) MiniPlayer(vm, onAddToPlaylist = { addToPlaylist = listOf(it) }, onEdit = { stagedCoverUri = null; stagedCoverUrl = null; stagedCoverReset = false; renameTrack = it }) { showPlayer = true }
                 NavigationBar {
-                    val icons = listOf(Icons.Filled.LibraryMusic, Icons.Filled.Search, Icons.Filled.PlaylistPlay, Icons.Filled.Headphones, Icons.Filled.Settings)
+                    val icons = listOf(Icons.Filled.LibraryMusic, Icons.Filled.PlaylistPlay, Icons.Filled.Headphones, Icons.Filled.Groups, Icons.Filled.Settings)
                     TAB_TITLES.forEachIndexed { i, title ->
                         NavigationBarItem(
                             selected = !showPlayer && tab == i,
@@ -207,7 +209,7 @@ fun MusicApp(vm: MusicViewModel) {
                     nav = PlayerNav(
                         onArtist = { backTo = tab to showPlayer; artistToOpen = it; tab = 0; showPlayer = false },
                         onLocate = { t -> backTo = tab to showPlayer; artistToOpen = t.artist; tab = 0; showPlayer = false },
-                        onPlaylist = { id -> backTo = tab to showPlayer; playlistToOpen = id; tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 3 else 2; showPlayer = false }
+                        onPlaylist = { id -> backTo = tab to showPlayer; playlistToOpen = id; tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 2 else 1; showPlayer = false }
                     )
                 ) { showPlayer = false }
             } else holder.SaveableStateProvider(tab) { when (tab) {
@@ -215,33 +217,29 @@ fun MusicApp(vm: MusicViewModel) {
                     originBack = backTo?.let { b -> { backTo = null; tab = b.first; showPlayer = b.second } },
                     onArtistClosed = { backTo = null },
                     // Playlist/Hörbuch aus der Suche oben in der Bibliothek: Zurück führt wieder zur Suche
-                    onOpenPlaylist = { id -> backTo = tab to showPlayer; playlistToOpen = id; tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 3 else 2; showPlayer = false })
-                1 -> SearchTab(
-                    vm, actions, resets[1],
-                    onOpenArtist = { backTo = tab to showPlayer; artistToOpen = it; tab = 0; showPlayer = false },
-                    onOpenPlaylist = { id -> backTo = tab to showPlayer; playlistToOpen = id; tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 3 else 2; showPlayer = false }
-                )
-                2 -> PlaylistsTab(
+                    onOpenPlaylist = { id -> backTo = tab to showPlayer; playlistToOpen = id; tab = if (vm.playlists.firstOrNull { it.id == id }?.audio == true) 2 else 1; showPlayer = false })
+                1 -> PlaylistsTab(
                     vm, actions,
                     onNew = { newPlaylistFor = emptyList() },
                     onRename = { renameList = it },
                     onDeleteList = { deleteList = it },
                     openRequest = playlistToOpen,
                     onConsumed = { playlistToOpen = null },
-                    reset = resets[2],
+                    reset = resets[1],
                     originBack = backTo?.let { b -> { backTo = null; tab = b.first; showPlayer = b.second } }
                 )
-                3 -> PlaylistsTab(
+                2 -> PlaylistsTab(
                     vm, actions,
                     onNew = { newAudioList = true },
                     onRename = { renameList = it },
                     onDeleteList = { deleteList = it },
                     openRequest = playlistToOpen,
                     onConsumed = { playlistToOpen = null },
-                    reset = resets[3],
+                    reset = resets[2],
                     audio = true,
                     originBack = backTo?.let { b -> { backTo = null; tab = b.first; showPlayer = b.second } }
                 )
+                3 -> JamPage(vm, onBack = null, reset = resets[3])
                 else -> SettingsTab(vm, actions, sel, resets[4])
             } }
         }

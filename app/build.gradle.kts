@@ -14,7 +14,8 @@ android {
         // Fortlaufende Build-Nummer aus GitHub Actions (run_number) – die App vergleicht damit beim Update-Check
         val buildNumber = (project.findProperty("buildNumber") as String?)?.toIntOrNull() ?: 1
         versionCode = buildNumber
-        versionName = "1.0.$buildNumber"
+        // Anzeige-Version 1.1, 1.2, … (zählt der Build auf GitHub hoch); versionCode bleibt die Build-Nummer
+        versionName = (project.findProperty("appVersion") as String?)?.takeIf { it.isNotBlank() } ?: "1.0.$buildNumber"
         // Woher Updates kommen (owner/repo), wird vom Workflow gesetzt
         resValue("string", "update_repo", (project.findProperty("updateRepo") as String?) ?: "")
     }

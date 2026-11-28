@@ -50,7 +50,7 @@ fun UpdateDialog() {
         title = { Text("Update bereit") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Neue Version ${rel.tag} (installiert: ${Updater.installedName(ctx)})", style = MaterialTheme.typography.titleSmall)
+                Text("Neue Version ${rel.name} (installiert: ${Updater.installedName(ctx)})", style = MaterialTheme.typography.titleSmall)
                 if (rel.notes.isNotBlank()) Text(
                     shortNotes(rel.notes), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.heightIn(max = 180.dp).verticalScroll(rememberScrollState())
@@ -86,12 +86,12 @@ fun UpdatePage(onBack: () -> Unit) {
         }
         Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { scope.launch { Updater.check(ctx, manual = true) } }, enabled = Updater.progress < 0f) { Text("Jetzt suchen") }
-            if (rel != null) Button(onClick = { scope.launch { Updater.install(ctx, rel) } }, enabled = Updater.progress < 0f) { Text("${rel.tag} installieren") }
+            if (rel != null) Button(onClick = { scope.launch { Updater.install(ctx, rel) } }, enabled = Updater.progress < 0f) { Text("Version ${rel.name} installieren") }
         }
         if (Updater.progress >= 0f) LinearProgressIndicator(progress = { Updater.progress }, modifier = Modifier.fillMaxWidth().padding(16.dp))
         Updater.status?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = ORANGE, modifier = Modifier.padding(16.dp)) }
         if (rel != null && rel.notes.isNotBlank()) {
-            Text("Neu in ${rel.tag}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+            Text("Neu in Version ${rel.name}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
             Text(shortNotes(rel.notes), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         }
         Text(

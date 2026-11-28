@@ -189,8 +189,10 @@ fun JamDialogs(onOpenJam: () -> Unit) {
 // ---------- Jam-Seite ----------
 
 @Composable
-fun JamPage(vm: MusicViewModel, onBack: () -> Unit) {
+fun JamPage(vm: MusicViewModel, onBack: (() -> Unit)? = null, reset: Int = 0) {
     var browse by rememberSaveable { mutableStateOf<String?>(null) }
+    // Nochmal auf den Jam-Reiter tippen: zurück auf die Jam-Übersicht
+    LaunchedEffect(reset) { if (reset > 0) browse = null }
     // Scroll-Position der Jam-Seite bleibt erhalten, wenn man eine Bibliothek öffnet und zurückkommt
     val pageScroll = rememberScrollState()
     val owner = browse
@@ -201,7 +203,8 @@ fun JamPage(vm: MusicViewModel, onBack: () -> Unit) {
     }
     val ctx = LocalContext.current.applicationContext
     Column(Modifier.fillMaxSize().verticalScroll(pageScroll)) {
-        PageHeader("Jam", onBack)
+        if (onBack != null) PageHeader("Jam", onBack)
+        else Text("Jam", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp))
         Text(
             "Zusammen Musik hören mit Handys im selben WLAN – wie bei Spotify. Es gibt eine gemeinsame Ausgabe: ein Handy oder " +
                 "eine verbundene Box von irgendwem im Jam. Jeder kann Lieder starten, einreihen und die Ausgabe wechseln. " +

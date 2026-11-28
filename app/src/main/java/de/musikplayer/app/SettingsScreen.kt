@@ -78,7 +78,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Jam, Trash, Profile, Update, Backup, Theme, Download }
+private enum class Page { Menu, New, Folders, Sort, Names, Dupes, Cleanup, Strip, Blocked, Developer, DeveloperPreview, Trash, Profile, Update, Backup, Theme, Download }
 
 @Composable
 fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset: Int) {
@@ -86,7 +86,6 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
     OnReset(reset) { page = Page.Menu }
     LaunchedEffect(vm.settingsPageRequest) {
         if (vm.settingsPageRequest == "blocked") { page = Page.Blocked; vm.settingsPageRequest = null }
-        if (vm.settingsPageRequest == "jam") { page = Page.Jam; vm.settingsPageRequest = null }
         if (vm.settingsPageRequest == "trash") { page = Page.Trash; vm.settingsPageRequest = null }
     }
     BackHandler(enabled = page != Page.Menu) { page = if (page == Page.DeveloperPreview) Page.Developer else Page.Menu }
@@ -96,7 +95,6 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
             MenuEntry(Icons.Filled.SystemUpdate, "App-Update", "Version ${Updater.installedName(LocalContext.current)} · automatisch nach Updates suchen") { page = Page.Update }
             MenuEntry(Icons.Filled.Palette, "Design", "Hell, dunkel oder wie das System · Farbvorlagen") { page = Page.Theme }
             MenuEntry(Icons.Filled.AccountCircle, "Profil", "Name und Profilbild, die andere im Jam sehen") { page = Page.Profile }
-            MenuEntry(Icons.Filled.Groups, "Jam", "Mit Handys im selben WLAN zusammen hören und Musik übernehmen") { page = Page.Jam }
             // Im Jam sind die Bearbeiten-Werkzeuge gesperrt (außer alle erlauben es in den Developer Options)
             val locked = Jam.editLocked
             if (locked) Text(
@@ -161,7 +159,6 @@ fun SettingsTab(vm: MusicViewModel, actions: TrackActions, sel: Selection, reset
         Page.Blocked -> BlockedPage(vm) { page = Page.Menu }
         Page.Developer -> DeveloperOptionsPage(vm, onOpenPreview = { page = Page.DeveloperPreview }) { page = Page.Menu }
         Page.DeveloperPreview -> DeveloperPreviewPage(vm) { page = Page.Developer }
-        Page.Jam -> JamPage(vm) { page = Page.Menu }
         Page.Trash -> TrashPage(vm) { page = Page.Menu }
         Page.Profile -> ProfilePage { page = Page.Menu }
         Page.Update -> UpdatePage { page = Page.Menu }
